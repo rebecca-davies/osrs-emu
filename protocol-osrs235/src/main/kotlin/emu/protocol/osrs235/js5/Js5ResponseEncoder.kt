@@ -18,7 +18,6 @@ object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
         stream[1] = (message.group ushr 8).toByte()
         stream[2] = message.group.toByte()
         c.copyInto(stream, 3)
-        if (message.prefetch && c.isNotEmpty()) stream[3] = (stream[3].toInt() or 0x80).toByte()
 
         val outSize = if (stream.size <= 512) stream.size else stream.size + (stream.size - 512 + 510) / 511
         val out = ByteArray(outSize)

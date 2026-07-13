@@ -4,18 +4,25 @@ Goal: make a fresh RuneLite injected-client JS5-download our cache from `127.0.0
 render the OSRS login screen (the first screenshottable milestone). Login-screen render needs only
 JS5 + cache — no RSA/login patch.
 
-**Status: partial.** The client now connects to our gateway, completes the JS5 handshake, and
-downloads real cache groups from us (1000+ groups, byte-for-byte correct). It does **not** yet reach
-the rendered login screen — it stalls in the client's own JS5 loading state after reporting
-`error_game_js5crc`. Root cause of the remaining block is a **cache revision mismatch** (our
-`cache-data` is OSRS rev 235; the freshly-cloned RuneLite is rev **239**), documented below. Every
-other layer is proven correct.
+**Status: SUCCESS — the OSRS login screen renders against our local gateway (2026-07-14, rev 239).**
+The client connects to our gateway, handshakes at rev 239, downloads the whole login-screen cache
+from us (35k+ groups across 17 archives, 0 misses), reaches `GameState.LOGIN_SCREEN` / "Cache is
+ready", and renders the Old School title screen + world-select ("World 528") + RuneLite login form.
+
+The final blocker was **not** the rev-235/239 cache mismatch that the earlier notes hypothesised.
+Re-fetching `cache-data` at rev 239 (OpenRS2 id 2620) did **not** fix `error_game_js5crc` — the
+client failed identically. The real cause was a **gateway bug in the JS5 prefetch response
+encoding** (fix #6 below): we set the 0x80 "prefetch" bit on the compression byte, which this
+injected client rejects, so it discarded and re-requested every prefetched group until its
+CRC-failure counter tripped `js5crc`. Removing that one line reaches the login screen. See §3.
 
 Screenshots of the actual states are in `tools/verify/verify-shots/` (that dir is gitignored):
+- `rev239-LOGIN-SCREEN-2.png` — **the win**: the rendered OSRS login screen ("Welcome to RuneScape",
+  Play Now, saved account, "World 528 – Click to switch") served entirely from our rev-239 gateway.
+- `rev239-LOGIN-SCREEN.png` — same login screen with the first-run EULA accept dialog.
 - `login-js5-connecting-to-update-server.png` — the client's native "Connecting to update server"
-  JS5 loading bar rendering against OUR gateway (only appears once the JS5 handshake succeeds and
-  the cache download begins). This is the strongest visual proof the pipeline works.
-- `login-js5crc-blocked-state.png` — the stalled black-canvas state after `error_game_js5crc`.
+  JS5 loading bar rendering against OUR gateway.
+- `login-js5crc-blocked-state.png` — the old stalled black-canvas state (pre-fix), after `error_game_js5crc`.
 
 ---
 
@@ -67,6 +74,7 @@ real client. Each fix below was verified end-to-end. Files are in the tracked em
 | 3 | Still `js5io`; the master-index request `store.read(255,255)` returned **null** although `cache-data/cache/255/255.dat` exists. Gradle's `run` task uses the **subproject** dir as CWD, so `FlatFileStore(File("cache-data"))` resolved to `gateway/cache-data` (absent). | `gateway/build.gradle.kts`: `tasks.named<JavaExec>("run") { workingDir = rootProject.projectDir }`. |
 | 4 | Still `js5io`. The stored `.dat` containers carry a trailing **2-byte version**; the JS5 client sizes each group from its `[compression][length]` header (`5|9 + compressedLength`) and reads exactly that, never the trailer. Sending it left 2 stray bytes that desynced the next group. | `Js5ResponseEncoder`: `servedBytes()` truncates each container to its header-declared length. Index groups (archive 255) have no trailer, so nothing is dropped there. |
 | 5 | `js5io` → **`js5crc`** progress. Most connections send JS5 control **opcode 4** with a random **XOR key** (e.g. 0x7F, 0x99) and expect every response byte XORed with it; we were sending plaintext. | New `crypto/Js5XorCipher` (mutable key); `Js5Handler` sets the key from opcode 4; `Js5ResponseEncoder` XORs every outgoing byte via the per-connection cipher the pipeline already threads through `ProtocolStage`. Plaintext connections use key 0 (no-op). |
+| 6 | **`js5crc` (the real final blocker).** The client fetches archive indexes (**urgent**, opcode 1) fine but re-requests every **prefetched** group (opcode 0) ~5× then gives up with `js5crc`. Isolation: every urgent group succeeded (incl. a 309 KB multi-block group); every prefetch group (all 1014 archive-4 requests) was retried. The only encoder difference was `stream[3] \|= 0x80` — setting the "prefetch" bit on the group's **compression byte**. This client never masks that bit off, so it reads an invalid compression type, discards the group, and re-requests it. | `Js5ResponseEncoder`: **delete the `if (prefetch) stream[3] \|= 0x80` line.** Prefetch and urgent responses are now byte-identical; the request opcode (0 vs 1) is the only prefetch signal the client uses. One-line fix; it is what actually reaches the login screen. |
 
 After fixes 1–5 the client connects, handshakes (rev 239), sets XOR keys, and downloads real cache
 groups. Verified with a from-scratch Python JS5 client (`scratchpad/js5probe*.py`) that the gateway's
@@ -78,46 +86,42 @@ version-trailer stripping and XOR round-trip.
 
 ---
 
-## 3. The remaining blocker: `error_game_js5crc` (rev-235 cache vs rev-239 client)
+## 3. The real `error_game_js5crc` root cause: the prefetch 0x80 bit (RESOLVED)
 
-After fixes 1–5 the client downloads 400–1100+ groups (heavily archive 4) and then reports
-`error_game_js5crc` and stalls at internal loading state `1000` (black canvas). `js5crc` fires when
-the client's JS5 CRC-failure counter (`qy.ak` in the deobfuscated client) crosses its threshold: a
-downloaded group's CRC-32 does not match the value in the archive index.
+`js5crc` fires when the client's JS5 CRC-failure counter (`qy.ak` in the deobfuscated client) crosses
+its threshold: a downloaded group is discarded (bad/undecodable) and re-requested too many times.
+The earlier notes blamed a rev-235/239 cache mismatch. That was **wrong**. `cache-data` was re-fetched
+at **rev 239** (OpenRS2 id 2620, 116,703 files) and the client failed **identically** — same
+`error_game_js5crc`, same stall at internal loading state `1000` (black canvas).
 
-What was ruled out (all proven, not assumed):
-- **Cache integrity:** a full audit of `cache-data` (every archive index vs the master index, and
-  every group vs its archive index — ~25k+ groups) reports **0 bad, 0 missing**. The cache is 100%
-  internally CRC-consistent.
-- **Gateway output:** capturing the real client's traffic through a logging MITM proxy and parsing
-  it exactly as the client does (deblock 0xFF markers, XOR-decrypt, read header-declared length) —
-  every group on every connection (plaintext + encrypted) has the correct CRC and the streams
-  consume end-to-end with no desync. **Zero corrupt groups served.**
-- **Missing groups:** logging `store.read` misses shows the client never requests a group we lack.
-- **Concurrency:** the gateway runs connection coroutines on the single `runBlocking` dispatcher;
-  the encoder is stateless and the XOR cipher is per-connection, so there is no data race.
-- **GPU rendering:** identical result under `--safe-mode` (GPU plugin disabled), so it is not a
-  render issue — the client genuinely never leaves JS5 loading.
+The rev-239 diagnosis (all measured, not assumed):
+- **Cache integrity (rev 239):** full disk audit — every archive index vs the master `255/255`, and
+  every group vs its archive index (**116,679 groups**) — reports **0 bad, 0 missing**. 100%
+  self-consistent. (The master index `255/255` is a flat table of `N × [crc:u32][version:u32]`, one
+  entry per archive index, *not* a Js5Index.)
+- **Gateway serving (rev 239):** a from-scratch JS5 client audited **every one of the 116,679 groups
+  over the socket**, plaintext **and** XOR (key 0x5a), prefetch and urgent, single- and multi-block —
+  **0 corrupt**. Every CRC matches the index.
+- **Requests (rev 239):** temporary `store.read` logging in `Js5Handler` showed the client made
+  **0 missing requests** and **0 unknown opcodes**; XOR keys arrive via control opcode 4 as expected.
+- **Client-stored bytes:** parsing the client's own `main_file_cache.dat2` showed it received our
+  served container bytes **byte-for-byte**, then appends its own 4-byte version trailer on disk
+  (a storage artifact, not a wire desync). Confirms fix #4 (trailer stripping) is authentic.
 
-Most likely cause: the provided `cache-data` is **OSRS rev 235** content, but the freshly-cloned
-RuneLite injected-client is **rev 239**. The client handshakes at 239 and validates our
-(self-consistent) rev-235 CRCs successfully for the bulk of the download, but the rev-239 client's
-scene/content expectations diverge from rev-235 data enough that its CRC-failure counter eventually
-trips. A stale on-disk Jagex cache in `~/.runelite/jagexcache/oldschool/LIVE/` was also present and
-was cleared for testing (then restored); clearing it did not resolve `js5crc`, which points at the
-content-revision gap rather than local cache pollution.
+**The decisive isolation:** in the `store.read` request log, every **urgent** group request
+(opcode 1 — the archive indexes and a scatter of groups in archives 8/10/13/17, including a 309 KB
+multi-block group) succeeded on the first try, while **every prefetch** group request (opcode 0 —
+all 1014 archive-4 requests) was re-issued ~5× and never accepted, ending in `js5crc`. The *only*
+difference between how the encoder built a prefetch vs an urgent response was one line:
+`if (prefetch) stream[3] |= 0x80` — setting the "prefetch" bit on the group's compression byte. This
+rev-239 injected client does not mask that bit off; it reads e.g. compression `0x82`, treats the
+group as undecodable, discards it, re-requests, and trips the counter.
 
-Secondary observation (not fully isolated): the client cycles/aborts JS5 connections during the
-heavy download (gateway sees `Broken pipe` / `Connection reset by peer` — always client-initiated).
-If the client mishandles a group whose connection it drops mid-transfer, that could also feed the
-CRC-failure counter. This may be aggravated by our single-threaded, file-backed gateway being slower
-than Jagex under the client's aggressive pipelining. The `js5crc` was intermittent early on (one
-22 s run showed zero errors, progressing) and became consistent as more of the (rev-235) cache was
-fetched — consistent with the rev-content gap being the dominant factor.
-
-**Most promising next step: re-fetch `cache-data` at rev 239 to match the client** (or pin the client
-to a rev-235 build). Everything else in the connect → handshake → JS5 → cache pipeline is working and
-proven.
+**Fix (#6): delete that line** so prefetch and urgent responses are byte-identical. After the fix the
+client fetched **35,494 groups across 17 archives (0 misses, 0 retries)**, logged
+`GameState.LOGIN_SCREEN` + "Cache is ready", and **rendered the login screen** (see the win
+screenshot). Everything in connect → handshake → JS5 → cache → login-screen render is now proven
+working end-to-end at rev 239.
 
 ---
 
@@ -140,5 +144,7 @@ client/patches/run-local-client.sh \
 # 5) screenshot (login state)
 tools/verify/screenshot-login.sh -w 60      # captures the current display
 ```
-Expected today: the client renders its native "Connecting to update server" JS5 bar against our
-gateway, downloads real groups, then stalls with `error_game_js5crc` (see §3).
+Expected today (post fix #6): the client renders its "Connecting to update server" JS5 bar against
+our gateway, downloads the full login-screen cache from us, then renders the OSRS **login screen**
+(Old School title + world-select + RuneLite login form). No `error_game_js5crc`. Clear any stale
+`~/.runelite/jagexcache` first so the download comes cleanly from us.

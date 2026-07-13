@@ -23,9 +23,17 @@ class Js5ResponseEncoderTest {
         assertEquals(0, body[3].toInt() and 0xFF)
     }
 
-    @Test fun `prefetch sets 0x80 on compression byte`() {
-        val body = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(2, 3, container(4), true))
-        assertEquals(0x80, body[3].toInt() and 0xFF)
+    @Test fun `prefetch does not alter the compression byte`() {
+        // The rev-239 injected client rejects any response whose compression byte has the 0x80
+        // ("prefetch") bit set: it never masks that bit off, so it reads an invalid compression type,
+        // discards the group, re-requests it, and after enough such failures reports
+        // error_game_js5crc (verified end-to-end — setting 0x80 blocked the login screen, removing it
+        // reaches it). Prefetch and urgent responses must be byte-identical for a given group; the
+        // request opcode (0 vs 1) is the only prefetch signal the client uses.
+        val urgent = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(2, 3, container(4), false))
+        val prefetch = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(2, 3, container(4), true))
+        assertEquals(0, prefetch[3].toInt() and 0xFF)
+        assertEquals(urgent.toList(), prefetch.toList())
     }
 
     @Test fun `large response inserts 0xFF at each block after the first`() {
