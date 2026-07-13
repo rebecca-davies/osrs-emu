@@ -13,19 +13,22 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 
-// Downloads the newest OpenRS2 live oldschool cache whose build major == 235,
+// Target OSRS revision — must match the client. The freshly-cloned RuneLite injected-client
+// is rev 239 (verified from its JS5 handshake). Change this one line to move revisions.
+private const val TARGET_BUILD = 239
+
+// Downloads the newest OpenRS2 live oldschool cache whose build major == TARGET_BUILD,
 // as the flat-file dump, extracting cache/{archive}/{group}.dat into ./cache-data/.
 fun main() {
     val base = "https://archive.openrs2.org"
     val caches = URI("$base/caches.json").toURL().readText()
-    // Minimal JSON scan: find the newest id with game oldschool, env live, build major 235.
-    val selection = selectBuild235Id(caches)
+    val selection = selectCacheId(caches)
         ?: error("No live oldschool cache found in caches.json")
     val id = selection.id
-    if (selection.build != 235) {
+    if (selection.build != TARGET_BUILD) {
         println(
-            "WARNING: no build-235 live oldschool cache found in caches.json; " +
-                "falling back to newest live oldschool build <= 235 (build=${selection.build}, id=$id). " +
+            "WARNING: no build-$TARGET_BUILD live oldschool cache found in caches.json; " +
+                "falling back to newest live oldschool build <= $TARGET_BUILD (build=${selection.build}, id=$id). " +
                 "The served revision may not match the client!"
         )
     }
@@ -72,9 +75,9 @@ private fun fetchMasterIndex(base: String, id: Int, outDir: File) {
     }
 }
 
-private data class Build235Selection(val id: Int, val build: Int)
+private data class CacheSelection(val id: Int, val build: Int)
 
-private fun selectBuild235Id(json: String): Build235Selection? {
+private fun selectCacheId(json: String): CacheSelection? {
     val arr = Json.parseToJsonElement(json).jsonArray
     var best: Int? = null
     var bestTs: String = ""
@@ -93,26 +96,26 @@ private fun selectBuild235Id(json: String): Build235Selection? {
         val ts = o["timestamp"]?.jsonPrimitive?.contentOrNull ?: ""
         val id = o["id"]?.jsonPrimitive?.intOrNull ?: continue
 
-        if (majors.any { it == 235 }) {
+        if (majors.any { it == TARGET_BUILD }) {
             if (best == null || ts > bestTs) {
                 best = id
                 bestTs = ts
-                bestBuild = 235
+                bestBuild = TARGET_BUILD
             }
         }
 
-        // Fallback candidate: newest live oldschool cache with build major <= 235.
-        val maxMajorLe235 = majors.filter { it <= 235 }.maxOrNull()
-        if (maxMajorLe235 != null) {
+        // Fallback candidate: newest live oldschool cache with build major <= TARGET_BUILD.
+        val maxMajorLe = majors.filter { it <= TARGET_BUILD }.maxOrNull()
+        if (maxMajorLe != null) {
             if (fallbackBest == null || ts > fallbackTs) {
                 fallbackBest = id
                 fallbackTs = ts
-                fallbackBuild = maxMajorLe235
+                fallbackBuild = maxMajorLe
             }
         }
     }
 
-    if (best != null) return Build235Selection(best, bestBuild!!)
-    if (fallbackBest != null) return Build235Selection(fallbackBest, fallbackBuild!!)
+    if (best != null) return CacheSelection(best, bestBuild!!)
+    if (fallbackBest != null) return CacheSelection(fallbackBest, fallbackBuild!!)
     return null
 }
