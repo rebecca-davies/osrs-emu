@@ -4,3 +4,6 @@ build/
 .idea/
 !gradle-wrapper.jar
 /tmp/
+cache-data/
+client/
+.git-pat

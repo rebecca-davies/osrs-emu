@@ -1,10 +1,15 @@
 [versions]
 kotlin = "2.0.21"
 ktor = "3.0.1"
+commons-compress = "1.27.1"
+kotlinx-serialization = "1.7.3"
 
 [libraries]
 ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
