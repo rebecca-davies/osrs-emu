@@ -5,7 +5,7 @@ application {
     mainClass.set("emu.gateway.MainKt")
 }
 dependencies {
-    implementation(project(":common"))
+    implementation(project(":net-core"))
     implementation(libs.ktor.network)
     testImplementation(libs.kotlin.test)
 }

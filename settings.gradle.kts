@@ -4,6 +4,8 @@ dependencyResolutionManagement {
     repositories { mavenCentral() }
 }
 
-include("common")
+include("buffer")
+include("crypto")
+include("net-core")
 include("gateway")
 include("tools:cache-fetch")
