@@ -5,3 +5,5 @@ dependencyResolutionManagement {
 }
 
 include("common")
+include("gateway")
+include("tools:cache-fetch")
