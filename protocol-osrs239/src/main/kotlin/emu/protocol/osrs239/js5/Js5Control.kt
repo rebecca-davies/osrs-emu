@@ -1,4 +1,4 @@
-package emu.protocol.osrs235.js5
+package emu.protocol.osrs239.js5
 
 import emu.netcore.message.IncomingMessage
 

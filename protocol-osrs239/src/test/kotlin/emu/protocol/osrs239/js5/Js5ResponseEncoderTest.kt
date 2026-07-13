@@ -1,4 +1,4 @@
-package emu.protocol.osrs235.js5
+package emu.protocol.osrs239.js5
 
 import emu.crypto.NopStreamCipher
 import emu.crypto.XorStreamCipher

@@ -5,10 +5,10 @@ import emu.crypto.XorStreamCipher
 import emu.netcore.message.IncomingMessage
 import emu.netcore.message.OutgoingMessage
 import emu.netcore.pipeline.MessageHandler
-import emu.protocol.osrs235.js5.Js5Control
-import emu.protocol.osrs235.js5.Js5GroupResponse
-import emu.protocol.osrs235.js5.Js5Prot
-import emu.protocol.osrs235.js5.Js5Request
+import emu.protocol.osrs239.js5.Js5Control
+import emu.protocol.osrs239.js5.Js5GroupResponse
+import emu.protocol.osrs239.js5.Js5Prot
+import emu.protocol.osrs239.js5.Js5Request
 
 // Pure: maps a Js5Request to a Js5GroupResponse using the cache Store. No sockets, no framing.
 // Control frames (Js5Control) carry no response and are consumed silently so the group stream keeps

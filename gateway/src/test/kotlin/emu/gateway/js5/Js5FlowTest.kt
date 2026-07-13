@@ -6,11 +6,11 @@ import emu.crypto.XorStreamCipher
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.message.IncomingMessage
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs235.js5.Js5ControlDecoder
-import emu.protocol.osrs235.js5.Js5GroupResponse
-import emu.protocol.osrs235.js5.Js5Prot
-import emu.protocol.osrs235.js5.Js5RequestDecoder
-import emu.protocol.osrs235.js5.Js5ResponseEncoder
+import emu.protocol.osrs239.js5.Js5ControlDecoder
+import emu.protocol.osrs239.js5.Js5GroupResponse
+import emu.protocol.osrs239.js5.Js5Prot
+import emu.protocol.osrs239.js5.Js5RequestDecoder
+import emu.protocol.osrs239.js5.Js5ResponseEncoder
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket

@@ -12,7 +12,7 @@ tasks.named<JavaExec>("run") {
 }
 dependencies {
     implementation(project(":net-core"))
-    implementation(project(":protocol-osrs235"))
+    implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))
     implementation(project(":crypto"))
     implementation(libs.ktor.network)
