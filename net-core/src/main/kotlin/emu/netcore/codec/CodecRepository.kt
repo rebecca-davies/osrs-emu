@@ -22,23 +22,11 @@ class CodecRepositoryBuilder {
     }
 
     fun bindEncoder(encoder: MessageEncoder<*>): CodecRepositoryBuilder {
-        // Resolve the concrete OutgoingMessage type parameter from the encoder's generic supertype.
-        val type = resolveOutgoingType(encoder)
-        require(encoders.put(type, encoder) == null) { "duplicate encoder for $type" }
+        require(encoders.put(encoder.messageType, encoder) == null) {
+            "duplicate encoder for ${encoder.messageType}"
+        }
         return this
     }
 
     fun build(): CodecRepository = CodecRepository(decoders.toMap(), encoders.toMap())
-
-    @Suppress("UNCHECKED_CAST")
-    private fun resolveOutgoingType(encoder: MessageEncoder<*>): Class<out OutgoingMessage> {
-        for (t in encoder.javaClass.genericInterfaces) {
-            if (t is java.lang.reflect.ParameterizedType &&
-                t.rawType == MessageEncoder::class.java
-            ) {
-                return t.actualTypeArguments[0] as Class<out OutgoingMessage>
-            }
-        }
-        error("cannot resolve OutgoingMessage type for ${encoder.javaClass}")
-    }
 }

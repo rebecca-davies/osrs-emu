@@ -18,6 +18,7 @@ import emu.netcore.prot.Prot
  */
 object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
     override val prot: Prot = Js5Prot.GROUP_RESPONSE
+    override val messageType = Js5GroupResponse::class.java
 
     override fun encode(cipher: StreamCipher, message: Js5GroupResponse): ByteArray {
         val c = servedBytes(message.container)
