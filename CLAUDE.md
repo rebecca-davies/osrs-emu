@@ -25,6 +25,15 @@ review.
    swap the codec set, not rewrite logic.
 5. **No magic numbers.** Opcodes come from `Prot` tables; content ids come from RSCM `name=id`
    maps (when content arrives). No raw id/opcode literals in game/service code.
+5a. **Packet composition (informed by rsmod/void — see the design doc).** One small file per
+    packet: a decoder, an encoder, and (for inbound) a **handler** — never a giant packet file.
+    Route decoded messages through a **type-keyed `HandlerRepository`** (message `Class` →
+    handler), NEVER a growing `when(message){...}` god-method. Register codecs+handlers via
+    **per-domain `install<Domain>()` modules** composed at one small top-level site — never a
+    single giant registration file, and never reflection/classpath/annotation auto-discovery
+    (both rsmod and void deliberately keep registration explicit and greppable). Handlers declare
+    their own dependencies via constructor args, wired in the `install*` module. Organize packets
+    by **domain package** (`js5`, `login`, `game/…`) so it scales to hundreds of packets.
 
 ## Code style
 
