@@ -1,11 +1,12 @@
 package emu.gateway
 
 import emu.cache.store.FlatFileStore
-import emu.crypto.NopStreamCipher
+import emu.crypto.Js5XorCipher
 import emu.gateway.js5.Js5Handler
 import emu.gateway.js5.performHandshake
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
+import emu.protocol.osrs235.js5.Js5ControlDecoder
 import emu.protocol.osrs235.js5.Js5Prot
 import emu.protocol.osrs235.js5.Js5RequestDecoder
 import emu.protocol.osrs235.js5.Js5ResponseEncoder
@@ -26,6 +27,10 @@ fun main() = runBlocking {
     val codecs = CodecRepositoryBuilder()
         .bindDecoder(Js5RequestDecoder(prefetch = false))
         .bindDecoder(Js5RequestDecoder(prefetch = true))
+        // JS5 control frames the client interleaves with group requests (2=logged in, 3=logged out,
+        // 4=xor key, 6=init, 7=keepalive). Consumed and ignored; without them the pipeline drops the
+        // socket on the first control opcode -> client reports error_game_js5io.
+        .apply { intArrayOf(2, 3, 4, 6, 7).forEach { bindDecoder(Js5ControlDecoder(it)) } }
         .bindEncoder(Js5ResponseEncoder)
         .build()
     val selector = SelectorManager(Dispatchers.IO)
@@ -42,8 +47,11 @@ fun main() = runBlocking {
                 val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
                 when (r.readByte().toInt() and 0xFF) {
                     Js5Prot.HANDSHAKE.opcode -> if (performHandshake(r, w)) {
+                        // One XOR cipher per connection: the handler sets its key from control
+                        // opcode 4, and the same instance obfuscates every response the encoder emits.
+                        val cipher = Js5XorCipher()
                         ProtocolStage(
-                            codecs, Js5Handler(store), NopStreamCipher,
+                            codecs, Js5Handler(store, cipher), cipher,
                             readOpcode = { it.readByte().toInt() and 0xFF },
                             readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                             writeOpcode = false,

@@ -38,7 +38,7 @@ class Js5RealCacheTest {
             val conn = server.accept(); val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
             r.readByte()
             if (performHandshake(r, w)) ProtocolStage(
-                codecs, Js5Handler(FlatFileStore(root)), NopStreamCipher,
+                codecs, Js5Handler(FlatFileStore(root), emu.crypto.Js5XorCipher()), NopStreamCipher,
                 readOpcode = { it.readByte().toInt() and 0xFF },
                 readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                 writeOpcode = false,
@@ -46,7 +46,7 @@ class Js5RealCacheTest {
         }
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
         val cr = client.openReadChannel(); val cw = client.openWriteChannel(autoFlush = true)
-        cw.writeByte(15); val hs = ByteArray(20); hs[3] = 235.toByte(); cw.writeFully(hs)
+        cw.writeByte(15); val hs = ByteArray(20); hs[3] = 239.toByte(); cw.writeFully(hs)
         assertEquals(0, cr.readByte().toInt() and 0xFF)
         cw.writeFully(byteArrayOf(1, 255.toByte(), 0, 255.toByte()))
         assertEquals(255, cr.readByte().toInt() and 0xFF)  // first response byte = archive id

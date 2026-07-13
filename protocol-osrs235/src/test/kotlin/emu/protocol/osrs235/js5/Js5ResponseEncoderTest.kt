@@ -1,5 +1,6 @@
 package emu.protocol.osrs235.js5
 
+import emu.crypto.Js5XorCipher
 import emu.crypto.NopStreamCipher
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,5 +32,27 @@ class Js5ResponseEncoderTest {
         val body = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(5, 1, container(600), false))
         assertEquals(609, body.size)
         assertEquals(0xFF, body[512].toInt() and 0xFF)
+    }
+
+    // A stored container carries a 2-byte version trailer past its header-declared length; the JS5
+    // client reads only the declared length, so the trailer must be dropped or the block stream
+    // desyncs (client -> error_game_js5crc / js5io).
+    @Test fun `version trailer is stripped to the header-declared length`() {
+        val withTrailer = container(10) + byteArrayOf(0x12, 0x34) // 15-byte container + 2 version bytes
+        val body = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(8, 0, withTrailer, false))
+        assertEquals(18, body.size) // 3 header + 15 container, trailer dropped
+    }
+
+    // Control opcode 4 sets a per-connection XOR key; every outgoing byte is XORed with it, and the
+    // XOR is self-inverse so decrypting reproduces the plaintext response.
+    @Test fun `xor key obfuscates every byte and round-trips`() {
+        val plain = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(2, 3, container(20), false))
+        val enc = Js5ResponseEncoder.encode(Js5XorCipher(0x7F), Js5GroupResponse(2, 3, container(20), false))
+        assertEquals(plain.size, enc.size)
+        // Every byte differs from plaintext (XORed with a non-zero key)...
+        assertEquals(plain.indices.count { (plain[it].toInt() xor 0x7F).toByte() == enc[it] }, enc.size)
+        // ...and decrypting reproduces the plaintext exactly.
+        val dec = ByteArray(enc.size) { (enc[it].toInt() xor 0x7F).toByte() }
+        assertEquals(plain.toList(), dec.toList())
     }
 }

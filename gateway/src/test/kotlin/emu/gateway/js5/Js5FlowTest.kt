@@ -43,7 +43,7 @@ class Js5FlowTest {
             .bindDecoder(Js5RequestDecoder(prefetch = true))
             .bindEncoder(Js5ResponseEncoder)
             .build()
-        val handler = Js5Handler(store)
+        val handler = Js5Handler(store, emu.crypto.Js5XorCipher())
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -70,7 +70,7 @@ class Js5FlowTest {
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
         val cr = client.openReadChannel(); val cw = client.openWriteChannel(autoFlush = true)
         cw.writeByte(15)
-        val hs = ByteArray(20); hs[3] = 235.toByte(); cw.writeFully(hs)
+        val hs = ByteArray(20); hs[3] = 239.toByte(); cw.writeFully(hs)
         assertEquals(0, cr.readByte().toInt() and 0xFF)                 // handshake ok
         cw.writeFully(byteArrayOf(1, 255.toByte(), 0, 255.toByte()))    // request (255,255) urgent
         val expected = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(255, 255, byteArrayOf(0,0,0,0,3,9,8,7), false))
@@ -88,7 +88,7 @@ class Js5FlowTest {
             .bindDecoder(Js5RequestDecoder(prefetch = true))
             .bindEncoder(Js5ResponseEncoder)
             .build()
-        val handler = Js5Handler(store)
+        val handler = Js5Handler(store, emu.crypto.Js5XorCipher())
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
