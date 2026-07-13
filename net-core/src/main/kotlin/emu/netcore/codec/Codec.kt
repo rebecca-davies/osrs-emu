@@ -13,7 +13,10 @@ interface MessageDecoder<T : IncomingMessage> {
 
 interface MessageEncoder<T : OutgoingMessage> {
     val prot: Prot
-    // Returns the exact bytes to write for this message (excluding any opcode prefix, which the
-    // pipeline adds per-protocol). Cleaner than a caller-sized buffer for variable-size packets.
+
+    /**
+     * Returns the exact bytes to write for this message (excluding any opcode prefix, which the
+     * pipeline adds per-protocol). Cleaner than a caller-sized buffer for variable-size packets.
+     */
     fun encode(cipher: StreamCipher, message: T): ByteArray
 }

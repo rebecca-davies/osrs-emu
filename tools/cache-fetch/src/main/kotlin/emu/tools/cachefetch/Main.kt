@@ -1,5 +1,6 @@
 package emu.tools.cachefetch
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.io.BufferedInputStream
 import java.io.File
 import java.net.URI
@@ -13,12 +14,19 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 
-// Target OSRS revision — must match the client. The freshly-cloned RuneLite injected-client
-// is rev 239 (verified from its JS5 handshake). Change this one line to move revisions.
+private val logger = KotlinLogging.logger {}
+
+/**
+ * Target OSRS revision — must match the client. The freshly-cloned RuneLite injected-client
+ * is rev 239 (verified from its JS5 handshake). Change this one constant to move revisions.
+ */
 private const val TARGET_BUILD = 239
 
-// Downloads the newest OpenRS2 live oldschool cache whose build major == TARGET_BUILD,
-// as the flat-file dump, extracting cache/{archive}/{group}.dat into ./cache-data/.
+/**
+ * Downloads the newest OpenRS2 live oldschool cache whose build major matches [TARGET_BUILD] as
+ * the flat-file dump, extracting `cache/{archive}/{group}.dat` into `./cache-data/`. Falls back to
+ * the newest live oldschool build `<= TARGET_BUILD` (with a warning) if no exact match exists.
+ */
 fun main() {
     val base = "https://archive.openrs2.org"
     val caches = URI("$base/caches.json").toURL().readText()
@@ -26,13 +34,13 @@ fun main() {
         ?: error("No live oldschool cache found in caches.json")
     val id = selection.id
     if (selection.build != TARGET_BUILD) {
-        println(
-            "WARNING: no build-$TARGET_BUILD live oldschool cache found in caches.json; " +
-                "falling back to newest live oldschool build <= $TARGET_BUILD (build=${selection.build}, id=$id). " +
+        logger.warn {
+            "no build-$TARGET_BUILD live oldschool cache found in caches.json; falling back to " +
+                "newest live oldschool build <= $TARGET_BUILD (build=${selection.build}, id=$id). " +
                 "The served revision may not match the client!"
-        )
+        }
     }
-    println("Selected OpenRS2 cache id=$id")
+    logger.info { "selected OpenRS2 cache id=$id" }
     val outDir = File("cache-data")
     outDir.mkdirs()
     val url = URI("$base/caches/runescape/$id/flat-file.tar.gz").toURL()
@@ -49,16 +57,18 @@ fun main() {
                 }
                 entry = tar.nextEntry as? TarArchiveEntry
             }
-            println("Extracted $count group files into ${outDir.absolutePath}")
+            logger.info { "extracted $count group files into ${outDir.absolutePath}" }
         }
     }
 
-    // The flat-file dump does not contain the synthesized master index group (255,255) — the
-    // JS5 client's very first request at bootstrap. Fetch it directly from the per-group endpoint
-    // and write it into the same on-disk layout so the dump is complete for JS5 serving.
     fetchMasterIndex(base, id, outDir)
 }
 
+/**
+ * The flat-file dump does not contain the synthesized master index group (255,255) — the JS5
+ * client's very first request at bootstrap. Fetches it directly from the per-group endpoint and
+ * writes it into the same on-disk layout so the dump is complete for JS5 serving.
+ */
 private fun fetchMasterIndex(base: String, id: Int, outDir: File) {
     val masterUrl = URI("$base/caches/runescape/$id/archives/255/groups/255.dat").toURL()
     try {
@@ -66,12 +76,12 @@ private fun fetchMasterIndex(base: String, id: Int, outDir: File) {
         val f = File(outDir, "cache/255/255.dat")
         f.parentFile.mkdirs()
         f.writeBytes(bytes)
-        println("Fetched master index (255,255): ${bytes.size} bytes")
+        logger.info { "fetched master index (255,255): ${bytes.size} bytes" }
     } catch (e: Exception) {
-        println(
-            "WARNING: failed to fetch master index (255,255) from $masterUrl: ${e.message}. " +
-                "The JS5 client's first bootstrap request will fail until this group is present."
-        )
+        logger.warn {
+            "failed to fetch master index (255,255) from $masterUrl: ${e.message}. The JS5 " +
+                "client's first bootstrap request will fail until this group is present."
+        }
     }
 }
 

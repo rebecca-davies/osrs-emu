@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal console logging config for the gateway process.
+  - Root at INFO keeps third-party library noise (ktor, etc.) quiet by default.
+  - The emu.* namespace is bumped to DEBUG so wire/packet-level detail (JS5 handshake revisions,
+    login-block hex dumps, per-opcode game-stage traces) is available without editing this file;
+    change to INFO to silence it in a production-like run.
+-->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="emu" level="DEBUG"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

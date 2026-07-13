@@ -148,3 +148,71 @@ Expected today (post fix #6): the client renders its "Connecting to update serve
 our gateway, downloads the full login-screen cache from us, then renders the OSRS **login screen**
 (Old School title + world-select + RuneLite login form). No `error_game_js5crc`. Clear any stale
 `~/.runelite/jagexcache` first so the download comes cleanly from us.
+
+---
+
+## 5. RSA login-key patch (Task 5) — so OUR server can decrypt the login block
+
+Login-screen rendering (§1-§4 above) needs no RSA patch — the login block is only sent once the
+player clicks Play Now. To have the client encrypt that block with a modulus **we** hold the
+private key for, `tools/client-patch` generates our server keypair and byte-patches a copy of the
+injected-client jar.
+
+### What `tools:client-patch` does
+
+```
+./gradlew :tools:client-patch:run
+```
+
+1. Generates a fresh 1024-bit RSA keypair (`emu.crypto.Rsa.generateKeyPair(1024)`).
+2. Persists it to `server-rsa.properties` at the repo root (hex `modulus` /
+   `publicExponent` / `privateExponent`) — **gitignored**, read by the gateway (Task 6) to decrypt
+   real login blocks. Never commit this file.
+3. Prints the public modulus (256 hex chars) so a human can eyeball it.
+4. Byte-patches a **copy** of the cached injected-client jar
+   (`~/.gradle/caches/modules-2/files-2.1/net.runelite/injected-client/1.12.33-SNAPSHOT/…/injected-client-1.12.33-SNAPSHOT.jar`):
+   it finds the single `.class` entry containing the exact Jagex modulus literal (256 hex chars,
+   class `bg`, field `bg.af` — see
+   `docs/superpowers/research/2026-07-14-rev239-login-facts.md` §3) and overwrites those bytes
+   in-place with our own same-length modulus hex, leaving every other byte/offset in the jar
+   untouched. The **original cached jar is never modified** — only a new file is written to
+   `client/patches/injected-client-patched.jar` (gitignored, since all of `client/` is ignored).
+
+Run `./gradlew :tools:client-patch:verifyRoundTrip` to prove the persisted keypair actually
+round-trips: it encrypts a login-like plaintext (magic byte `1` + payload) with the public
+modulus/exponent and decrypts it with the private exponent via `emu.crypto.Rsa.decrypt`, asserting
+magic byte `1` comes back. This is the same math path the gateway will run against a real client
+ciphertext in Task 6.
+
+### How the patched jar gets loaded — classpath override, no cache clobbering
+
+The injected-client classes are a `runtimeOnly` Gradle dependency that RuneLite's `:client:shadowJar`
+task **merges directly into** the shaded fat jar at build time (see §1's build step) — they are not
+loaded from a separate jar file at runtime. So dropping our patched jar into the `~/.gradle` cache
+folder would do nothing (the shaded jar was already built from the old copy), and overwriting the
+shaded jar's own class file would mean unzipping/rezipping a much bigger, frequently-rebuilt
+artifact.
+
+Instead, `run-local-client.sh` launches with **`java -cp <patched-jar>:<shaded-jar> net.runelite.client.RuneLite ...`**
+instead of `java -jar <shaded-jar>`. Standard JVM classpath resolution loads a class from the
+*first* `-cp` entry that contains it; since `client/patches/injected-client-patched.jar` (which
+contains every original class, including our patched `bg.class`) is listed first, its `bg.class`
+wins over the shaded jar's bundled (unpatched) copy for the entire run. Note `-jar` and `-cp` are
+mutually exclusive (`-jar` ignores the classpath entirely per the `java` launcher docs), so this
+requires invoking the explicit RuneLite main class (`net.runelite.client.RuneLite`) instead of
+`-jar`.
+
+This is fully restorable / non-destructive: nothing under `~/.gradle` or the shaded jar is ever
+written to. If `client/patches/injected-client-patched.jar` is missing, `run-local-client.sh` falls
+back to the original `-jar` launch (Jagex's login RSA key, fine for JS5/login-screen-only runs).
+
+### Repro (adds to §4)
+
+```
+./gradlew :tools:client-patch:run          # generates server-rsa.properties + the patched jar
+./gradlew :tools:client-patch:verifyRoundTrip   # proves the keypair round-trips
+
+client/patches/run-local-client.sh \
+  client/runelite/runelite-client/build/libs/client-1.12.33-SNAPSHOT-shaded.jar
+# -> picks up client/patches/injected-client-patched.jar automatically if present
+```

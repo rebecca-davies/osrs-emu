@@ -17,4 +17,7 @@ tasks.named<JavaExec>("run") {
 dependencies {
     implementation(libs.commons.compress)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlin.logging)
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.logback.classic)
 }
