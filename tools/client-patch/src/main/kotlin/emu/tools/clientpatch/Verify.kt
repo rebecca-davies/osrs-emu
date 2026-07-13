@@ -1,14 +1,18 @@
 package emu.tools.clientpatch
 
 import emu.crypto.Rsa
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.io.File
 
-// The real check for Task 5: read the persisted server-rsa.properties (the same file the
-// gateway will read in Task 6) and prove the keypair round-trips a login-like RSA block —
-// public-encrypt then private-decrypt recovers the plaintext, including the login block's
-// leading magic byte (1).
+private val logger = KotlinLogging.logger {}
+
 private val SERVER_RSA_PROPERTIES = File("server-rsa.properties")
 
+/**
+ * Reads the persisted `server-rsa.properties` (the same file the gateway reads) and proves the
+ * keypair round-trips a login-like RSA block — public-encrypt then private-decrypt recovers the
+ * plaintext, including the login block's leading magic byte (1).
+ */
 fun main() {
     check(SERVER_RSA_PROPERTIES.exists()) {
         "server-rsa.properties not found at ${SERVER_RSA_PROPERTIES.absolutePath} — " +
@@ -27,8 +31,8 @@ fun main() {
     }
     check(recovered[0].toInt() == 1) { "magic byte 1 was not recovered" }
 
-    println(
+    logger.info {
         "OK: server-rsa.properties round-trips a login-like RSA block " +
             "(public-encrypt -> private-decrypt recovers magic byte 1)"
-    )
+    }
 }

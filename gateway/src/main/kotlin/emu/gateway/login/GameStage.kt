@@ -1,8 +1,11 @@
 package emu.gateway.login
 
 import emu.crypto.IsaacCipher
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readByte
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Milestone-3 game stage: proves "logged in, connection held" (the correct black screen) rather
@@ -12,17 +15,17 @@ import io.ktor.utils.io.readByte
  *
  * We do NOT yet have a rev-239 game-opcode size table (that arrives with real game-packet
  * decoding), so this cannot correctly frame-and-discard each packet's payload the way
- * `ProtocolStage` does for JS5/login. Instead it decrypts and logs just the opcode byte for
- * visibility, then keeps reading. This is intentionally the smallest thing that satisfies the
- * milestone: the gateway never closes this socket itself — it only stops when the client
- * disconnects (the loop's `readByte()` throws on EOF, which the caller's try/finally turns into a
- * clean `conn.close()`). Replace this with proper per-opcode payload sizes when the game protocol
- * is implemented.
+ * [emu.netcore.pipeline.ProtocolStage] does for JS5/login. Instead it decrypts and logs just the
+ * opcode byte for visibility, then keeps reading. This is intentionally the smallest thing that
+ * satisfies the milestone: the gateway never closes this socket itself — it only stops when the
+ * client disconnects (the loop's `readByte()` throws on EOF, which the caller's try/finally turns
+ * into a clean `conn.close()`). Replace this with proper per-opcode payload sizes when the game
+ * protocol is implemented.
  */
 suspend fun runGameStage(read: ByteReadChannel, inboundCipher: IsaacCipher) {
     while (true) {
         val raw = read.readByte().toInt() and 0xFF
         val opcode = (raw - inboundCipher.nextInt()) and 0xFF
-        println("game stage: inbound opcode $opcode (payload framing not implemented until the game-packet milestone)")
+        logger.debug { "game stage: inbound opcode $opcode (payload framing not implemented until the game-packet milestone)" }
     }
 }

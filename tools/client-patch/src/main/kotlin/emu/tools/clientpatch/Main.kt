@@ -2,11 +2,16 @@ package emu.tools.clientpatch
 
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.io.File
 
-// The exact Jagex login RSA modulus (rev 239), stored as a plain 256-hex-char UTF-8 String
-// literal in class `bg` (field bg.af), exponent bg.ag = "10001". See
-// docs/superpowers/research/2026-07-14-rev239-login-facts.md §3.
+private val logger = KotlinLogging.logger {}
+
+/**
+ * The exact Jagex login RSA modulus (rev 239), stored as a plain 256-hex-char UTF-8 String
+ * literal in class `bg` (field bg.af), exponent bg.ag = "10001". See
+ * docs/superpowers/research/2026-07-14-rev239-login-facts.md §3.
+ */
 private const val JAGEX_MODULUS_HEX =
     "c4cc48b4f69a621564fe6227e5ee0d9a58642f25b2e29800d4529bdb92f693b226f06c62fa3d61ce8b578b77b0bb2a4074c05a4e3ff901917d2db94e76718f712619ce0ec71239558f1753b28a0654a542375f6302df7c1e06d1df07cbc4297d792cba9df43ea09b2059c868eaffff0bad854574d270624794379cb5e8b061f3"
 
@@ -19,6 +24,13 @@ private const val DEFAULT_INJECTED_CLIENT_JAR =
 private val SERVER_RSA_PROPERTIES = File("server-rsa.properties")
 private val PATCHED_JAR_OUT = File("client/patches/injected-client-patched.jar")
 
+/**
+ * Generates a fresh server RSA keypair, persists it to `server-rsa.properties`, and patches the
+ * injected RuneLite client jar's baked-in Jagex modulus literal with our own — so a client built
+ * from that jar RSA-encrypts its login block to a key the gateway actually holds the private half
+ * of. Skips the jar patch (but still writes the properties file) if no injected-client jar is
+ * found, since login is only one of the gateway's flows and JS5 does not need this step.
+ */
 fun main() {
     val keyPair = generateValidatedKeyPair()
     val modulusHex = keyPair.modulus.toString(16)
@@ -27,14 +39,12 @@ fun main() {
     }
 
     ServerRsaProperties.save(SERVER_RSA_PROPERTIES, keyPair)
-    println("Wrote server RSA keypair to ${SERVER_RSA_PROPERTIES.absolutePath} (gitignored)")
-
-    println("Server RSA public modulus (256 hex chars, exponent 10001):")
-    println(modulusHex)
+    logger.info { "wrote server RSA keypair to ${SERVER_RSA_PROPERTIES.absolutePath} (gitignored)" }
+    logger.info { "server RSA public modulus (256 hex chars, exponent 10001): $modulusHex" }
 
     val injectedClientJar = File(System.getenv("INJECTED_CLIENT_JAR") ?: DEFAULT_INJECTED_CLIENT_JAR)
     if (!injectedClientJar.exists()) {
-        println("WARNING: injected-client jar not found at ${injectedClientJar.absolutePath}; skipping jar patch.")
+        logger.warn { "injected-client jar not found at ${injectedClientJar.absolutePath}; skipping jar patch" }
         return
     }
 
@@ -48,8 +58,8 @@ fun main() {
         "did not find the Jagex modulus literal in any entry of ${injectedClientJar.name} — " +
             "the client build may have changed; re-run the rev-239 recon before patching"
     }
-    println("Patched RSA modulus literal in jar entr${if (patchedEntries.size == 1) "y" else "ies"}: $patchedEntries")
-    println("Wrote patched client jar to ${PATCHED_JAR_OUT.absolutePath} (gitignored)")
+    logger.info { "patched RSA modulus literal in jar entr${if (patchedEntries.size == 1) "y" else "ies"}: $patchedEntries" }
+    logger.info { "wrote patched client jar to ${PATCHED_JAR_OUT.absolutePath} (gitignored)" }
 }
 
 /**

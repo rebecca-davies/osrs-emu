@@ -30,5 +30,8 @@ tasks.register<JavaExec>("verifyRoundTrip") {
 
 dependencies {
     implementation(project(":crypto"))
+    implementation(libs.kotlin.logging)
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.logback.classic)
     testImplementation(libs.kotlin.test)
 }
