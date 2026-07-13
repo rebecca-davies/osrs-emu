@@ -9,8 +9,6 @@ import emu.netcore.message.OutgoingMessage
 import emu.netcore.prot.Prot
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
-import io.ktor.utils.io.writeByte
-import io.ktor.utils.io.writeFully
 
 /**
  * The thin composition point that replaces god-object "session" classes: a session is just
@@ -47,9 +45,6 @@ class ProtocolStage(
     private suspend fun emit(message: OutgoingMessage, write: ByteWriteChannel) {
         val encoder = codecs.encoder(message.javaClass) as? MessageEncoder<OutgoingMessage>
             ?: error("no encoder for ${message.javaClass}")
-        val body = encoder.encode(cipher, message)
-        if (writeOpcode) write.writeByte(encoder.prot.opcode.toByte())
-        write.writeFully(body)
-        write.flush()
+        writePacket(write, encoder, message, cipher, writeOpcode)
     }
 }
