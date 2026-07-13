@@ -27,6 +27,7 @@ private object AskDecoder : MessageDecoder<Ask> {
 }
 private object ReplyEncoder : MessageEncoder<Reply> {
     override val prot = Prot(1, 1)
+    override val messageType = Reply::class.java
     override fun encode(cipher: StreamCipher, message: Reply): ByteArray = byteArrayOf(message.n.toByte())
 }
 
@@ -34,12 +35,11 @@ class ProtocolStageTest {
     @Test fun `stage decodes, handles, and encodes a reply`() = runBlocking {
         val codecs = CodecRepositoryBuilder().bindDecoder(AskDecoder).bindEncoder(ReplyEncoder).build()
         // handler doubles the number
-        val handler = MessageHandler<IncomingMessage> { msg, out ->
-            val ask = msg as Ask
-            out(Reply(ask.n * 2))
-        }
+        val handlers = HandlerRepositoryBuilder()
+            .bind(Ask::class.java) { ask, ctx -> ctx.write(Reply(ask.n * 2)) }
+            .build()
         val stage = ProtocolStage(
-            codecs, handler, NopStreamCipher,
+            codecs, handlers, NopStreamCipher,
             readOpcode = { it.readByte().toInt() and 0xFF },
             readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
         )

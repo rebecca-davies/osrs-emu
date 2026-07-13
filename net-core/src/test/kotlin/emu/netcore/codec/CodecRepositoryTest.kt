@@ -20,6 +20,7 @@ private object PingDecoder : MessageDecoder<Ping> {
 }
 private object PongEncoder : MessageEncoder<Pong> {
     override val prot = Prot(9, 1)
+    override val messageType = Pong::class.java
     override fun encode(cipher: StreamCipher, message: Pong): ByteArray = byteArrayOf(message.n.toByte())
 }
 

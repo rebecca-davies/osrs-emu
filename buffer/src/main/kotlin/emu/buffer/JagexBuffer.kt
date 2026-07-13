@@ -55,11 +55,17 @@ class JagexBuffer(val array: ByteArray, var pos: Int = 0) {
         writeByte(v)
     }
 
+    /**
+     * Reads a CP-1252 C-string up to (and consuming) a `0x00` terminator. If no terminator is
+     * found before the end of the backing array, the string runs to the end of the buffer and the
+     * cursor stops there — bounds-safe, so a login block whose password fills the RSA plaintext
+     * exactly (no room for the terminator) yields the string instead of an out-of-bounds read.
+     */
     fun readCString(): String {
         val start = pos
-        while (array[pos].toInt() != 0) pos++
+        while (pos < array.size && array[pos].toInt() != 0) pos++
         val s = String(array, start, pos - start, charset("windows-1252"))
-        pos++ // skip the null terminator
+        if (pos < array.size) pos++ // consume the null terminator when one is present
         return s
     }
 

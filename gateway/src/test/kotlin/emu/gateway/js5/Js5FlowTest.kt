@@ -4,13 +4,12 @@ import emu.cache.store.FlatFileStore
 import emu.crypto.NopStreamCipher
 import emu.crypto.XorStreamCipher
 import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.message.IncomingMessage
+import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.js5.Js5ControlDecoder
 import emu.protocol.osrs239.js5.Js5GroupResponse
 import emu.protocol.osrs239.js5.Js5Prot
-import emu.protocol.osrs239.js5.Js5RequestDecoder
 import emu.protocol.osrs239.js5.Js5ResponseEncoder
+import emu.protocol.osrs239.js5.installJs5
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -51,16 +50,13 @@ class Js5FlowTest {
 
     @Test fun `handshake then pipeline serves the group`() = runBlocking {
         val store = store()
-        val codecs = CodecRepositoryBuilder()
-            .bindDecoder(Js5RequestDecoder(prefetch = false))
-            .bindDecoder(Js5RequestDecoder(prefetch = true))
-            .bindEncoder(Js5ResponseEncoder)
-            .build()
-        // Production (Main.kt) shares ONE cipher instance per connection between the handler (which
-        // sets the key from control opcode 4) and ProtocolStage (which hands it to the encoder).
-        // Mirror that here rather than giving the handler and the stage different instances.
+        val codecs = CodecRepositoryBuilder().installJs5().build()
+        // Production (Main.kt) shares ONE cipher instance per connection between the control handler
+        // (which sets the key from control opcode 4) and ProtocolStage (which hands it to the
+        // encoder). Mirror that here rather than giving the handlers and the stage different
+        // instances.
         val cipher = XorStreamCipher()
-        val handler = Js5Handler(store, cipher)
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, cipher).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -76,7 +72,7 @@ class Js5FlowTest {
             r.readByte() // consume opcode 15
             if (performHandshake(r, w)) {
                 ProtocolStage(
-                    codecs, handler, cipher,
+                    codecs, handlers, cipher,
                     readOpcode = { it.readByte().toInt() and 0xFF },
                     readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                     writeOpcode = false,
@@ -108,14 +104,9 @@ class Js5FlowTest {
         File(root, "cache/5/1.dat").also { it.parentFile.mkdirs() }.writeBytes(big)
         val store = FlatFileStore(root)
 
-        val codecs = CodecRepositoryBuilder()
-            .bindDecoder(Js5RequestDecoder(prefetch = false))
-            .bindDecoder(Js5RequestDecoder(prefetch = true))
-            .bindDecoder(Js5ControlDecoder(Js5Prot.CONTROL_XOR_KEY))
-            .bindEncoder(Js5ResponseEncoder)
-            .build()
+        val codecs = CodecRepositoryBuilder().installJs5().build()
         val cipher = XorStreamCipher()
-        val handler = Js5Handler(store, cipher)
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, cipher).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -126,7 +117,7 @@ class Js5FlowTest {
             r.readByte()
             if (performHandshake(r, w)) {
                 ProtocolStage(
-                    codecs, handler, cipher,
+                    codecs, handlers, cipher,
                     readOpcode = { it.readByte().toInt() and 0xFF },
                     readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                     writeOpcode = false,
@@ -165,12 +156,8 @@ class Js5FlowTest {
 
     @Test fun `revision mismatch replies 6 and closes the connection`() = runBlocking {
         val store = store()
-        val codecs = CodecRepositoryBuilder()
-            .bindDecoder(Js5RequestDecoder(prefetch = false))
-            .bindDecoder(Js5RequestDecoder(prefetch = true))
-            .bindEncoder(Js5ResponseEncoder)
-            .build()
-        val handler = Js5Handler(store, XorStreamCipher())
+        val codecs = CodecRepositoryBuilder().installJs5().build()
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, XorStreamCipher()).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -185,7 +172,7 @@ class Js5FlowTest {
                 r.readByte() // consume opcode 15
                 if (performHandshake(r, w)) {
                     ProtocolStage(
-                        codecs, handler, NopStreamCipher,
+                        codecs, handlers, NopStreamCipher,
                         readOpcode = { it.readByte().toInt() and 0xFF },
                         readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                         writeOpcode = false,

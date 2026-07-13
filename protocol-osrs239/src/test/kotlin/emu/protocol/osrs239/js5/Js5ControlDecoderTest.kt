@@ -31,7 +31,7 @@ class Js5ControlDecoderTest {
     }
 
     // Opcode 4 is the XOR-rekey control frame: b0 is the 1-byte XOR key, b1/b2 form a reserved u16
-    // the gateway does not currently use (see Js5Handler, which only reads b0).
+    // the gateway does not currently use (see Js5ControlHandler, which only reads b0).
     @Test fun `opcode 4 (rekey) decodes the xor key byte and the reserved u16`() {
         val msg = Js5ControlDecoder(Js5Prot.CONTROL_XOR_KEY).decode(buf(0x7F, 0x01, 0x02))
         assertEquals(Js5Prot.CONTROL_XOR_KEY, msg.opcode)

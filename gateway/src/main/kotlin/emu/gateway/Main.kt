@@ -4,7 +4,7 @@ import emu.cache.store.FlatFileStore
 import emu.cache.store.Store
 import emu.crypto.RsaKeyPair
 import emu.crypto.XorStreamCipher
-import emu.gateway.js5.Js5Handler
+import emu.gateway.js5.installJs5Handlers
 import emu.gateway.js5.performHandshake
 import emu.gateway.login.GAME_IDLE_TIMEOUT
 import emu.gateway.login.GameCiphers
@@ -14,11 +14,10 @@ import emu.gateway.login.performLoginInit
 import emu.gateway.login.runGameStage
 import emu.netcore.codec.CodecRepository
 import emu.netcore.codec.CodecRepositoryBuilder
+import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.js5.Js5ControlDecoder
 import emu.protocol.osrs239.js5.Js5Prot
-import emu.protocol.osrs239.js5.Js5RequestDecoder
-import emu.protocol.osrs239.js5.Js5ResponseEncoder
+import emu.protocol.osrs239.js5.installJs5
 import emu.protocol.osrs239.login.LoginProt
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
@@ -174,8 +173,9 @@ private suspend fun handshakeLogin(r: ByteReadChannel, w: ByteWriteChannel, rsaK
  * asset-download session can legitimately outlast that short deadline.
  */
 private suspend fun runJs5Pipeline(r: ByteReadChannel, w: ByteWriteChannel, store: Store, codecs: CodecRepository, cipher: XorStreamCipher) {
+    val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, cipher).build()
     ProtocolStage(
-        codecs, Js5Handler(store, cipher), cipher,
+        codecs, handlers, cipher,
         readOpcode = { it.readByte().toInt() and 0xFF },
         readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
         writeOpcode = false,
@@ -217,14 +217,10 @@ private fun loadServerRsaKeyPair(): RsaKeyPair? = try {
  * The immutable JS5 decoder/encoder registry, built once and shared by every connection —
  * unlike the per-connection [XorStreamCipher], it holds no connection state.
  *
- * Includes a decoder for every [Js5Prot.CONTROL_OPCODES] entry: the client interleaves these
- * control frames with group requests, and although the gateway ignores their payload (see
- * [Js5Handler]), the pipeline must still be able to decode and consume them — an unbound opcode
- * drops the socket, which the client reports as `error_game_js5io`.
+ * Delegates to `installJs5()`, which includes a decoder for every [Js5Prot.CONTROL_OPCODES] entry:
+ * the client interleaves these control frames with group requests, and although the gateway ignores
+ * their payload (see `emu.gateway.js5.Js5ControlHandler`), the pipeline must still be able to decode
+ * and consume them — an unbound opcode drops the socket, which the client reports as
+ * `error_game_js5io`.
  */
-private fun buildJs5CodecRepository(): CodecRepository = CodecRepositoryBuilder()
-    .bindDecoder(Js5RequestDecoder(prefetch = false))
-    .bindDecoder(Js5RequestDecoder(prefetch = true))
-    .apply { Js5Prot.CONTROL_OPCODES.forEach { bindDecoder(Js5ControlDecoder(it)) } }
-    .bindEncoder(Js5ResponseEncoder)
-    .build()
+private fun buildJs5CodecRepository(): CodecRepository = CodecRepositoryBuilder().installJs5().build()
