@@ -41,7 +41,11 @@ object LoginBlockParser {
     // See the class doc: revision(4) + subversion(4) + build/flags(4) + 3 flag bytes.
     const val CLEARTEXT_HEADER_SIZE = 15
 
-    data class Parsed(val seeds: IntArray, val serverKey: Long, val password: String)
+    // NOTE: the login block contains a plaintext password after the marker byte. Milestone-3
+    // auto-accepts any credentials, so we deliberately DO NOT retain the password here — it is
+    // read only to advance the buffer, never stored or logged. (When real auth arrives, verify a
+    // salted hash without retaining the plaintext.)
+    data class Parsed(val seeds: IntArray, val serverKey: Long)
 
     sealed class Result {
         data class Ok(val parsed: Parsed) : Result()
@@ -88,8 +92,8 @@ object LoginBlockParser {
             val serverKey = pb.readLong()
             pb.readUByte() // auth-method byte (assumed 0 = no authenticator; see class doc)
             pb.readUByte() // string-type marker byte
-            val password = pb.readCString()
-            Result.Ok(Parsed(seeds, serverKey, password))
+            pb.readCString() // password: read-and-discard (never retained or logged — see Parsed)
+            Result.Ok(Parsed(seeds, serverKey))
         } catch (e: Exception) {
             Result.Malformed("exception while parsing: ${e.javaClass.simpleName}: ${e.message}", payload.toHexLog())
         }

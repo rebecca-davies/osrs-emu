@@ -46,17 +46,18 @@ class LoginBlockParserTest {
         return out.array
     }
 
-    @Test fun `parses seeds, server key, and password from a well-formed login block`() {
+    @Test fun `parses seeds and server key from a well-formed login block, discarding the password`() {
         val kp = keyPair()
         val seeds = intArrayOf(1, 2, 3, 4)
-        val payload = loginBlockPayload(kp, seeds, serverKey = 0x0102030405060708L, password = "hunter2")
+        // The block carries a password; the parser must read past it correctly but NOT retain it
+        // (Parsed has no password field — credentials are never stored or logged).
+        val payload = loginBlockPayload(kp, seeds, serverKey = 0x0102030405060708L, password = "dummy-pw")
 
         val result = LoginBlockParser.parse(payload, kp.modulus, kp.privateExp)
 
         val ok = assertIs<LoginBlockParser.Result.Ok>(result)
         assertContentEquals(seeds, ok.parsed.seeds)
         assertEquals(0x0102030405060708L, ok.parsed.serverKey)
-        assertEquals("hunter2", ok.parsed.password)
     }
 
     @Test fun `wrong header offset yields BadMagic with the raw payload logged`() {

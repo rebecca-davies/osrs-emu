@@ -41,6 +41,15 @@ PORT=8080
 RUNELITE_MAIN_CLASS="net.runelite.client.RuneLite"
 PATCHED_JAR="${2:-$DIR/injected-client-patched.jar}"
 
+# PRIVACY / ISOLATION (important): launch the client with an ISOLATED home so it can NEVER read
+# the real user's ~/.runelite (no saved OSRS account, no stored credentials). RuneLite derives its
+# data dir from user.home, so we point user.home at a throwaway dir. Only DUMMY credentials should
+# ever be typed at this client. Never run it against the real ~/.runelite.
+CLIENT_HOME="${OSRSEMU_CLIENT_HOME:-/tmp/osrsemu-client-home}"
+mkdir -p "$CLIENT_HOME"
+echo "[run-local-client] isolated client home: $CLIENT_HOME (real ~/.runelite is untouched)"
+ISOLATE=(-Duser.home="$CLIENT_HOME")
+
 # Serve the local jav_config over HTTP from this directory.
 ( cd "$DIR" && python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/jav_config_http.log 2>&1 ) &
 HTTPD=$!
@@ -53,10 +62,10 @@ echo "[run-local-client] launching RuneLite -> JS5 to 127.0.0.1:43594"
 if [[ -f "$PATCHED_JAR" ]]; then
     echo "[run-local-client] RSA-patched injected-client found: $PATCHED_JAR"
     echo "[run-local-client] classpath override: patched jar first, then shaded jar (login RSA = OUR modulus)"
-    exec java -cp "${PATCHED_JAR}:${JAR}" "$RUNELITE_MAIN_CLASS" \
+    exec java "${ISOLATE[@]}" -cp "${PATCHED_JAR}:${JAR}" "$RUNELITE_MAIN_CLASS" \
         --jav_config "http://127.0.0.1:${PORT}/jav_config.local.ws" --debug
 else
     echo "[run-local-client] no patched injected-client jar at $PATCHED_JAR — launching UNPATCHED (Jagex login RSA)"
     echo "[run-local-client] run './gradlew :tools:client-patch:run' to generate one"
-    exec java -jar "$JAR" --jav_config "http://127.0.0.1:${PORT}/jav_config.local.ws" --debug
+    exec java "${ISOLATE[@]}" -jar "$JAR" --jav_config "http://127.0.0.1:${PORT}/jav_config.local.ws" --debug
 fi
