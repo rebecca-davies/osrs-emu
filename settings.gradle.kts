@@ -5,6 +5,7 @@ dependencyResolutionManagement {
 }
 
 include("buffer")
+include("cache")
 include("crypto")
 include("net-core")
 include("gateway")
