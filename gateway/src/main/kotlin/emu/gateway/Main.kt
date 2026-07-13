@@ -4,12 +4,14 @@ import emu.cache.store.FlatFileStore
 import emu.crypto.XorStreamCipher
 import emu.gateway.js5.Js5Handler
 import emu.gateway.js5.performHandshake
+import emu.gateway.login.performLoginInit
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
 import emu.protocol.osrs239.js5.Js5ControlDecoder
 import emu.protocol.osrs239.js5.Js5Prot
 import emu.protocol.osrs239.js5.Js5RequestDecoder
 import emu.protocol.osrs239.js5.Js5ResponseEncoder
+import emu.protocol.osrs239.login.LoginProt
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -63,7 +65,8 @@ fun main() = runBlocking {
                             writeOpcode = false,
                         ).run(r, w)
                     }
-                    else -> {}   // login opcode 14 etc. handled in a later plan
+                    LoginProt.INIT.opcode -> performLoginInit(w)
+                    else -> {}   // opcodes 16/18 (login block) handled in a later task
                 }
             } catch (_: Throwable) {
                 // swallow: keep the accept loop alive
