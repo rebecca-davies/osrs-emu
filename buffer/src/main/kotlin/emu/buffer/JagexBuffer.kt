@@ -47,6 +47,28 @@ class JagexBuffer(val array: ByteArray, var pos: Int = 0) {
         pos += b.size
     }
 
+    fun readUMedium(): Int = (readUByte() shl 16) or (readUByte() shl 8) or readUByte()
+
+    fun writeMedium(v: Int) {
+        writeByte(v ushr 16)
+        writeByte(v ushr 8)
+        writeByte(v)
+    }
+
+    fun readCString(): String {
+        val start = pos
+        while (array[pos].toInt() != 0) pos++
+        val s = String(array, start, pos - start, charset("windows-1252"))
+        pos++ // skip the null terminator
+        return s
+    }
+
+    fun writeCString(s: String) {
+        val bytes = s.toByteArray(charset("windows-1252"))
+        writeBytes(bytes)
+        writeByte(0)
+    }
+
     companion object {
         fun alloc(size: Int): JagexBuffer = JagexBuffer(ByteArray(size))
     }
