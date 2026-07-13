@@ -21,10 +21,12 @@ import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class Js5FlowTest {
     private fun store(): FlatFileStore {
@@ -74,6 +76,56 @@ class Js5FlowTest {
         val expected = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(255, 255, byteArrayOf(0,0,0,0,3,9,8,7), false))
         val got = ByteArray(expected.size); cr.readFully(got)
         assertEquals(expected.toList(), got.toList())
+
+        serverJob.cancel()
+        client.close(); server.close(); selector.close()
+    }
+
+    @Test fun `revision mismatch replies 6 and closes the connection`() = runBlocking {
+        val store = store()
+        val codecs = CodecRepositoryBuilder()
+            .bindDecoder(Js5RequestDecoder(prefetch = false))
+            .bindDecoder(Js5RequestDecoder(prefetch = true))
+            .bindEncoder(Js5ResponseEncoder)
+            .build()
+        val handler = Js5Handler(store)
+        val selector = SelectorManager(Dispatchers.IO)
+        val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
+        val port = (server.localAddress as InetSocketAddress).port
+
+        // Mirror Main.kt's per-connection body: guarantee conn.close() on every exit path via a
+        // finally, so the revision-mismatch reject path (performHandshake -> false) does not leak
+        // the socket. This test locks that hardening behaviour in place.
+        val serverJob = launch {
+            val conn = server.accept()
+            try {
+                val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
+                r.readByte() // consume opcode 15
+                if (performHandshake(r, w)) {
+                    ProtocolStage(
+                        codecs, handler, NopStreamCipher,
+                        readOpcode = { it.readByte().toInt() and 0xFF },
+                        readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
+                        writeOpcode = false,
+                    ).run(r, w)
+                }
+            } catch (_: Throwable) {
+            } finally {
+                conn.close()
+            }
+        }
+
+        val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
+        val cr = client.openReadChannel(); val cw = client.openWriteChannel(autoFlush = true)
+        cw.writeByte(15)
+        val hs = ByteArray(20); hs[3] = 234.toByte(); cw.writeFully(hs)   // WRONG revision
+        assertEquals(6, cr.readByte().toInt() and 0xFF)                   // out-of-date reply
+
+        // The server closed the connection after replying 6; the client's channel reaches EOF.
+        // readByte() throws (or the channel is at end) rather than hanging forever.
+        assertFailsWith<Throwable> {
+            withTimeout(2000) { cr.readByte() }
+        }
 
         serverJob.cancel()
         client.close(); server.close(); selector.close()
