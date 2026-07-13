@@ -15,6 +15,12 @@ object Rsa {
     fun crypt(data: ByteArray, mod: BigInteger, exp: BigInteger): ByteArray =
         BigInteger(1, data).modPow(exp, mod).toByteArray()
 
+    fun decrypt(cipher: ByteArray, modulus: BigInteger, privateExp: BigInteger): ByteArray {
+        val out = crypt(cipher, modulus, privateExp)
+        // Strip a BigInteger sign byte if the top bit of the magnitude set one.
+        return if (out.isNotEmpty() && out[0] == 0.toByte()) out.copyOfRange(1, out.size) else out
+    }
+
     fun generateKeyPair(bits: Int = 1024): RsaKeyPair {
         val gen = KeyPairGenerator.getInstance("RSA").apply { initialize(bits) }
         val kp = gen.generateKeyPair()

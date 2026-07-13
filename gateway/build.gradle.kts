@@ -12,9 +12,13 @@ tasks.named<JavaExec>("run") {
 }
 dependencies {
     implementation(project(":net-core"))
-    implementation(project(":protocol-osrs235"))
+    implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))
     implementation(project(":crypto"))
+    implementation(project(":buffer"))
     implementation(libs.ktor.network)
+    implementation(libs.kotlin.logging)
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.logback.classic)
     testImplementation(libs.kotlin.test)
 }
