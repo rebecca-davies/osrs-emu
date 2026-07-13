@@ -19,8 +19,9 @@ object GameServerProt {
 
     /**
      * Per-tick player info: local + other players' movement bits, and extended info (appearance,
-     * chat, animation, ...). Opcode 28 (`jc.bv`), size -2 (var-short). Defined here for the codec
-     * registry now; its encoder/handler is a later task (§4b).
+     * chat, animation, ...). Opcode 28 (`jc.bv`), size -2 (var-short). See [PlayerInfoEncoder] for
+     * the current minimal (single-local-player, appearance-only) encoding and its confidence
+     * breakdown (§4b/§4c — MEDIUM/LOW on the exact bit layout, iterate against the real client).
      */
     val PLAYER_INFO = Prot(28, Prot.VAR_SHORT)
 }
