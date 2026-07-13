@@ -19,8 +19,6 @@ fun main() {
     val base = "https://archive.openrs2.org"
     val caches = URI("$base/caches.json").toURL().readText()
     // Minimal JSON scan: find the newest id with game oldschool, env live, build major 235.
-    // caches.json is a flat array; we parse with kotlinx-serialization-free manual approach is
-    // brittle — use a real JSON lib instead.
     val selection = selectBuild235Id(caches)
         ?: error("No live oldschool cache found in caches.json")
     val id = selection.id

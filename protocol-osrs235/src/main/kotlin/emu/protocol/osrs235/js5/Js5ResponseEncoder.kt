@@ -16,14 +16,15 @@ object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
         c.copyInto(stream, 3)
         if (message.prefetch && c.isNotEmpty()) stream[3] = (stream[3].toInt() or 0x80).toByte()
 
-        val out = ArrayList<Byte>(stream.size + stream.size / 511 + 1)
-        var pos = 0; var block = 0
+        val outSize = if (stream.size <= 512) stream.size else stream.size + (stream.size - 512 + 510) / 511
+        val out = ByteArray(outSize)
+        var pos = 0; var block = 0; var outPos = 0
         while (pos < stream.size) {
-            if (block > 0) out.add(0xFF.toByte())
+            if (block > 0) out[outPos++] = 0xFF.toByte()
             val take = minOf(if (block == 0) 512 else 511, stream.size - pos)
-            for (k in 0 until take) out.add(stream[pos + k])
-            pos += take; block++
+            System.arraycopy(stream, pos, out, outPos, take)
+            pos += take; outPos += take; block++
         }
-        return out.toByteArray()
+        return out
     }
 }
