@@ -1,0 +1,30 @@
+package emu.protocol.osrs235.js5
+
+import emu.crypto.StreamCipher
+import emu.netcore.codec.MessageEncoder
+import emu.netcore.prot.Prot
+
+object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
+    override val prot: Prot = Js5Prot.GROUP_RESPONSE
+
+    override fun encode(cipher: StreamCipher, message: Js5GroupResponse): ByteArray {
+        val c = message.container
+        val stream = ByteArray(3 + c.size)
+        stream[0] = message.archive.toByte()
+        stream[1] = (message.group ushr 8).toByte()
+        stream[2] = message.group.toByte()
+        c.copyInto(stream, 3)
+        if (message.prefetch && c.isNotEmpty()) stream[3] = (stream[3].toInt() or 0x80).toByte()
+
+        val outSize = if (stream.size <= 512) stream.size else stream.size + (stream.size - 512 + 510) / 511
+        val out = ByteArray(outSize)
+        var pos = 0; var block = 0; var outPos = 0
+        while (pos < stream.size) {
+            if (block > 0) out[outPos++] = 0xFF.toByte()
+            val take = minOf(if (block == 0) 512 else 511, stream.size - pos)
+            System.arraycopy(stream, pos, out, outPos, take)
+            pos += take; outPos += take; block++
+        }
+        return out
+    }
+}
