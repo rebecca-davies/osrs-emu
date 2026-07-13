@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))
     implementation(project(":crypto"))
+    implementation(project(":buffer"))
     implementation(libs.ktor.network)
     testImplementation(libs.kotlin.test)
 }

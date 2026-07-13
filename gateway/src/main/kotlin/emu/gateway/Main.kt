@@ -1,10 +1,14 @@
 package emu.gateway
 
 import emu.cache.store.FlatFileStore
+import emu.crypto.RsaKeyPair
 import emu.crypto.XorStreamCipher
 import emu.gateway.js5.Js5Handler
 import emu.gateway.js5.performHandshake
+import emu.gateway.login.ServerRsaKeyFile
+import emu.gateway.login.performLoginBlock
 import emu.gateway.login.performLoginInit
+import emu.gateway.login.runGameStage
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
 import emu.protocol.osrs239.js5.Js5ControlDecoder
@@ -30,8 +34,24 @@ import java.io.File
 // pointed at a cache without relying on its working directory.
 private fun cacheDir(): File = File(System.getenv("OSRS_CACHE_DIR") ?: "cache-data")
 
+// server-rsa.properties is generated (and gitignored) by tools:client-patch; OSRS_SERVER_RSA_PROPERTIES
+// overrides the default relative path the same way OSRS_CACHE_DIR does for the cache directory.
+private fun serverRsaPropertiesFile(): File =
+    File(System.getenv("OSRS_SERVER_RSA_PROPERTIES") ?: "server-rsa.properties")
+
 fun main() = runBlocking {
     val store = FlatFileStore(cacheDir())
+    // Loaded once at startup (not per connection): missing this file only disables login (opcodes
+    // 16/18); JS5 still works, so don't crash the whole gateway over it.
+    val rsaKeyPair: RsaKeyPair? = try {
+        ServerRsaKeyFile.load(serverRsaPropertiesFile())
+    } catch (e: Exception) {
+        println(
+            "WARNING: could not load ${serverRsaPropertiesFile().path} (${e.message}) — login " +
+                "(opcodes 16/18) will be rejected. Run `./gradlew :tools:client-patch:run` to generate it.",
+        )
+        null
+    }
     val codecs = CodecRepositoryBuilder()
         .bindDecoder(Js5RequestDecoder(prefetch = false))
         .bindDecoder(Js5RequestDecoder(prefetch = true))
@@ -65,8 +85,21 @@ fun main() = runBlocking {
                             writeOpcode = false,
                         ).run(r, w)
                     }
-                    LoginProt.INIT.opcode -> performLoginInit(w)
-                    else -> {}   // opcodes 16/18 (login block) handled in a later task
+                    LoginProt.INIT.opcode -> {
+                        val serverKey = performLoginInit(w)
+                        when (val next = r.readByte().toInt() and 0xFF) {
+                            LoginProt.NEW_LOGIN.opcode, LoginProt.RECONNECT.opcode -> {
+                                if (rsaKeyPair == null) {
+                                    println("Rejecting login block: no server RSA keypair loaded.")
+                                } else {
+                                    val ciphers = performLoginBlock(r, w, serverKey, rsaKeyPair)
+                                    if (ciphers != null) runGameStage(r, ciphers.inbound)
+                                }
+                            }
+                            else -> println("Unexpected opcode $next after login init; closing.")
+                        }
+                    }
+                    else -> {}   // unknown first opcode: close
                 }
             } catch (_: Throwable) {
                 // swallow: keep the accept loop alive
