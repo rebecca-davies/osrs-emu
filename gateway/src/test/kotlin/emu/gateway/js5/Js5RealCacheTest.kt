@@ -1,7 +1,7 @@
 package emu.gateway.js5
 
 import emu.cache.store.FlatFileStore
-import emu.crypto.NopStreamCipher
+import emu.crypto.XorStreamCipher
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
 import emu.protocol.osrs235.js5.Js5RequestDecoder
@@ -37,8 +37,11 @@ class Js5RealCacheTest {
         val serverJob = launch {
             val conn = server.accept(); val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
             r.readByte()
+            // One cipher instance shared between the handler and ProtocolStage, matching Main.kt:
+            // a key set via control opcode 4 must be visible to the response encoder.
+            val cipher = XorStreamCipher()
             if (performHandshake(r, w)) ProtocolStage(
-                codecs, Js5Handler(FlatFileStore(root), emu.crypto.Js5XorCipher()), NopStreamCipher,
+                codecs, Js5Handler(FlatFileStore(root), cipher), cipher,
                 readOpcode = { it.readByte().toInt() and 0xFF },
                 readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                 writeOpcode = false,

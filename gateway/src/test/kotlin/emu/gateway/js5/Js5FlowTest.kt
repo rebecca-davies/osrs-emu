@@ -2,9 +2,11 @@ package emu.gateway.js5
 
 import emu.cache.store.FlatFileStore
 import emu.crypto.NopStreamCipher
+import emu.crypto.XorStreamCipher
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.message.IncomingMessage
 import emu.netcore.pipeline.ProtocolStage
+import emu.protocol.osrs235.js5.Js5ControlDecoder
 import emu.protocol.osrs235.js5.Js5GroupResponse
 import emu.protocol.osrs235.js5.Js5Prot
 import emu.protocol.osrs235.js5.Js5RequestDecoder
@@ -36,6 +38,17 @@ class Js5FlowTest {
         return FlatFileStore(root)
     }
 
+    // A stored container: [compression=0][u32 dataLen][data...], matching the layout
+    // Js5ResponseEncoderTest exercises directly. dataLen=600 forces a multi-block (>512 byte)
+    // response so the 0xFF block-marker path is covered together with XOR.
+    private fun container(dataLen: Int): ByteArray {
+        val out = ByteArray(1 + 4 + dataLen)
+        out[1] = (dataLen ushr 24).toByte(); out[2] = (dataLen ushr 16).toByte()
+        out[3] = (dataLen ushr 8).toByte(); out[4] = dataLen.toByte()
+        for (i in 0 until dataLen) out[5 + i] = (i % 256).toByte()
+        return out
+    }
+
     @Test fun `handshake then pipeline serves the group`() = runBlocking {
         val store = store()
         val codecs = CodecRepositoryBuilder()
@@ -43,7 +56,11 @@ class Js5FlowTest {
             .bindDecoder(Js5RequestDecoder(prefetch = true))
             .bindEncoder(Js5ResponseEncoder)
             .build()
-        val handler = Js5Handler(store, emu.crypto.Js5XorCipher())
+        // Production (Main.kt) shares ONE cipher instance per connection between the handler (which
+        // sets the key from control opcode 4) and ProtocolStage (which hands it to the encoder).
+        // Mirror that here rather than giving the handler and the stage different instances.
+        val cipher = XorStreamCipher()
+        val handler = Js5Handler(store, cipher)
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -59,7 +76,7 @@ class Js5FlowTest {
             r.readByte() // consume opcode 15
             if (performHandshake(r, w)) {
                 ProtocolStage(
-                    codecs, handler, NopStreamCipher,
+                    codecs, handler, cipher,
                     readOpcode = { it.readByte().toInt() and 0xFF },
                     readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                     writeOpcode = false,
@@ -81,6 +98,71 @@ class Js5FlowTest {
         client.close(); server.close(); selector.close()
     }
 
+    // Covers fix #3: the handler and the encoder MUST see the same cipher instance, or a key set by
+    // control opcode 4 never reaches the encoder (a bug the earlier test wiring would have masked,
+    // since it gave the handler and ProtocolStage separate cipher instances). Also exercises a
+    // >512-byte response so the inserted 0xFF block markers are XORed too, not just payload bytes.
+    @Test fun `control opcode 4 sets the key and every response byte including block markers is XORed`() = runBlocking {
+        val root = Files.createTempDirectory("js5").toFile()
+        val big = container(600)
+        File(root, "cache/5/1.dat").also { it.parentFile.mkdirs() }.writeBytes(big)
+        val store = FlatFileStore(root)
+
+        val codecs = CodecRepositoryBuilder()
+            .bindDecoder(Js5RequestDecoder(prefetch = false))
+            .bindDecoder(Js5RequestDecoder(prefetch = true))
+            .bindDecoder(Js5ControlDecoder(Js5Prot.CONTROL_XOR_KEY))
+            .bindEncoder(Js5ResponseEncoder)
+            .build()
+        val cipher = XorStreamCipher()
+        val handler = Js5Handler(store, cipher)
+        val selector = SelectorManager(Dispatchers.IO)
+        val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
+        val port = (server.localAddress as InetSocketAddress).port
+
+        val serverJob = launch {
+            val conn = server.accept()
+            val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
+            r.readByte()
+            if (performHandshake(r, w)) {
+                ProtocolStage(
+                    codecs, handler, cipher,
+                    readOpcode = { it.readByte().toInt() and 0xFF },
+                    readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
+                    writeOpcode = false,
+                ).run(r, w)
+            }
+        }
+
+        val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
+        val cr = client.openReadChannel(); val cw = client.openWriteChannel(autoFlush = true)
+        cw.writeByte(15)
+        val hs = ByteArray(20); hs[3] = 239.toByte(); cw.writeFully(hs)
+        assertEquals(0, cr.readByte().toInt() and 0xFF)
+
+        val key = 0x7F
+        // Control opcode 4: [opcode][b0=key][b1][b2]. b1/b2 are unused reserved bytes on the wire.
+        cw.writeFully(byteArrayOf(Js5Prot.CONTROL_XOR_KEY.toByte(), key.toByte(), 0, 0))
+        cw.writeFully(byteArrayOf(1, 5, 0, 1)) // urgent request archive=5, group=1
+
+        val expectedPlain = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(5, 1, big, false))
+        assertEquals(609, expectedPlain.size) // sanity: forces the >512 multi-block 0xFF-marker path
+        val got = ByteArray(expectedPlain.size); cr.readFully(got)
+
+        // Every byte on the wire — including the inserted 0xFF block markers — must be the plaintext
+        // byte XORed with the key the client set via control opcode 4.
+        for (i in expectedPlain.indices) {
+            assertEquals((expectedPlain[i].toInt() xor key).toByte(), got[i], "byte $i")
+        }
+        // And decrypting reproduces the encoder's plaintext output exactly, proving the key that
+        // reached the encoder was the SAME key the handler set from the control frame.
+        val decrypted = ByteArray(got.size) { (got[it].toInt() xor key).toByte() }
+        assertEquals(expectedPlain.toList(), decrypted.toList())
+
+        serverJob.cancel()
+        client.close(); server.close(); selector.close()
+    }
+
     @Test fun `revision mismatch replies 6 and closes the connection`() = runBlocking {
         val store = store()
         val codecs = CodecRepositoryBuilder()
@@ -88,7 +170,7 @@ class Js5FlowTest {
             .bindDecoder(Js5RequestDecoder(prefetch = true))
             .bindEncoder(Js5ResponseEncoder)
             .build()
-        val handler = Js5Handler(store, emu.crypto.Js5XorCipher())
+        val handler = Js5Handler(store, XorStreamCipher())
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port

@@ -8,6 +8,10 @@ object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
     override val prot: Prot = Js5Prot.GROUP_RESPONSE
 
     override fun encode(cipher: StreamCipher, message: Js5GroupResponse): ByteArray {
+        // Note: message.prefetch is intentionally not read here — prefetch and urgent responses are
+        // byte-identical on the wire for rev 239 (see the 0x80 bit history below). It is kept on the
+        // message as a meaningful request attribute for potential future bandwidth prioritization
+        // (rsprot-style), not because encoding needs it.
         // Serve exactly the header-declared container length (compression + 4-byte length header,
         // then 5|9 + compressedLength of payload), dropping the stored 2-byte version trailer. The
         // client reads precisely this many container bytes per group and blocks at 512-byte

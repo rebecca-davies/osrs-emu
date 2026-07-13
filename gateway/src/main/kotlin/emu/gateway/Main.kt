@@ -1,7 +1,7 @@
 package emu.gateway
 
 import emu.cache.store.FlatFileStore
-import emu.crypto.Js5XorCipher
+import emu.crypto.XorStreamCipher
 import emu.gateway.js5.Js5Handler
 import emu.gateway.js5.performHandshake
 import emu.netcore.codec.CodecRepositoryBuilder
@@ -22,15 +22,21 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
+// Cache directory: OSRS_CACHE_DIR overrides the default relative path `cache-data`. `:gateway:run`
+// sets workingDir to the repo root (see build.gradle.kts) so the default already resolves there;
+// the env var exists so an installDist/distZip build — launched from an arbitrary CWD — can be
+// pointed at a cache without relying on its working directory.
+private fun cacheDir(): File = File(System.getenv("OSRS_CACHE_DIR") ?: "cache-data")
+
 fun main() = runBlocking {
-    val store = FlatFileStore(File("cache-data"))
+    val store = FlatFileStore(cacheDir())
     val codecs = CodecRepositoryBuilder()
         .bindDecoder(Js5RequestDecoder(prefetch = false))
         .bindDecoder(Js5RequestDecoder(prefetch = true))
-        // JS5 control frames the client interleaves with group requests (2=logged in, 3=logged out,
-        // 4=xor key, 6=init, 7=keepalive). Consumed and ignored; without them the pipeline drops the
-        // socket on the first control opcode -> client reports error_game_js5io.
-        .apply { intArrayOf(2, 3, 4, 6, 7).forEach { bindDecoder(Js5ControlDecoder(it)) } }
+        // JS5 control frames the client interleaves with group requests (see Js5Prot.CONTROL_*).
+        // Consumed and ignored; without them the pipeline drops the socket on the first control
+        // opcode -> client reports error_game_js5io.
+        .apply { Js5Prot.CONTROL_OPCODES.forEach { bindDecoder(Js5ControlDecoder(it)) } }
         .bindEncoder(Js5ResponseEncoder)
         .build()
     val selector = SelectorManager(Dispatchers.IO)
@@ -49,7 +55,7 @@ fun main() = runBlocking {
                     Js5Prot.HANDSHAKE.opcode -> if (performHandshake(r, w)) {
                         // One XOR cipher per connection: the handler sets its key from control
                         // opcode 4, and the same instance obfuscates every response the encoder emits.
-                        val cipher = Js5XorCipher()
+                        val cipher = XorStreamCipher()
                         ProtocolStage(
                             codecs, Js5Handler(store, cipher), cipher,
                             readOpcode = { it.readByte().toInt() and 0xFF },

@@ -1,7 +1,7 @@
 package emu.protocol.osrs235.js5
 
-import emu.crypto.Js5XorCipher
 import emu.crypto.NopStreamCipher
+import emu.crypto.XorStreamCipher
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -55,7 +55,7 @@ class Js5ResponseEncoderTest {
     // XOR is self-inverse so decrypting reproduces the plaintext response.
     @Test fun `xor key obfuscates every byte and round-trips`() {
         val plain = Js5ResponseEncoder.encode(NopStreamCipher, Js5GroupResponse(2, 3, container(20), false))
-        val enc = Js5ResponseEncoder.encode(Js5XorCipher(0x7F), Js5GroupResponse(2, 3, container(20), false))
+        val enc = Js5ResponseEncoder.encode(XorStreamCipher(0x7F), Js5GroupResponse(2, 3, container(20), false))
         assertEquals(plain.size, enc.size)
         // Every byte differs from plaintext (XORed with a non-zero key)...
         assertEquals(plain.indices.count { (plain[it].toInt() xor 0x7F).toByte() == enc[it] }, enc.size)
