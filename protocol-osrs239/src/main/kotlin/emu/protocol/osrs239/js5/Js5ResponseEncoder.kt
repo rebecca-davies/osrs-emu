@@ -4,18 +4,22 @@ import emu.crypto.StreamCipher
 import emu.netcore.codec.MessageEncoder
 import emu.netcore.prot.Prot
 
+/**
+ * Encodes a [Js5GroupResponse] as the byte-blocked JS5 wire stream: `[archive][group hi][group
+ * lo]` followed by the served container bytes (see [servedBytes]), split into a 512-byte block
+ * followed by 511-byte blocks each prefixed with an `0xFF` continuation marker, then XORed with the
+ * connection's JS5 obfuscation key (control opcode 4; a key of 0 / [emu.crypto.NopStreamCipher]
+ * leaves the bytes untouched).
+ *
+ * `message.prefetch` is intentionally not read here — prefetch and urgent responses are
+ * byte-identical on the wire for rev 239. It is kept on the message as a meaningful request
+ * attribute for potential future bandwidth prioritization (rsprot-style), not because encoding
+ * needs it.
+ */
 object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
     override val prot: Prot = Js5Prot.GROUP_RESPONSE
 
     override fun encode(cipher: StreamCipher, message: Js5GroupResponse): ByteArray {
-        // Note: message.prefetch is intentionally not read here — prefetch and urgent responses are
-        // byte-identical on the wire for rev 239 (see the 0x80 bit history below). It is kept on the
-        // message as a meaningful request attribute for potential future bandwidth prioritization
-        // (rsprot-style), not because encoding needs it.
-        // Serve exactly the header-declared container length (compression + 4-byte length header,
-        // then 5|9 + compressedLength of payload), dropping the stored 2-byte version trailer. The
-        // client reads precisely this many container bytes per group and blocks at 512-byte
-        // boundaries of it; sending the trailer would leave 2 stray bytes that desync the next group.
         val c = servedBytes(message.container)
         val stream = ByteArray(3 + c.size)
         stream[0] = message.archive.toByte()
@@ -32,17 +36,19 @@ object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
             System.arraycopy(stream, pos, out, outPos, take)
             pos += take; outPos += take; block++
         }
-        // Apply the connection's JS5 obfuscation: every outgoing byte is XORed with the client's
-        // chosen key (control opcode 4). NopStreamCipher / key 0 leaves the bytes untouched.
         for (i in out.indices) out[i] = (out[i].toInt() xor (cipher.nextInt() and 0xFF)).toByte()
         return out
     }
 
-    // A stored JS5 container is [compression:1][compressedLength:4][payload][optional version:2].
-    // The client sizes each group from its header — compressedLength + 5 (uncompressed) or + 9
-    // (compressed: 4 extra bytes for the decompressed length) — and reads exactly that, never the
-    // 2-byte version trailer. Serve that exact slice so the block stream stays aligned. Index groups
-    // (archive 255) have no trailer, so served == size and nothing is dropped.
+    /**
+     * A stored JS5 container is `[compression:1][compressedLength:4][payload][optional
+     * version:2]`. The client sizes each group from its header — `compressedLength + 5`
+     * (uncompressed) or `+ 9` (compressed: 4 extra bytes for the decompressed length) — and reads
+     * exactly that, never the 2-byte version trailer. This returns that exact slice (dropping the
+     * trailer) so the client's 512-byte block-read stays aligned with what we actually sent;
+     * serving the trailer would leave 2 stray bytes that desync the next group. Index groups
+     * (archive 255) have no trailer, so served == size and nothing is dropped.
+     */
     private fun servedBytes(c: ByteArray): ByteArray {
         if (c.size < 5) return c
         val compression = c[0].toInt() and 0xFF

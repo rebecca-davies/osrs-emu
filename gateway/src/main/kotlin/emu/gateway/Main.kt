@@ -159,13 +159,15 @@ private fun loadServerRsaKeyPair(): RsaKeyPair? = try {
 /**
  * The immutable JS5 decoder/encoder registry, built once and shared by every connection —
  * unlike the per-connection [XorStreamCipher], it holds no connection state.
+ *
+ * Includes a decoder for every [Js5Prot.CONTROL_OPCODES] entry: the client interleaves these
+ * control frames with group requests, and although the gateway ignores their payload (see
+ * [Js5Handler]), the pipeline must still be able to decode and consume them — an unbound opcode
+ * drops the socket, which the client reports as `error_game_js5io`.
  */
 private fun buildJs5CodecRepository(): CodecRepository = CodecRepositoryBuilder()
     .bindDecoder(Js5RequestDecoder(prefetch = false))
     .bindDecoder(Js5RequestDecoder(prefetch = true))
-    // JS5 control frames the client interleaves with group requests (see Js5Prot.CONTROL_*).
-    // Consumed and ignored; without them the pipeline drops the socket on the first control
-    // opcode -> client reports error_game_js5io.
     .apply { Js5Prot.CONTROL_OPCODES.forEach { bindDecoder(Js5ControlDecoder(it)) } }
     .bindEncoder(Js5ResponseEncoder)
     .build()

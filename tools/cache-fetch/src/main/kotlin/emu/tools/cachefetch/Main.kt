@@ -61,12 +61,14 @@ fun main() {
         }
     }
 
-    // The flat-file dump does not contain the synthesized master index group (255,255) — the
-    // JS5 client's very first request at bootstrap. Fetch it directly from the per-group endpoint
-    // and write it into the same on-disk layout so the dump is complete for JS5 serving.
     fetchMasterIndex(base, id, outDir)
 }
 
+/**
+ * The flat-file dump does not contain the synthesized master index group (255,255) — the JS5
+ * client's very first request at bootstrap. Fetches it directly from the per-group endpoint and
+ * writes it into the same on-disk layout so the dump is complete for JS5 serving.
+ */
 private fun fetchMasterIndex(base: String, id: Int, outDir: File) {
     val masterUrl = URI("$base/caches/runescape/$id/archives/255/groups/255.dat").toURL()
     try {
