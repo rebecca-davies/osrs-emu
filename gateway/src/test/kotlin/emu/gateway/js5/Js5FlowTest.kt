@@ -4,7 +4,6 @@ import emu.cache.store.FlatFileStore
 import emu.crypto.NopStreamCipher
 import emu.crypto.XorStreamCipher
 import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.message.IncomingMessage
 import emu.netcore.pipeline.ProtocolStage
 import emu.protocol.osrs239.js5.Js5ControlDecoder
 import emu.protocol.osrs239.js5.Js5GroupResponse
@@ -76,7 +75,7 @@ class Js5FlowTest {
             r.readByte() // consume opcode 15
             if (performHandshake(r, w)) {
                 ProtocolStage(
-                    codecs, handler, cipher,
+                    codecs, handler.asHandlerRepository(), cipher,
                     readOpcode = { it.readByte().toInt() and 0xFF },
                     readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                     writeOpcode = false,
@@ -126,7 +125,7 @@ class Js5FlowTest {
             r.readByte()
             if (performHandshake(r, w)) {
                 ProtocolStage(
-                    codecs, handler, cipher,
+                    codecs, handler.asHandlerRepository(), cipher,
                     readOpcode = { it.readByte().toInt() and 0xFF },
                     readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                     writeOpcode = false,
@@ -185,7 +184,7 @@ class Js5FlowTest {
                 r.readByte() // consume opcode 15
                 if (performHandshake(r, w)) {
                     ProtocolStage(
-                        codecs, handler, NopStreamCipher,
+                        codecs, handler.asHandlerRepository(), NopStreamCipher,
                         readOpcode = { it.readByte().toInt() and 0xFF },
                         readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                         writeOpcode = false,

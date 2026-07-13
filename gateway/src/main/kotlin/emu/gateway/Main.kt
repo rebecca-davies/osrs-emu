@@ -5,6 +5,7 @@ import emu.cache.store.Store
 import emu.crypto.RsaKeyPair
 import emu.crypto.XorStreamCipher
 import emu.gateway.js5.Js5Handler
+import emu.gateway.js5.asHandlerRepository
 import emu.gateway.js5.performHandshake
 import emu.gateway.login.GAME_IDLE_TIMEOUT
 import emu.gateway.login.GameCiphers
@@ -175,7 +176,7 @@ private suspend fun handshakeLogin(r: ByteReadChannel, w: ByteWriteChannel, rsaK
  */
 private suspend fun runJs5Pipeline(r: ByteReadChannel, w: ByteWriteChannel, store: Store, codecs: CodecRepository, cipher: XorStreamCipher) {
     ProtocolStage(
-        codecs, Js5Handler(store, cipher), cipher,
+        codecs, Js5Handler(store, cipher).asHandlerRepository(), cipher,
         readOpcode = { it.readByte().toInt() and 0xFF },
         readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
         writeOpcode = false,

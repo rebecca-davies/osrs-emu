@@ -41,7 +41,7 @@ class Js5RealCacheTest {
             // a key set via control opcode 4 must be visible to the response encoder.
             val cipher = XorStreamCipher()
             if (performHandshake(r, w)) ProtocolStage(
-                codecs, Js5Handler(FlatFileStore(root), cipher), cipher,
+                codecs, Js5Handler(FlatFileStore(root), cipher).asHandlerRepository(), cipher,
                 readOpcode = { it.readByte().toInt() and 0xFF },
                 readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
                 writeOpcode = false,

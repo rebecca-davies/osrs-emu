@@ -11,6 +11,7 @@ import emu.netcore.prot.Prot
  */
 object LoginResponseEncoder : MessageEncoder<LoginResponse> {
     override val prot: Prot = LoginProt.OUTGOING
+    override val messageType = LoginResponse::class.java
 
     override fun encode(cipher: StreamCipher, message: LoginResponse): ByteArray =
         byteArrayOf(message.code.toByte())

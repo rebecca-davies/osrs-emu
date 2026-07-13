@@ -13,6 +13,7 @@ import emu.netcore.prot.Prot
  */
 object ServerSessionKeyEncoder : MessageEncoder<ServerSessionKey> {
     override val prot: Prot = LoginProt.OUTGOING
+    override val messageType = ServerSessionKey::class.java
 
     override fun encode(cipher: StreamCipher, message: ServerSessionKey): ByteArray {
         val out = ByteArray(9)
