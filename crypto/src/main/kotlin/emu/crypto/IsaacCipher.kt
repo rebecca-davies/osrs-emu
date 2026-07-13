@@ -1,6 +1,6 @@
 package emu.crypto
 
-class IsaacCipher(seed: IntArray) {
+class IsaacCipher(seed: IntArray) : StreamCipher {
     private val rsl = IntArray(256)
     private val mem = IntArray(256)
     private var a = 0
@@ -13,7 +13,7 @@ class IsaacCipher(seed: IntArray) {
         initState()
     }
 
-    fun nextInt(): Int {
+    override fun nextInt(): Int {
         if (count-- == 0) {
             isaac()
             count = 255
