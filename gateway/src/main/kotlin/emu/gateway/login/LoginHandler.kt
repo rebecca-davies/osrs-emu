@@ -60,7 +60,6 @@ suspend fun performLoginBlock(
     logger.debug { "login block: framed u16 length=$length; reading that many payload bytes" }
     val payload = ByteArray(length)
     read.readFully(payload)
-    logger.debug { "login block: read ${payload.size} payload bytes: ${payload.toHexLog()}" }
 
     return when (val result = LoginBlockParser.parse(payload, rsaKeyPair.modulus, rsaKeyPair.privateExp)) {
         is LoginBlockParser.Result.BadMagic -> {
@@ -77,6 +76,7 @@ suspend fun performLoginBlock(
             null
         }
         is LoginBlockParser.Result.Ok -> {
+            logger.debug { "login block: ${payload.size} bytes, decrypt OK" }
             val parsed = result.parsed
             if (parsed.serverKey != expectedServerKey) {
                 logger.warn {
