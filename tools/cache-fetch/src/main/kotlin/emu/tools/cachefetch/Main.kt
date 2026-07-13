@@ -51,6 +51,27 @@ fun main() {
             println("Extracted $count group files into ${outDir.absolutePath}")
         }
     }
+
+    // The flat-file dump does not contain the synthesized master index group (255,255) — the
+    // JS5 client's very first request at bootstrap. Fetch it directly from the per-group endpoint
+    // and write it into the same on-disk layout so the dump is complete for JS5 serving.
+    fetchMasterIndex(base, id, outDir)
+}
+
+private fun fetchMasterIndex(base: String, id: Int, outDir: File) {
+    val masterUrl = URI("$base/caches/runescape/$id/archives/255/groups/255.dat").toURL()
+    try {
+        val bytes = masterUrl.openStream().use { it.readBytes() }
+        val f = File(outDir, "cache/255/255.dat")
+        f.parentFile.mkdirs()
+        f.writeBytes(bytes)
+        println("Fetched master index (255,255): ${bytes.size} bytes")
+    } catch (e: Exception) {
+        println(
+            "WARNING: failed to fetch master index (255,255) from $masterUrl: ${e.message}. " +
+                "The JS5 client's first bootstrap request will fail until this group is present."
+        )
+    }
 }
 
 private data class Build235Selection(val id: Int, val build: Int)
