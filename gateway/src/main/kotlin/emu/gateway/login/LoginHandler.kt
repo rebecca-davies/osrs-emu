@@ -14,14 +14,19 @@ import io.ktor.utils.io.writeFully
 /** The two ISAAC ciphers established once a login block is accepted (rev239-login-facts.md §4). */
 data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
 
-// The bytes written right after the response-2 code byte. rev239-login-facts.md §6 confirms the
-// client reads exactly one response byte via `uo2.af()` and then, on code 2, transitions straight
-// into its in-game states — it does NOT document a further rank/flags read at that call site, but
-// other OSRS revisions' login-success replies carry a trailer (player rank + an account-flags
-// byte) before the client starts reading world/player-info packets. [0, 0] is a starting guess
-// (rank=0 i.e. normal player, flags=0) for Task 7 to confirm/adjust empirically against the real
-// client — named here (not inlined) specifically so it's a one-line edit.
-val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(0, 0)
+// The bytes written right after the response-2 code byte.
+//
+// Task 7 (empirical, against the real rev-239 client, decompiled `client.java`): on response code 2
+// the client (non-BETA world => state `cd.az`) reads ONE length byte that must equal `jz.ax.av`
+// (opcode 21's fixed payload length = 37); a mismatch calls `xz.ai(byte)` and bounces to the login
+// screen. It then (state `cd.am`) waits until 37 bytes are available and parses a fixed login-info
+// block:
+//   [1] account-hash-present flag  [4] account hash (read regardless of the flag)
+//   [1] jo  [1] member flag  [2] di (u16)  [1] ef
+//   [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes; 3 trailing pad to 37)
+// All fields zero-fill for milestone-3 (auto-accept, no persisted account). So the trailer is
+// the 37-length byte followed by 37 bytes.
+val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(37) + ByteArray(37)
 
 /**
  * Handles an op-16/18 login block once the opcode byte itself has already been consumed by the
@@ -45,8 +50,12 @@ suspend fun performLoginBlock(
     rsaKeyPair: RsaKeyPair,
 ): GameCiphers? {
     val length = readU16(read)
+    println("login block: framed u16 length=$length; reading that many payload bytes")
+    System.out.flush()
     val payload = ByteArray(length)
     read.readFully(payload)
+    println("login block: read ${payload.size} payload bytes: ${payload.toHexLog()}")
+    System.out.flush()
 
     return when (val result = LoginBlockParser.parse(payload, rsaKeyPair.modulus, rsaKeyPair.privateExp)) {
         is LoginBlockParser.Result.BadMagic -> {
@@ -56,10 +65,12 @@ suspend fun performLoginBlock(
                     "(LoginBlockParser.CLEARTEXT_HEADER_SIZE) — adjust that constant against the real " +
                     "client's captured bytes. raw payload (${payload.size}B): ${result.payloadHex}",
             )
+            System.out.flush()
             null
         }
         is LoginBlockParser.Result.Malformed -> {
             println("LOGIN BLOCK MALFORMED: ${result.reason}. raw payload (${payload.size}B): ${result.payloadHex}")
+            System.out.flush()
             null
         }
         is LoginBlockParser.Result.Ok -> {
@@ -76,6 +87,10 @@ suspend fun performLoginBlock(
             val inbound = IsaacCipher(parsed.seeds)
             val outbound = IsaacCipher(IntArray(parsed.seeds.size) { parsed.seeds[it] + 50 })
 
+            // NEVER log the password (or any credential). Milestone-3 auto-accepts, so we do not
+            // even need it — logging it would leak a real user's password to stdout.
+            println("LOGIN BLOCK OK: magic=1. Sending response code 2 + trailer.")
+            System.out.flush()
             write.writeFully(LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(2)))
             write.writeFully(LOGIN_SUCCESS_TRAILER)
             write.flush()

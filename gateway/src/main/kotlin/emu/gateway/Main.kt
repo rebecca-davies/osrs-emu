@@ -86,9 +86,11 @@ fun main() = runBlocking {
                         ).run(r, w)
                     }
                     LoginProt.INIT.opcode -> {
+                        println("login: received opcode 14 (INIT); sending server session key")
                         val serverKey = performLoginInit(w)
                         when (val next = r.readByte().toInt() and 0xFF) {
                             LoginProt.NEW_LOGIN.opcode, LoginProt.RECONNECT.opcode -> {
+                                println("login: received login block opcode $next")
                                 if (rsaKeyPair == null) {
                                     println("Rejecting login block: no server RSA keypair loaded.")
                                 } else {
@@ -101,8 +103,11 @@ fun main() = runBlocking {
                     }
                     else -> {}   // unknown first opcode: close
                 }
-            } catch (_: Throwable) {
-                // swallow: keep the accept loop alive
+            } catch (t: Throwable) {
+                // swallow to keep the accept loop alive, but log so a login/JS5 failure is visible
+                // (Task 7 debugging: an exception here otherwise looks like total silence).
+                println("connection handler threw ${t.javaClass.name}: ${t.message}")
+                t.printStackTrace()
             } finally {
                 conn.close()
             }
