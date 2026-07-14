@@ -31,6 +31,18 @@ class JagexBufferTest {
         assertEquals(6, b.readableBytes())
     }
 
+    @Test fun `writeSmart1or2 uses one byte below 128 and a high-bit-set u16 at or above 128`() {
+        val b = JagexBuffer.alloc(1 + 1 + 2 + 2)
+        b.writeSmart1or2(0)      // one byte
+        b.writeSmart1or2(127)    // one byte, largest single-byte value
+        b.writeSmart1or2(128)    // 0x8080: two bytes, high bit set
+        b.writeSmart1or2(0x7FFF) // 0xFFFF: largest representable value
+        assertEquals(
+            listOf(0x00, 0x7F, 0x80, 0x80, 0xFF, 0xFF),
+            b.array.map { it.toInt() and 0xFF },
+        )
+    }
+
     @Test fun `alternate writes match Jagex p1 p2 and p4 byte transforms`() {
         val b = JagexBuffer.alloc(3 + 6 + 12)
         b.writeByteAlt1(2)

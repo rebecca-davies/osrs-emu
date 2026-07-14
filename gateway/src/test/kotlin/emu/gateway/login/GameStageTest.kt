@@ -35,15 +35,6 @@ private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4608
 private const val ZONE_BYTES = 6
 private const val REBUILD_NORMAL_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4614
 
-/** Appearance-less PlayerInfo body: HD byte + two LD bytes (see [PlayerInfoEncoder]). */
-private const val PLAYER_INFO_BODY_SIZE = 3
-
-/**
- * Appearance-bearing PlayerInfo body (tick 0): 3 GPI bytes + 2 (APPEARANCE flag + g1Alt3 length) +
- * the 70-byte default appearance sub-buffer. See [emu.protocol.osrs239.game.codec.PlayerInfoEncoder].
- */
-private const val APPEARANCE_PLAYER_INFO_BODY_SIZE = 75
-
 /** Reads a big-endian u16 length prefix from [ch] (the plaintext frame length for a VAR_SHORT prot). */
 private suspend fun readU16(ch: ByteReadChannel): Int {
     val hi = ch.readByte().toInt() and 0xFF
@@ -62,16 +53,15 @@ private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
     return Triple(plane, x, y)
 }
 
-/** Number of per-tick PLAYER_INFO heartbeats the test drives the loop through (see [GameLoop]). */
-private const val HEARTBEAT_TICKS = 3
-
 /**
- * Proves the milestone-5 game stage: after a real login exchange reaches response code 2, the
- * server proactively pushes the initial scene ([emu.protocol.osrs239.game.message.RebuildNormal])
- * and then, per [GameLoop], a PLAYER_INFO heartbeat **every tick** — each with its opcode
- * ISAAC-adjusted by the outbound cipher (seeds+50, per [performLoginBlock]'s doc). Mirrors
- * [LoginBlockFlowTest]'s harness, extended to drive [runGameStage] with a short tick interval and a
- * small tick cap so a handful of heartbeats can be asserted without a real-time sleep.
+ * Guards the milestone-5 login→game boundary: after a real login exchange reaches response code 2,
+ * the server writes the success trailer as one advertised span byte + exactly **34** account-info
+ * bytes (never a padded 37), then the first game packet — a [GameServerProt.REBUILD_NORMAL] whose
+ * opcode is ISAAC-adjusted by the outbound cipher (seeds+50, per [performLoginBlock]'s doc) and whose
+ * body bit-packs the Lumbridge spawn tile. A stray pad in the trailer would be decoded as an empty
+ * first packet and advance the outbound keystream once, desyncing every following opcode — the exact
+ * milestone-5 root cause this test exists to catch. The full post-login packet stream (the whole
+ * initial cycle plus hundreds of heartbeat ticks) is asserted end-to-end by [GameStreamOracleTest].
  */
 class GameStageTest {
 
@@ -108,7 +98,7 @@ class GameStageTest {
         return out.array
     }
 
-    @Test fun `after login, the server proactively sends RebuildNormal then PlayerInfo with ISAAC-adjusted opcodes`() = runBlocking {
+    @Test fun `after login the server writes the 34-byte success trailer then an ISAAC-adjusted RebuildNormal at the spawn tile`() = runBlocking {
         val keyPair = loadRealOrSkip() ?: return@runBlocking
         val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
 
@@ -130,8 +120,7 @@ class GameStageTest {
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                                     idleTimeout = 2.seconds,
                                     tickInterval = 20.milliseconds,
-                                    maxTicks = HEARTBEAT_TICKS,
-                                    sendLoginInit = false,
+                                    maxTicks = 1,
                                 )
                             }
                         }
@@ -172,10 +161,11 @@ class GameStageTest {
         assertEquals(LOGIN_SUCCESS_TRAILER.drop(1), loginInfo.toList(), "login-info payload")
 
         // Independent cipher, seeded identically to the server's outbound (seeds+50, per
-        // performLoginBlock's doc), to compute the expected ISAAC-adjusted opcode bytes.
+        // performLoginBlock's doc), to compute the first game packet's expected ISAAC-adjusted opcode.
         val expectedOutboundCipher = IsaacCipher(IntArray(seeds.size) { seeds[it] + 50 })
 
-        // REBUILD_NORMAL is VAR_SHORT: [opcode+K][u16 plaintext length][body].
+        // The first game packet is REBUILD_NORMAL (VAR_SHORT: [opcode+K][u16 length][body]); its body
+        // bit-packs the spawn tile in the leading 30 bits.
         val opcode1 = cr.readByte().toInt() and 0xFF
         val expectedOpcode1 = (GameServerProt.REBUILD_NORMAL.opcode + expectedOutboundCipher.nextInt()) and 0xFF
         assertEquals(expectedOpcode1, opcode1)
@@ -187,42 +177,6 @@ class GameStageTest {
         assertEquals(0, plane)
         assertEquals(3222, x)
         assertEquals(3218, y)
-
-        suspend fun expectPacket(prot: emu.netcore.prot.Prot, bodySize: Int, label: String): ByteArray {
-            val opcode = cr.readByte().toInt() and 0xFF
-            val expectedOpcode = (prot.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedOpcode, opcode, "$label opcode")
-            if (prot.size == emu.netcore.prot.Prot.VAR_SHORT) {
-                assertEquals(bodySize, readU16(cr), "$label body size")
-            }
-            return ByteArray(bodySize).also { cr.readFully(it) }
-        }
-
-        // Initial cycle: the appearance-bearing player update, entity/NPC streams and all 49 zone
-        // resets are one declared atomic group, exactly like the real rev-239 capture.
-        val initialGroupHeader = expectPacket(GameServerProt.PACKET_GROUP_START, 2, "initial packet group")
-        assertEquals(295, ((initialGroupHeader[0].toInt() and 0xFF) shl 8) or (initialGroupHeader[1].toInt() and 0xFF))
-        expectPacket(GameServerProt.SET_ACTIVE_WORLD, 3, "initial active world")
-        expectPacket(GameServerProt.SET_NPC_UPDATE_ORIGIN, 2, "initial npc origin")
-        expectPacket(GameServerProt.WORLD_ENTITY_INFO, 1, "initial world entity info")
-        expectPacket(GameServerProt.PLAYER_INFO, APPEARANCE_PLAYER_INFO_BODY_SIZE, "initial player info")
-        expectPacket(GameServerProt.NPC_INFO, 1, "initial npc info")
-        repeat(49) { zone ->
-            expectPacket(GameServerProt.UPDATE_ZONE_FULL_FOLLOWS, 3, "initial zone $zone")
-        }
-        expectPacket(GameServerProt.CAM_TARGET_V4, 5, "initial player camera target")
-        expectPacket(GameServerProt.SERVER_TICK_END, 0, "initial tick end")
-
-        // Every steady-state heartbeat is a smaller atomic group with idle player and empty NPC info.
-        repeat(HEARTBEAT_TICKS) { tick ->
-            val groupHeader = expectPacket(GameServerProt.PACKET_GROUP_START, 2, "heartbeat group $tick")
-            assertEquals(17, ((groupHeader[0].toInt() and 0xFF) shl 8) or (groupHeader[1].toInt() and 0xFF))
-            expectPacket(GameServerProt.SET_ACTIVE_WORLD, 3, "heartbeat active world $tick")
-            expectPacket(GameServerProt.SET_NPC_UPDATE_ORIGIN, 2, "heartbeat npc origin $tick")
-            expectPacket(GameServerProt.PLAYER_INFO, PLAYER_INFO_BODY_SIZE, "heartbeat player info $tick")
-            expectPacket(GameServerProt.NPC_INFO, 1, "heartbeat npc info $tick")
-            expectPacket(GameServerProt.SERVER_TICK_END, 0, "heartbeat tick end $tick")
-        }
 
         serverJob.cancel()
         client.close(); server.close(); selector.close()

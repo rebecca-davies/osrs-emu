@@ -12,6 +12,7 @@ import emu.protocol.osrs239.game.message.HideObjOps
 import emu.protocol.osrs239.game.message.IfOpenSub
 import emu.protocol.osrs239.game.message.IfOpenTop
 import emu.protocol.osrs239.game.message.IfResync
+import emu.protocol.osrs239.game.message.MessageGame
 import emu.protocol.osrs239.game.message.MinimapToggle
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PacketGroupStart
@@ -37,6 +38,17 @@ private val logger = KotlinLogging.logger {}
 /** Local tile within the 13x13 Lumbridge build area. */
 internal const val LOCAL_SCENE_ORIGIN_X = 54
 internal const val LOCAL_SCENE_ORIGIN_Z = 50
+
+/** The chatbox notice the real server posts on every login. */
+internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
+
+/**
+ * The one-time chatbox notices shown after login, once the game frame (and its chatbox) is open.
+ * Just the plain welcome line for now; server MOTD/broadcast lines would join it here.
+ */
+internal fun loginNoticeMessages(): List<MessageGame> = listOf(
+    MessageGame(MessageGame.GAME_MESSAGE, WELCOME_MESSAGE),
+)
 
 /**
  * Builds the capture-shaped atomic initial world group: active-world context, NPC origin, empty
@@ -110,38 +122,32 @@ internal suspend fun sendInitialGameCycle(
     spawnY: Int,
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
-    includeLoginState: Boolean,
 ) {
     session.send(RebuildNormal(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
-    if (includeLoginState) {
-        session.send(SiteSettings())
-        session.send(ChatFilterSettings())
-        session.send(HideNpcOps())
-        session.send(HideLocOps())
-        session.send(HideObjOps())
-        session.send(VarpReset)
-    }
+    session.send(SiteSettings())
+    session.send(ChatFilterSettings())
+    session.send(HideNpcOps())
+    session.send(HideLocOps())
+    session.send(HideObjOps())
+    session.send(VarpReset)
 
     sendPacketGroup(session, initialWorldGroup(appearance, localPlayerIndex))
 
-    if (includeLoginState) {
-        session.send(UpdateInvFull(-1, 64209, 93))
-        session.send(UpdateInvFull(-1, 64208, 94))
+    session.send(UpdateInvFull(-1, 64209, 93))
+    session.send(UpdateInvFull(-1, 64208, 94))
 
-        for (message in initialFrameMessages()) session.send(message)
+    for (message in initialFrameMessages()) session.send(message)
 
-        repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
-        session.send(UpdateRunWeight())
-        session.send(UpdateRunEnergy())
-        session.send(ResetAnims)
-        session.send(MinimapToggle())
-    }
+    repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
+    session.send(UpdateRunWeight())
+    session.send(UpdateRunEnergy())
+    session.send(ResetAnims)
+    session.send(MinimapToggle())
+    for (message in loginNoticeMessages()) session.send(message)
+
     session.send(ServerTickEnd)
-    logger.info {
-        "game stage: sent capture-shaped initial cycle (world group + " +
-            "${if (includeLoginState) "full neutral frame/state" else "world state only"})"
-    }
+    logger.info { "game stage: sent capture-shaped initial cycle (world group + full neutral frame/state)" }
 }
 
 /** Sends one rev-239 atomic packet group with its exact on-wire member byte count. */
