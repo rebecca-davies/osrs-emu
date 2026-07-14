@@ -1,6 +1,6 @@
 package emu.gateway.js5
 
-import emu.protocol.osrs239.js5.Js5Prot
+import emu.protocol.osrs239.js5.prot.Js5Prot
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel

@@ -2,10 +2,11 @@ package emu.gateway.js5
 
 import emu.cache.store.FlatFileStore
 import emu.crypto.XorStreamCipher
-import emu.netcore.codec.CodecRepositoryBuilder
+import emu.gateway.gatewayModule
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.js5.installJs5
+import emu.protocol.osrs239.buildCodecRepository
+import emu.protocol.osrs239.js5.js5Module
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -18,6 +19,7 @@ import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.koin.dsl.koinApplication
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,7 +30,7 @@ class Js5RealCacheTest {
         if (!File(root, "cache/255/255.dat").isFile) {
             println("SKIP: no cache-data — run :tools:cache-fetch:run first"); return@runBlocking
         }
-        val codecs = CodecRepositoryBuilder().installJs5().build()
+        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -38,7 +40,8 @@ class Js5RealCacheTest {
             // One cipher instance shared between the control handler and ProtocolStage, matching
             // Main.kt: a key set via control opcode 4 must be visible to the response encoder.
             val cipher = XorStreamCipher()
-            val handlers = HandlerRepositoryBuilder().installJs5Handlers(FlatFileStore(root), cipher).build()
+            val handlerKoin = koinApplication { modules(gatewayModule(FlatFileStore(root), null)) }.koin
+            val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, cipher).build()
             if (performHandshake(r, w)) ProtocolStage(
                 codecs, handlers, cipher,
                 readOpcode = { it.readByte().toInt() and 0xFF },
