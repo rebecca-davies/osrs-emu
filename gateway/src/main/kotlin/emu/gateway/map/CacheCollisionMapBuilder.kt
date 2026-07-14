@@ -29,9 +29,14 @@ object CacheCollisionMapBuilder {
             for (localX in 0 until MapTileFlags.MAP_SQUARE_SIZE) {
                 for (localY in 0 until MapTileFlags.MAP_SQUARE_SIZE) {
                     val flags = square.tiles[localX, localY, plane]
-                    if (flags and MapTileFlags.BLOCK_MOVEMENT == 0) continue
+                    if (flags == 0) continue
                     val resolvedPlane = if (flags and MapTileFlags.LINK_BELOW != 0) plane - 1 else plane
-                    if (resolvedPlane >= 0) collision.blockFloor(Tile(baseX + localX, baseY + localY, resolvedPlane))
+                    if (resolvedPlane >= 0) {
+                        collision.setFloorBlocked(
+                            Tile(baseX + localX, baseY + localY, resolvedPlane),
+                            blocked = flags and MapTileFlags.BLOCK_MOVEMENT != 0,
+                        )
+                    }
                 }
             }
         }

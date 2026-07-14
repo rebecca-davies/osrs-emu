@@ -44,4 +44,16 @@ class CollisionMapBuilderTest {
         assertTrue(collision.flagsAt(3_225, 3_225, 0) and CollisionFlag.FLOOR_DECORATION != 0)
         assertTrue(collision.flagsAt(3_226, 3_226, 0) and CollisionFlag.FLOOR != 0)
     }
+
+    @Test
+    fun `terrain assignment can clear an underlying floor blocker`() {
+        val tile = Tile(3_220, 3_220)
+        val collision = CollisionMapBuilder()
+            .allocateSquare(50, 50)
+            .blockFloor(tile)
+            .setFloorBlocked(tile, blocked = false)
+            .build()
+
+        assertEquals(0, collision.flagsAt(tile.x, tile.y, tile.plane) and CollisionFlag.FLOOR)
+    }
 }

@@ -27,6 +27,11 @@ class ActiveSceneCollisionRealCacheTest {
 
         val blockingTileMask = CollisionFlag.OBJECT or CollisionFlag.FLOOR or CollisionFlag.FLOOR_DECORATION
         assertEquals(0, collision.flagsAt(3222, 3218, 0) and blockingTileMask)
+        for (x in 3241..3248) {
+            for (y in 3225..3226) {
+                assertEquals(0, collision.flagsAt(x, y, 0) and blockingTileMask, "blocked Lumbridge bridge tile $x,$y")
+            }
+        }
         assertTrue(BfsPathfinder(collision).findPath(Tile(3222, 3218), Tile(3223, 3218)).success)
         assertEquals(-1, collision.flagsAt(48 * 64 + 63, 50 * 64, 0))
 

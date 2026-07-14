@@ -20,6 +20,15 @@ class CollisionMapBuilder(
         collision.add(tile.x, tile.y, tile.plane, CollisionFlag.FLOOR)
     }
 
+    /** Assigns the terrain walk mask while preserving loc and wall flags on the tile. */
+    fun setFloorBlocked(tile: Tile, blocked: Boolean): CollisionMapBuilder = apply {
+        if (blocked) {
+            collision.add(tile.x, tile.y, tile.plane, CollisionFlag.FLOOR)
+        } else {
+            collision.remove(tile.x, tile.y, tile.plane, CollisionFlag.FLOOR)
+        }
+    }
+
     fun blockFloorDecoration(tile: Tile): CollisionMapBuilder = apply {
         collision.add(tile.x, tile.y, tile.plane, CollisionFlag.FLOOR_DECORATION)
     }

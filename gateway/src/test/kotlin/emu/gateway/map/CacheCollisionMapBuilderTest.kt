@@ -32,6 +32,7 @@ class CacheCollisionMapBuilderTest {
         assertEquals(0, collision.flagsAt(3_200, 3_200, 0))
         assertEquals(-1, collision.flagsAt(3_199, 3_200, 0))
         assertTrue(collision.flagsAt(3_205, 3_205, 0) and CollisionFlag.FLOOR != 0)
+        assertEquals(0, collision.flagsAt(3_206, 3_205, 0) and CollisionFlag.FLOOR)
         assertTrue(collision.flagsAt(3_210, 3_210, 0) and CollisionFlag.WALL_WEST != 0)
         assertTrue(collision.flagsAt(3_209, 3_210, 0) and CollisionFlag.WALL_EAST != 0)
         assertTrue(collision.flagsAt(3_220, 3_220, 0) and CollisionFlag.OBJECT != 0)
@@ -47,8 +48,10 @@ class CacheCollisionMapBuilderTest {
             for (plane in 0 until 4) {
                 for (x in 0 until 64) {
                     for (y in 0 until 64) {
-                        if (plane == 1 && x == 5 && y == 5) {
-                            out.writeShort(52)
+                        when {
+                            plane == 1 && x == 5 && y == 5 -> out.writeShort(52)
+                            plane == 0 && x == 6 && y == 5 -> out.writeShort(50)
+                            plane == 1 && x == 6 && y == 5 -> out.writeShort(51)
                         }
                         out.writeShort(0)
                     }
