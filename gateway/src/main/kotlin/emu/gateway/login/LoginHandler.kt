@@ -21,7 +21,7 @@ data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
  * The local player's index into the client's 2048-slot player array (`client.di`,
  * docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §2/§4a). This is the one
  * load-bearing field in the login-info trailer ([LOGIN_SUCCESS_TRAILER]) — the game stage's
- * initial `RebuildNormal`/`PlayerInfo` packets describe this same local player. Milestone-3 has no
+ * initial `RebuildLogin`/`PlayerInfo` packets describe this same local player. Milestone-3 has no
  * persisted account/slot table, so every connection is simply assigned index 1 (a valid non-zero
  * slot; index 0 is conventionally reserved).
  */

@@ -28,7 +28,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 // The GPI-init reference loop covers slots 1..2047 but skips the local index, so it emits 2046
-// (not 2047) 18-bit entries — matching [RebuildNormalEncoder].
+// (not 2047) 18-bit entries — matching the login rebuild encoder.
 private const val OTHER_PLAYER_SLOTS = 2046
 private const val GPI_INIT_BITS = 30 + OTHER_PLAYER_SLOTS * 18
 private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4608
@@ -42,7 +42,7 @@ private suspend fun readU16(ch: ByteReadChannel): Int {
     return (hi shl 8) or lo
 }
 
-/** Unpacks the leading 30 MSB-first bits of a RebuildNormal body back into (plane, x, y). */
+/** Unpacks the leading 30 MSB-first bits of a login rebuild body back into (plane, x, y). */
 private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
     var acc = 0L
     for (i in 0 until 4) acc = (acc shl 8) or (body[i].toLong() and 0xFF)
@@ -98,7 +98,7 @@ class GameStageTest {
         return out.array
     }
 
-    @Test fun `after login the server writes the 34-byte success trailer then an ISAAC-adjusted RebuildNormal at the spawn tile`() = runBlocking {
+    @Test fun `after login the server writes the 34-byte success trailer then an ISAAC-adjusted login rebuild at the spawn tile`() = runBlocking {
         val keyPair = loadRealOrSkip() ?: return@runBlocking
         val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
 

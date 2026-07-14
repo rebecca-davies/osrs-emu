@@ -12,13 +12,11 @@ import emu.gateway.js5.installJs5Handlers
 import emu.gateway.js5.performHandshake
 import emu.gateway.login.GAME_IDLE_TIMEOUT
 import emu.gateway.login.GameCiphers
-import emu.gateway.login.SPAWN_X
-import emu.gateway.login.SPAWN_Y
 import emu.gateway.login.ServerRsaKeyFile
 import emu.gateway.login.performLoginBlock
 import emu.gateway.login.performLoginInit
 import emu.gateway.login.runGameStage
-import emu.gateway.map.CacheCollisionLoader
+import emu.gateway.map.CacheCollisionMap
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
@@ -239,22 +237,15 @@ private suspend fun runJs5Pipeline(r: ByteReadChannel, w: ByteWriteChannel, code
  */
 private fun cacheDir(): File = File(System.getenv("OSRS_CACHE_DIR") ?: "cache-data")
 
-/** Loads the nine cache map squares present in the fixed Lumbridge rebuild scene. */
+/** Creates the shared world collision map; individual cache map squares are decoded on demand. */
 private fun loadCollisionMap(store: Store): CollisionMap {
-    val centerSquareX = SPAWN_X shr 6
-    val centerSquareY = SPAWN_Y shr 6
-    val collision = CacheCollisionLoader(
+    val collision = CacheCollisionMap(
         CacheMapRepository(store),
         CacheObjectDefinitionRepository(store),
-    ).load(
-        squareXs = centerSquareX - MAP_SQUARE_RADIUS..centerSquareX + MAP_SQUARE_RADIUS,
-        squareYs = centerSquareY - MAP_SQUARE_RADIUS..centerSquareY + MAP_SQUARE_RADIUS,
     )
-    logger.info { "loaded cache collision for the active 3x3 map-square scene" }
+    logger.info { "initialized lazy cache-backed world collision" }
     return collision
 }
-
-private const val MAP_SQUARE_RADIUS = 1
 
 /**
  * `server-rsa.properties` is generated (and gitignored) by `tools:client-patch`;

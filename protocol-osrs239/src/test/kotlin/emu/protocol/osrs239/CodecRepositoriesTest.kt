@@ -2,6 +2,7 @@ package emu.protocol.osrs239
 
 import emu.protocol.osrs239.game.gameModule
 import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.RebuildLogin
 import emu.protocol.osrs239.game.message.RebuildNormal
 import emu.protocol.osrs239.js5.js5Module
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
@@ -41,6 +42,7 @@ class CodecRepositoriesTest {
         assertNotNull(repository.encoder(Js5GroupResponse::class.java), "js5 group-response encoder")
         assertNotNull(repository.encoder(ServerSessionKey::class.java), "login server-session-key encoder")
         assertNotNull(repository.encoder(LoginResponse::class.java), "login response encoder")
+        assertNotNull(repository.encoder(RebuildLogin::class.java), "game login rebuild encoder")
         assertNotNull(repository.encoder(RebuildNormal::class.java), "game rebuild-normal encoder")
         assertNotNull(repository.encoder(PlayerInfo::class.java), "game player-info encoder")
     }

@@ -110,7 +110,7 @@ private fun decodeAsClient(stream: ByteArray, oracle: ClientIsaacOracle): List<P
 }
 
 /**
- * Milestone-5 oracle: proves the ENTIRE post-login outbound stream (RebuildNormal + the rsmod
+ * Milestone-5 oracle: proves the ENTIRE post-login outbound stream (login rebuild + the rsmod
  * onLogin init batch + [ORACLE_TICKS] heartbeat ticks) decodes cleanly under the client's own
  * cipher implementation and its own opcode/size table. This is the headless stand-in for the real
  * client (CLAUDE.md §12a — iterate headless, client as acceptance): any opcode/length/keystream

@@ -17,10 +17,15 @@ import kotlin.test.assertTrue
 
 class InitialGameCycleTest {
     @Test fun `initial world group matches capture order and clears the captured 7 by 7 zone window`() {
-        val group = initialWorldGroup(PlayerAppearance(), localPlayerIndex = 1736)
+        val group = initialWorldGroup(
+            PlayerAppearance(),
+            localPlayerIndex = 1736,
+            localPlayerX = 54,
+            localPlayerY = 50,
+        )
 
         assertIs<SetActiveWorld>(group[0])
-        assertIs<SetNpcUpdateOrigin>(group[1])
+        assertEquals(SetNpcUpdateOrigin(54, 50), group[1])
         assertEquals(WorldEntityInfo, group[2])
         assertIs<PlayerInfo>(group[3])
         assertEquals(NpcInfo, group[4])

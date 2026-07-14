@@ -19,6 +19,7 @@ import emu.protocol.osrs239.game.codec.MoveGameClickDecoder
 import emu.protocol.osrs239.game.codec.NpcInfoEncoder
 import emu.protocol.osrs239.game.codec.PacketGroupStartEncoder
 import emu.protocol.osrs239.game.codec.PlayerInfoEncoder
+import emu.protocol.osrs239.game.codec.RebuildLoginEncoder
 import emu.protocol.osrs239.game.codec.RebuildNormalEncoder
 import emu.protocol.osrs239.game.codec.ResetAnimsEncoder
 import emu.protocol.osrs239.game.codec.RunClientScriptEncoder
@@ -54,6 +55,7 @@ val gameModule = module {
     single(named("game.varpReset")) { VarpResetEncoder } bind MessageEncoder::class
     single(named("game.varpSmall")) { VarpSmallEncoder } bind MessageEncoder::class
     single(named("game.varpLarge")) { VarpLargeEncoder } bind MessageEncoder::class
+    single(named("game.rebuildLogin")) { RebuildLoginEncoder } bind MessageEncoder::class
     single(named("game.rebuildNormal")) { RebuildNormalEncoder } bind MessageEncoder::class
     single(named("game.packetGroupStart")) { PacketGroupStartEncoder } bind MessageEncoder::class
     single(named("game.messageGame")) { MessageGameEncoder } bind MessageEncoder::class

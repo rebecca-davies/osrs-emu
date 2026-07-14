@@ -13,6 +13,8 @@ import emu.cache.index.Js5IndexFlags
 import emu.cache.store.Store
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 class CacheMapRepositoryTest {
     @Test
@@ -46,6 +48,31 @@ class CacheMapRepositoryTest {
         assertEquals(50, square.squareY)
         assertEquals(0, square.tiles[0, 0, 0])
         assertEquals(emptyList(), square.locs)
+    }
+
+    @Test
+    fun `missing squares return null and decoded squares are cached`() {
+        val terrain = ByteArray(4 * 64 * 64 * 2 + 1)
+        val mapSquareId = 50 shl 8 or 50
+        val mapFiles = mapOf(0 to terrain, 1 to byteArrayOf(0))
+        val mapGroup = GroupEntry(
+            id = mapSquareId,
+            crc = 0,
+            revision = 0,
+            files = mapFiles.keys.map(::FileEntry),
+        )
+        val repository = CacheMapRepository(
+            MemoryStore(
+                mapOf(
+                    (255 to 5) to indexContainer(listOf(mapGroup), named = false),
+                    (5 to mapSquareId) to Container.encode(Js5Compression.NONE, Group.pack(mapFiles)),
+                ),
+            ),
+        )
+
+        assertNull(repository.loadOrNull(49, 49))
+        val decoded = requireNotNull(repository.loadOrNull(50, 50))
+        assertSame(decoded, repository.loadOrNull(50, 50))
     }
 
     @Test

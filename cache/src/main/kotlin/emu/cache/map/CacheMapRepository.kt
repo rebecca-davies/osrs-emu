@@ -5,14 +5,26 @@ import emu.cache.index.GroupEntry
 import emu.cache.group.Group
 import emu.cache.index.Js5IndexDecoder
 import emu.cache.store.Store
+import java.util.concurrent.ConcurrentHashMap
 
 /** Resolves and decodes the files in a packed rev-239 map-square group. */
 class CacheMapRepository(private val store: Store) {
     private val groupsById: Map<Int, GroupEntry> = loadMapIndex()
+    private val decodedById = ConcurrentHashMap<Int, MapSquare>()
 
-    fun load(squareX: Int, squareY: Int): MapSquare {
-        require(squareX in 0..255 && squareY in 0..255) { "map square outside world: $squareX,$squareY" }
+    fun load(squareX: Int, squareY: Int): MapSquare =
+        requireNotNull(loadOrNull(squareX, squareY)) { "cache map square $squareX,$squareY is missing" }
+
+    /** Returns a cached decoded square, or `null` when the cache has no map group for it. */
+    fun loadOrNull(squareX: Int, squareY: Int): MapSquare? {
+        if (squareX !in 0..255 || squareY !in 0..255) return null
         val groupId = squareX shl 8 or squareY
+        if (groupsById[groupId] == null) return null
+        return decodedById.computeIfAbsent(groupId) { decode(squareX, squareY, groupId) }
+    }
+
+    private fun decode(squareX: Int, squareY: Int, groupId: Int): MapSquare {
+        require(squareX in 0..255 && squareY in 0..255) { "map square outside world: $squareX,$squareY" }
         val files = readMapSquareFiles(groupId)
         return MapSquare(
             squareX = squareX,

@@ -5,6 +5,7 @@ import emu.game.cycle.CycleProcess
 import emu.game.cycle.FixedRateTickSchedule
 import emu.game.cycle.GAME_TICK_MILLIS
 import emu.game.cycle.GameCycle
+import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.MovementUpdate
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
@@ -14,6 +15,7 @@ import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.PlayerMovement as ProtocolPlayerMovement
+import emu.protocol.osrs239.game.message.RebuildNormal
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
@@ -44,13 +46,10 @@ val TICK_INTERVAL: Duration = GAME_TICK_MILLIS.milliseconds
 class GameLoop(
     private val session: OutboundSession,
     private val tickInterval: Duration = TICK_INTERVAL,
-    /** Scene-local X tile (`spawnX - baseX`) used by SET_NPC_UPDATE_ORIGIN. */
-    private val npcOriginX: Int = LOCAL_SCENE_ORIGIN_X,
-    /** Scene-local Z tile (`spawnZ - baseZ`) used by SET_NPC_UPDATE_ORIGIN. */
-    private val npcOriginZ: Int = LOCAL_SCENE_ORIGIN_Z,
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
+    private val buildArea: PlayerBuildArea = PlayerBuildArea(playerMovement.position),
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
     private val cycle =
@@ -64,16 +63,25 @@ class GameLoop(
         )
 
     /**
-     * Flushes active-world context, NPC origin, local-player GPI and empty NPC info as one atomic
-     * group, then terminates the client cycle. Appearance was established by [sendInitialGameCycle]
-     * and is not repeated; GPI carries this cycle's optional walk/run delta.
+     * Recentres the client's 104x104 build area when movement reaches its outer two zones, then
+     * flushes active-world context, the current scene-local NPC origin, local-player GPI and empty
+     * NPC info as one atomic group. Appearance was established by [sendInitialGameCycle] and is not
+     * repeated; GPI carries this cycle's optional walk/run delta.
      */
     private suspend fun flushClientOutput(tickIndex: Long) {
+        val position = playerMovement.position
+        if (buildArea.recenterIfRequired(position)) {
+            session.send(RebuildNormal(buildArea.centreZoneX, buildArea.centreZoneY))
+            logger.info {
+                "game loop: rebuilt normal scene around zone " +
+                    "${buildArea.centreZoneX},${buildArea.centreZoneY} at tile ${position.x},${position.y}"
+            }
+        }
         sendPacketGroup(
             session,
             listOf(
                 SetActiveWorld(),
-                SetNpcUpdateOrigin(npcOriginX, npcOriginZ),
+                SetNpcUpdateOrigin(buildArea.localX(position.x), buildArea.localY(position.y)),
                 PlayerInfo(appearance = null, movement = playerMovement.update.toProtocolMovement()),
                 NpcInfo,
             ),

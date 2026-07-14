@@ -9,9 +9,26 @@ import emu.game.pathfinding.Tile
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class ActiveSceneCollisionRealCacheTest {
+    @Test
+    fun `lazy collision loads a map square beyond the original Lumbridge scene`() {
+        val cache = File("../cache-data")
+        if (!File(cache, "cache/255/5.dat").isFile) {
+            println("SKIP: no rev-239 cache-data")
+            return
+        }
+        val store = FlatFileStore(cache)
+        val collision = CacheCollisionMap(
+            CacheMapRepository(store),
+            CacheObjectDefinitionRepository(store),
+        )
+
+        assertNotEquals(-1, collision.flagsAt(52 * 64, 50 * 64, 0))
+    }
+
     @Test
     fun `rev 239 Lumbridge scene contains traversable spawn and cache-derived blockers`() {
         val cache = File("../cache-data")

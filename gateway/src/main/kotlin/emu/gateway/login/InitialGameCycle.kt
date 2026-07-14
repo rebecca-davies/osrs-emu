@@ -1,5 +1,7 @@
 package emu.gateway.login
 
+import emu.game.map.PlayerBuildArea
+import emu.game.pathfinding.Tile
 import emu.netcore.message.OutgoingMessage
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.AmbienceStop
@@ -18,7 +20,7 @@ import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PacketGroupStart
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
-import emu.protocol.osrs239.game.message.RebuildNormal
+import emu.protocol.osrs239.game.message.RebuildLogin
 import emu.protocol.osrs239.game.message.ResetAnims
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
@@ -34,10 +36,6 @@ import emu.protocol.osrs239.game.message.WorldEntityInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
-
-/** Local tile within the 13x13 Lumbridge build area. */
-internal const val LOCAL_SCENE_ORIGIN_X = 54
-internal const val LOCAL_SCENE_ORIGIN_Z = 50
 
 /** The chatbox notice the real server posts on every login. */
 internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
@@ -59,9 +57,11 @@ internal fun loginNoticeMessages(): List<MessageGame> = listOf(
 internal fun initialWorldGroup(
     appearance: PlayerAppearance?,
     localPlayerIndex: Int,
+    localPlayerX: Int,
+    localPlayerY: Int,
 ): List<OutgoingMessage> = buildList {
     add(SetActiveWorld())
-    add(SetNpcUpdateOrigin(LOCAL_SCENE_ORIGIN_X, LOCAL_SCENE_ORIGIN_Z))
+    add(SetNpcUpdateOrigin(localPlayerX, localPlayerY))
     add(WorldEntityInfo)
     add(PlayerInfo(appearance))
     add(NpcInfo)
@@ -123,7 +123,8 @@ internal suspend fun sendInitialGameCycle(
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
 ) {
-    session.send(RebuildNormal(spawnPlane, spawnX, spawnY, localPlayerIndex))
+    val buildArea = PlayerBuildArea(Tile(spawnX, spawnY, spawnPlane))
+    session.send(RebuildLogin(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
     session.send(SiteSettings())
     session.send(ChatFilterSettings())
@@ -132,7 +133,15 @@ internal suspend fun sendInitialGameCycle(
     session.send(HideObjOps())
     session.send(VarpReset)
 
-    sendPacketGroup(session, initialWorldGroup(appearance, localPlayerIndex))
+    sendPacketGroup(
+        session,
+        initialWorldGroup(
+            appearance,
+            localPlayerIndex,
+            buildArea.localX(spawnX),
+            buildArea.localY(spawnY),
+        ),
+    )
 
     session.send(UpdateInvFull(-1, 64209, 93))
     session.send(UpdateInvFull(-1, 64208, 94))
