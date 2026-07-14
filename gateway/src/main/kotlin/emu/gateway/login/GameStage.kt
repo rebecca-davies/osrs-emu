@@ -64,7 +64,6 @@ suspend fun runGameStage(
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
-    sendLoginInit: Boolean = System.getenv("EMU_LOGIN_INIT") != "0",
 ): Unit = coroutineScope {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
     val appearance = if (System.getenv("EMU_NO_APPEARANCE") == "1") null else PlayerAppearance()
@@ -75,7 +74,6 @@ suspend fun runGameStage(
         spawnY = SPAWN_Y,
         localPlayerIndex = LOCAL_PLAYER_INDEX,
         appearance = appearance,
-        includeLoginState = sendLoginInit,
     )
 
     // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and

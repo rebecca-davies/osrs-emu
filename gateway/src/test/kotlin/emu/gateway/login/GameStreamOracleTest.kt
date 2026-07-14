@@ -148,7 +148,6 @@ class GameStreamOracleTest {
                     idleTimeout = 10.seconds,
                     tickInterval = 1.milliseconds,
                     maxTicks = ORACLE_TICKS,
-                    sendLoginInit = true,
                 )
                 w.flush()
             } finally {

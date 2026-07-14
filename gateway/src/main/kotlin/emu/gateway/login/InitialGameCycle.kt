@@ -122,39 +122,32 @@ internal suspend fun sendInitialGameCycle(
     spawnY: Int,
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
-    includeLoginState: Boolean,
 ) {
     session.send(RebuildNormal(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
-    if (includeLoginState) {
-        session.send(SiteSettings())
-        session.send(ChatFilterSettings())
-        session.send(HideNpcOps())
-        session.send(HideLocOps())
-        session.send(HideObjOps())
-        session.send(VarpReset)
-    }
+    session.send(SiteSettings())
+    session.send(ChatFilterSettings())
+    session.send(HideNpcOps())
+    session.send(HideLocOps())
+    session.send(HideObjOps())
+    session.send(VarpReset)
 
     sendPacketGroup(session, initialWorldGroup(appearance, localPlayerIndex))
 
-    if (includeLoginState) {
-        session.send(UpdateInvFull(-1, 64209, 93))
-        session.send(UpdateInvFull(-1, 64208, 94))
+    session.send(UpdateInvFull(-1, 64209, 93))
+    session.send(UpdateInvFull(-1, 64208, 94))
 
-        for (message in initialFrameMessages()) session.send(message)
+    for (message in initialFrameMessages()) session.send(message)
 
-        repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
-        session.send(UpdateRunWeight())
-        session.send(UpdateRunEnergy())
-        session.send(ResetAnims)
-        session.send(MinimapToggle())
-        for (message in loginNoticeMessages()) session.send(message)
-    }
+    repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
+    session.send(UpdateRunWeight())
+    session.send(UpdateRunEnergy())
+    session.send(ResetAnims)
+    session.send(MinimapToggle())
+    for (message in loginNoticeMessages()) session.send(message)
+
     session.send(ServerTickEnd)
-    logger.info {
-        "game stage: sent capture-shaped initial cycle (world group + " +
-            "${if (includeLoginState) "full neutral frame/state" else "world state only"})"
-    }
+    logger.info { "game stage: sent capture-shaped initial cycle (world group + full neutral frame/state)" }
 }
 
 /** Sends one rev-239 atomic packet group with its exact on-wire member byte count. */
