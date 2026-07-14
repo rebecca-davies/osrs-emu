@@ -66,10 +66,16 @@ private fun buildLoginInfoBlock(): ByteArray {
  * via [LoginBlockParser], and:
  *  - on success: verifies the echoed server key (warns but proceeds regardless — milestone-3
  *    auto-accepts any credentials, see the plan), builds the inbound/outbound ISAAC ciphers, and
- *    replies response code 2 (+ [LOGIN_SUCCESS_TRAILER]).
+ *    replies response code 2 — followed by [LOGIN_SUCCESS_TRAILER] only on a FRESH login.
  *  - on failure: logs the parser's diagnostic (raw payload hex + header offset attempted, so
  *    Task 7 can correct [LoginBlockParser.CLEARTEXT_HEADER_SIZE] against the real client) and
  *    writes nothing.
+ *
+ * [reconnect] MUST be true for an op-18 block: the decompiled client's response-2 dispatch routes a
+ * reconnecting client (`ol.cl` set) to state `cd.aj`, which consumes NO bytes after the response
+ * code — only the fresh path (`cd.az` -> `cd.am`) reads the 37-byte login-info trailer. Sending
+ * the trailer on reconnect shifts the whole game stream by 38 bytes (observed live as the client
+ * mis-framing our REBUILD_NORMAL and throwing `dy.ae: 773 4614`). See [ReconnectLoginTest].
  *
  * Returns the [GameCiphers] for the ensuing game stage on success, or null on any failure — the
  * caller is expected to close the connection when this returns null.
@@ -79,6 +85,7 @@ suspend fun performLoginBlock(
     write: ByteWriteChannel,
     expectedServerKey: Long,
     rsaKeyPair: RsaKeyPair,
+    reconnect: Boolean = false,
 ): GameCiphers? {
     val length = readU16(read)
     logger.debug { "login block: framed u16 length=$length; reading that many payload bytes" }
@@ -116,9 +123,9 @@ suspend fun performLoginBlock(
 
             // NEVER log the password (or any credential). Milestone-3 auto-accepts, so we do not
             // even need it — logging it would leak a real user's password.
-            logger.info { "login block OK: magic=1. Sending response code 2 + trailer." }
+            logger.info { "login block OK: magic=1. Sending response code 2${if (reconnect) " (reconnect: no trailer)" else " + trailer"}." }
             write.writeFully(LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(2)))
-            write.writeFully(LOGIN_SUCCESS_TRAILER)
+            if (!reconnect) write.writeFully(LOGIN_SUCCESS_TRAILER)
             write.flush()
 
             GameCiphers(inbound, outbound)

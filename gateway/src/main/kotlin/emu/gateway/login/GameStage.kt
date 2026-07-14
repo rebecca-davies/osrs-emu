@@ -68,6 +68,7 @@ suspend fun runGameStage(
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
+    sendLoginInit: Boolean = System.getenv("EMU_LOGIN_INIT") == "1",
 ): Unit = coroutineScope {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
     sendInitialScene(session)
@@ -75,11 +76,12 @@ suspend fun runGameStage(
     // EXPERIMENT (milestone-5): the rev-239 rsmod onLogin sequence (LoginScript.kt) sends a batch of
     // login-init packets right after REBUILD_NORMAL. We send NONE of them; the client reaches
     // LOGGED_IN, renders terrain, then drops ~130ms later even with a per-tick heartbeat. Gated by
-    // EMU_LOGIN_INIT=1 to A/B test whether this batch keeps the client in-game. Raw wire (fixed-size
-    // packets: opcode ISAAC-adjusted via [outboundCipher], plaintext body), reusing the same cipher
-    // in order after the RebuildNormal opcode so the client's decryptor stays in lockstep.
-    if (System.getenv("EMU_LOGIN_INIT") == "1") {
-        logger.info { "game stage: EMU_LOGIN_INIT=1 — sending rsmod onLogin init batch after rebuild" }
+    // EMU_LOGIN_INIT=1 (overridable via [sendLoginInit] for tests) to A/B test whether this batch
+    // keeps the client in-game. Raw wire (fixed-size packets: opcode ISAAC-adjusted via
+    // [outboundCipher], plaintext body), reusing the same cipher in order after the RebuildNormal
+    // opcode so the client's decryptor stays in lockstep.
+    if (sendLoginInit) {
+        logger.info { "game stage: sending rsmod onLogin init batch after rebuild" }
         sendLoginInitBatch(write, outboundCipher)
     }
 

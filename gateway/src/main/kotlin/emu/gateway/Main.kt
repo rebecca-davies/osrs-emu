@@ -179,7 +179,8 @@ private suspend fun handshakeLogin(r: ByteReadChannel, w: ByteWriteChannel, rsaK
                 logger.warn { "rejecting login block: no server RSA keypair loaded" }
                 null
             } else {
-                performLoginBlock(r, w, serverKey, rsaKeyPair)?.let { PostHandshake.GameStage(it) }
+                performLoginBlock(r, w, serverKey, rsaKeyPair, reconnect = next == LoginProt.RECONNECT.opcode)
+                    ?.let { PostHandshake.GameStage(it) }
             }
         }
         else -> { logger.warn { "unexpected opcode $next after login init; closing connection" }; null }
