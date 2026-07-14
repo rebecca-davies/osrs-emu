@@ -12,8 +12,13 @@ import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
+import emu.game.ui.ButtonActionRegistry
+import emu.game.ui.PlayerButtonQueue
+import emu.game.varp.PlayerVarps
+import emu.gateway.game.PlayerSessionControl
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
+import emu.protocol.osrs239.game.message.Logout
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.PlayerMovement as ProtocolPlayerMovement
 import emu.protocol.osrs239.game.message.ServerTickEnd
@@ -43,7 +48,7 @@ val TICK_INTERVAL: Duration = GAME_TICK_MILLIS.milliseconds
  * advances movement in the player phase, flushes update info in client output, then clears
  * per-cycle state. [session] reuses the shared registry/ISAAC write path verbatim.
  */
-class GameLoop(
+internal class GameLoop(
     private val session: OutboundSession,
     private val tickInterval: Duration = TICK_INTERVAL,
     /** Scene-local X tile (`spawnX - baseX`) used by SET_NPC_UPDATE_ORIGIN. */
@@ -53,13 +58,18 @@ class GameLoop(
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
+    private val buttonClicks: PlayerButtonQueue,
+    buttonActions: ButtonActionRegistry,
+    private val playerVarps: PlayerVarps,
+    private val sessionControl: PlayerSessionControl,
     private val profileLabel: String = "connection",
     private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
     private val cycle =
         GameCycle(
-            routeRequests.cycleProcesses(playerMovement) +
+            buttonClicks.cycleProcesses(buttonActions) +
+                routeRequests.cycleProcesses(playerMovement) +
                 cycleProcesses +
                 playerMovement.cycleProcesses() +
                 CycleProcess(CyclePhase.CLIENT_OUTPUT) { tickIndex ->
@@ -73,6 +83,12 @@ class GameLoop(
      * and is not repeated; GPI carries this cycle's optional walk/run delta.
      */
     private suspend fun flushClientOutput(tickIndex: Long) {
+        for (varp in playerVarps.drainClientUpdates()) session.send(varp.toProtocolMessage())
+        if (sessionControl.logoutRequested) {
+            session.send(Logout)
+            logger.info { "game loop: sent clean logout response on tick $tickIndex" }
+            return
+        }
         sendPacketGroup(
             session,
             listOf(
@@ -131,9 +147,13 @@ class GameLoop(
                 onProfileReport(snapshot)
             }
             ticks++
+            if (sessionControl.logoutRequested) break
             delay(schedule.delayAfterTick(start, System.currentTimeMillis()))
         }
-        logger.debug { "game loop: reached tick cap $maxTicks; stopping" }
+        logger.debug {
+            if (sessionControl.logoutRequested) "game loop: logout requested; stopping"
+            else "game loop: reached tick cap $maxTicks; stopping"
+        }
     }
 }
 

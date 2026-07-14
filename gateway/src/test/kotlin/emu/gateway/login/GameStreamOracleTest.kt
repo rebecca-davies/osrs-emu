@@ -152,7 +152,7 @@ class GameStreamOracleTest {
                 runGameStage(
                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                     player = ciphers.player,
-                    saveSession = { _, _, _ -> },
+                    saveSession = { _, _, _, _ -> },
                     idleTimeout = 10.seconds,
                     tickInterval = 1.milliseconds,
                     maxTicks = ORACLE_TICKS,
@@ -235,11 +235,12 @@ class GameStreamOracleTest {
 
     private fun loginBlockPayload(keyPair: RsaKeyPair, seeds: IntArray, serverKey: Long): ByteArray {
         val password = "testpass"
-        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1).apply {
+        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1).apply {
             writeByte(1)
             for (s in seeds) writeInt(s)
             writeLong(serverKey)
-            writeByte(0)
+            writeByte(2)
+            writeInt(0)
             writeByte(0)
             writeCString(password)
         }.array

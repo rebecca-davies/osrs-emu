@@ -19,8 +19,9 @@ import java.math.BigInteger
  * ```
  *
  * RSA plaintext, after decrypting the ciphertext block with our private key (§2):
- * `[1 magic][seed0 int][seed1 int][seed2 int][seed3 int][serverKey long][auth-method byte][marker
- * byte][password C-string]`.
+ * `[1 magic][seed0 int][seed1 int][seed2 int][seed3 int][serverKey long][auth token][marker
+ * byte][password C-string]`. A fresh login's auth token is one method byte followed by four bytes
+ * of method-specific data (or reserved zeroes); a reconnect's token is four ints (16 bytes).
  *
  * **Header-offset uncertainty (empirical stance, see the plan/design docs):** the exact size of
  * the cleartext header before the RSA block was derived from the decompile (§5: 4+4+4+1+1+1 = 15
@@ -29,12 +30,9 @@ import java.math.BigInteger
  * without touching parsing logic. If the magic-byte check fails, [parse] returns [Result.BadMagic]
  * with the attempted header size, but never retains or logs credential-bearing packet bytes.
  *
- * **Auth-token-section assumption:** the bytes between `serverKey` and the string-marker byte vary
- * by login type (reconnect vs. new-login) and authenticator method (§2). This parser assumes the
- * common **new-login, no-authenticator** path, where that section is a single auth-method byte
- * (value 0 selects the "no extra fields" case in the decompiled switch). Task 7 must confirm this
- * against the real client; if it captures a non-zero auth-method byte, this parser needs a
- * corresponding branch.
+ * The four-byte fresh-login auth payload is structurally fixed even though its contents vary by
+ * method: the decompiled case-2 path writes an int, cases 1/4 write a medium and reserve one byte,
+ * and case 0 reserves four bytes. We deliberately skip it without retaining authentication data.
  */
 object LoginBlockParser {
     /** See the class doc: revision(4) + subversion(4) + build/flags(4) + 3 flag bytes. */
@@ -64,7 +62,12 @@ object LoginBlockParser {
         data class Malformed(val reason: String) : Result()
     }
 
-    fun parse(payload: ByteArray, modulus: BigInteger, privateExp: BigInteger): Result {
+    fun parse(
+        payload: ByteArray,
+        modulus: BigInteger,
+        privateExp: BigInteger,
+        reconnect: Boolean = false,
+    ): Result {
         if (payload.size < CLEARTEXT_HEADER_SIZE + 2) {
             return Result.Malformed(
                 "payload (${payload.size} bytes) shorter than header ($CLEARTEXT_HEADER_SIZE) + u16 length prefix",
@@ -90,15 +93,17 @@ object LoginBlockParser {
             }
 
             val pb = JagexBuffer(plain, pos = 1)
-            val minRemaining = 4 * 4 + 8 + 1 + 1 // 4 seed ints + server key long + auth byte + marker byte
+            val authTokenLength = if (reconnect) RECONNECT_AUTH_TOKEN_LENGTH else FRESH_AUTH_TOKEN_LENGTH
+            val minRemaining = 4 * 4 + 8 + authTokenLength + 1 // seeds + key + auth token + marker
             if (pb.readableBytes() < minRemaining) {
                 return Result.Malformed(
-                    "RSA plaintext (${plain.size} bytes) too short for seeds+serverKey+auth+marker",
+                    "RSA plaintext (${plain.size} bytes) too short for seeds+serverKey+auth token+marker",
                 )
             }
             val seeds = IntArray(4) { pb.readInt() }
             val serverKey = pb.readLong()
-            pb.readUByte() // auth-method byte
+            if (!reconnect) pb.readUByte() // auth-method byte; reconnect has only its four saved ints
+            pb.pos += if (reconnect) RECONNECT_AUTH_TOKEN_LENGTH else FRESH_AUTH_PAYLOAD_LENGTH
             pb.readUByte() // string-type marker byte
             password = pb.readSensitiveCString(MAX_PASSWORD_LENGTH)
 
@@ -144,4 +149,7 @@ object LoginBlockParser {
 
     private const val MAX_PASSWORD_LENGTH = 128
     private const val MAX_USERNAME_LENGTH = 320
+    private const val FRESH_AUTH_PAYLOAD_LENGTH = 4
+    private const val FRESH_AUTH_TOKEN_LENGTH = 1 + FRESH_AUTH_PAYLOAD_LENGTH
+    private const val RECONNECT_AUTH_TOKEN_LENGTH = 16
 }

@@ -8,6 +8,9 @@ import emu.netcore.prot.Prot
  * See docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §1c.
  */
 object GameServerProt {
+    /** Clean player logout (opcode 57, empty). */
+    val LOGOUT = Prot(57, 0)
+
     /** Account/site settings CP-1252 string (opcode 67, variable byte). */
     val SITE_SETTINGS = Prot(67, Prot.VAR_BYTE)
 

@@ -88,11 +88,12 @@ class LoginAuthenticationTest {
         username: String,
         password: String,
     ): ByteArray {
-        val rsa = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1)
+        val rsa = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1)
         rsa.writeByte(1)
         for (seed in seeds) rsa.writeInt(seed)
         rsa.writeLong(serverKey)
-        rsa.writeByte(0)
+        rsa.writeByte(2)
+        rsa.writeInt(0)
         rsa.writeByte(0)
         rsa.writeCString(password)
         val cipher = Rsa.crypt(rsa.array, keyPair.modulus, keyPair.publicExp)

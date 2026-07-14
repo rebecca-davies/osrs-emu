@@ -35,13 +35,24 @@ class ReconnectLoginTest {
         return ServerRsaKeyFile.load(file)
     }
 
-    private fun loginBlockPayload(keyPair: RsaKeyPair, seeds: IntArray, serverKey: Long): ByteArray {
+    private fun loginBlockPayload(
+        keyPair: RsaKeyPair,
+        seeds: IntArray,
+        serverKey: Long,
+        reconnect: Boolean,
+    ): ByteArray {
         val password = "testpass"
-        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1).apply {
+        val authTokenLength = if (reconnect) 16 else 5
+        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + authTokenLength + 1 + password.length + 1).apply {
             writeByte(1)
             for (s in seeds) writeInt(s)
             writeLong(serverKey)
-            writeByte(0)
+            if (reconnect) {
+                repeat(4) { writeInt(0) }
+            } else {
+                writeByte(2)
+                writeInt(0)
+            }
             writeByte(0)
             writeCString(password)
         }.array
@@ -58,7 +69,7 @@ class ReconnectLoginTest {
     /** Runs [performLoginBlock] over in-memory channels and returns every byte it wrote. */
     private fun loginResponseBytes(keyPair: RsaKeyPair, reconnect: Boolean): ByteArray = runBlocking {
         val serverKey = 0x123456789ABCL
-        val payload = loginBlockPayload(keyPair, intArrayOf(1, 2, 3, 4), serverKey)
+        val payload = loginBlockPayload(keyPair, intArrayOf(1, 2, 3, 4), serverKey, reconnect)
         val read = ByteChannel()
         read.writeFully(byteArrayOf((payload.size ushr 8).toByte(), payload.size.toByte()))
         read.writeFully(payload)

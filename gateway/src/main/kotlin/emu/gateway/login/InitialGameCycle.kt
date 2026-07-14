@@ -1,6 +1,9 @@
 package emu.gateway.login
 
 import emu.game.cycle.CycleProfileSnapshot
+import emu.game.varp.PlayerVarps
+import emu.game.varp.VarpValue
+import emu.gateway.game.PlayerVarpTypes
 import emu.netcore.message.OutgoingMessage
 import emu.netcore.pipeline.OutboundSession
 import emu.persistence.PlayerRank
@@ -33,6 +36,7 @@ import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
 import emu.protocol.osrs239.game.message.VarpReset
 import emu.protocol.osrs239.game.message.VarpSmall
+import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -63,8 +67,18 @@ internal fun initialStatMessages(): List<UpdateStat> =
         else UpdateStat(stat, 1, 1, 0)
     }
 
-/** Run stays enabled and energy remains at the separately-published 100% for this early world. */
-internal fun initialRunVarps(): List<VarpSmall> = listOf(VarpSmall(RUN_MODE_VARP, 1))
+/** Builds typed live varp state from sparse permanent account rows and server-derived login state. */
+internal fun initialPlayerVarps(savedValues: Map<Int, Int> = emptyMap()): PlayerVarps =
+    PlayerVarps(PlayerVarpTypes.CATALOG, savedValues).apply {
+        this[PlayerVarpTypes.HAS_DISPLAY_NAME] = 1
+    }
+
+/** Complete transmitted player variables after VARP_RESET, selecting small/large wire forms. */
+internal fun initialAccountVarps(varps: PlayerVarps = initialPlayerVarps()): List<OutgoingMessage> =
+    varps.loginSync().map(VarpValue::toProtocolMessage)
+
+internal fun VarpValue.toProtocolMessage(): OutgoingMessage =
+    if (value in Byte.MIN_VALUE..Byte.MAX_VALUE) VarpSmall(id, value) else VarpLarge(id, value)
 
 /** Formats the rolling cycle telemetry as an in-game admin message. */
 internal fun adminCycleReport(rank: PlayerRank, snapshot: CycleProfileSnapshot): MessageGame? {
@@ -147,6 +161,7 @@ internal suspend fun sendInitialGameCycle(
     spawnY: Int,
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
+    accountVarps: List<OutgoingMessage> = initialAccountVarps(),
 ) {
     session.send(RebuildNormal(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
@@ -156,7 +171,7 @@ internal suspend fun sendInitialGameCycle(
     session.send(HideLocOps())
     session.send(HideObjOps())
     session.send(VarpReset)
-    for (varp in initialRunVarps()) session.send(varp)
+    for (varp in accountVarps) session.send(varp)
 
     sendPacketGroup(session, initialWorldGroup(appearance, localPlayerIndex))
 
@@ -197,6 +212,4 @@ private val INITIAL_ZONE_SPIRAL: List<Pair<Int, Int>> = listOf(
 
 private const val OSRS_SKILL_COUNT = 23
 private const val HITPOINTS_STAT = 3
-private const val RUN_MODE_VARP = 173
-
 private fun millis(nanos: Long): Double = nanos / 1_000_000.0

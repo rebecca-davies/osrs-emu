@@ -68,6 +68,41 @@ class PlayerRepositoryTest {
         assertEquals(50, loaded.playTimeSeconds)
     }
 
+    @Test
+    fun `account varps are sparse and flushed only with the logout save point`() {
+        val fixture = fixtureOrNull() ?: return
+        val name = "V${UUID.randomUUID().toString().take(8)}"
+        val password = "varp password".toCharArray()
+        val player = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+
+        assertEquals(emptyMap(), player.varps)
+        fixture.players.saveSession(
+            player.id,
+            SPAWN,
+            playedSeconds = 0,
+            dirtyVarps = mapOf(173 to 0, 1055 to Int.MAX_VALUE),
+        )
+
+        val loaded = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+        assertEquals(mapOf(1055 to Int.MAX_VALUE), loaded.varps)
+
+        fixture.players.saveSession(player.id, SPAWN, playedSeconds = 0, dirtyVarps = mapOf(173 to 1))
+        val updated = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+        assertEquals(mapOf(173 to 1, 1055 to Int.MAX_VALUE), updated.varps)
+
+        fixture.players.saveSession(player.id, SPAWN, playedSeconds = 0, dirtyVarps = mapOf(173 to 0))
+        val cleared = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+        assertEquals(mapOf(1055 to Int.MAX_VALUE), cleared.varps)
+    }
+
     private fun fixtureOrNull(): Fixture? {
         val database = PostgresDatabase(PostgresConfig.fromEnvironment())
         try {

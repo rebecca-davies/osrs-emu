@@ -5,6 +5,10 @@ import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
+import emu.game.ui.PlayerButtonQueue
+import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.PlayerVarpTypes
+import emu.gateway.game.playerButtonActions
 import emu.gateway.game.installGameHandlers
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
@@ -77,20 +81,28 @@ suspend fun runGameStage(
     outboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     player: PlayerRecord,
-    saveSession: (Long, PlayerPosition, Long) -> Unit,
+    saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit,
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
 ): Unit {
     val sessionStarted = System.nanoTime()
     val session = OutboundSession(gameCodecs, outboundCipher, write)
-    val movement = initialPlayerMovement(player.position)
+    val playerVarps = initialPlayerVarps(player.varps)
+    val movement = initialPlayerMovement(player.position, playerVarps[PlayerVarpTypes.RUN_MODE] == 1)
     val routeRequests = PlayerRouteRequestQueue()
+    val buttonClicks = PlayerButtonQueue()
+    val sessionControl = PlayerSessionControl()
+    val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
     val gameLoop = GameLoop(
         session,
         tickInterval,
         playerMovement = movement,
         routeRequests = routeRequests,
+        buttonClicks = buttonClicks,
+        buttonActions = buttonActions,
+        playerVarps = playerVarps,
+        sessionControl = sessionControl,
         profileLabel = "player ${player.id}",
         onProfileReport = { snapshot ->
             adminCycleReport(player.rank, snapshot)?.let { session.send(it) }
@@ -108,7 +120,9 @@ suspend fun runGameStage(
                 spawnY = player.position.y,
                 localPlayerIndex = LOCAL_PLAYER_INDEX,
                 appearance = appearance,
+                accountVarps = initialAccountVarps(playerVarps),
             )
+            playerVarps.markClientSynchronized()
 
             // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
             // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
@@ -116,13 +130,13 @@ suspend fun runGameStage(
             val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
             if (skipTicks) {
                 logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
                 return@coroutineScope
             }
 
             val tickJob = launch { gameLoop.run(maxTicks) }
             val readJob = launch {
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
                 // The client is gone / idle: stop the heartbeat so this connection can close.
                 tickJob.cancel()
             }
@@ -138,7 +152,7 @@ suspend fun runGameStage(
         try {
             withContext(NonCancellable + Dispatchers.IO) {
                 withTimeout(SESSION_SAVE_TIMEOUT) {
-                    saveSession(player.id, finalPosition, elapsedSeconds)
+                    saveSession(player.id, finalPosition, elapsedSeconds, playerVarps.dirtyPersistentValues())
                 }
             }
             logger.info { "game stage: saved player ${player.id} session state" }
@@ -149,9 +163,9 @@ suspend fun runGameStage(
 }
 
 /** Creates the live movement session with server-authoritative unlimited run enabled. */
-internal fun initialPlayerMovement(position: PlayerPosition): PlayerMovement =
+internal fun initialPlayerMovement(position: PlayerPosition, runEnabled: Boolean = false): PlayerMovement =
     PlayerMovement(Tile(position.x, position.y, position.plane), OpenCollisionMap).apply {
-        runEnabled = true
+        this.runEnabled = runEnabled
     }
 
 /**
@@ -166,9 +180,10 @@ internal suspend fun drainGameInbound(
     inboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     routeRequests: PlayerRouteRequestQueue,
+    buttonClicks: PlayerButtonQueue,
     idleTimeout: Duration,
 ) {
-    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests).build()
+    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests, buttonClicks).build()
     val stage =
         ProtocolStage(
             gameCodecs,

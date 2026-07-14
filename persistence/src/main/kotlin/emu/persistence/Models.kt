@@ -48,6 +48,8 @@ data class PlayerRecord(
     val position: PlayerPosition,
     val playTimeSeconds: Long,
     val rank: PlayerRank = PlayerRank.PLAYER,
+    /** Sparse permanent player variables. Defaults live in the game varp catalog. */
+    val varps: Map<Int, Int> = emptyMap(),
 )
 
 /** Result of case-insensitive password authentication or first-login creation. */

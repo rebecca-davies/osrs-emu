@@ -69,6 +69,7 @@ class PostgresDatabase(config: PostgresConfig) {
             listOf(
                 Migration(1, "/db/migration/V1__players.sql"),
                 Migration(2, "/db/migration/V2__player_rank.sql"),
+                Migration(3, "/db/migration/V3__player_varps.sql"),
             )
     }
 }

@@ -171,7 +171,7 @@ internal suspend fun handleConnection(
     authenticate: (String, CharArray) -> AuthenticationResult = { _, _ ->
         AuthenticationResult.InvalidCredentials
     },
-    saveSession: (Long, PlayerPosition, Long) -> Unit = { _, _, _ -> },
+    saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit = { _, _, _, _ -> },
 ) {
     try {
         val r = conn.openReadChannel()

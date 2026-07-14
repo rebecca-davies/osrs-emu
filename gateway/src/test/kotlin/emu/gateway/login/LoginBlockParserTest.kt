@@ -11,19 +11,26 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 // Pure test of the op-16/18 login block parser: no sockets. Builds a plaintext RSA payload
-// matching rev239-login-facts.md §2 ([1][seed0..3][serverKey][auth-method byte][marker
-// byte][password C-string]), public-encrypts it, wraps it in a cleartext header + u16 rsaLength +
+// matching rev239-login-facts.md §2 ([1][seed0..3][serverKey][auth-method byte][4-byte auth
+// payload][marker byte][password C-string]), public-encrypts it, wraps it in a cleartext header + u16 rsaLength +
 // an encrypted username tail, and asserts the parser recovers disposable credentials — or reports
 // the right failure shape when the header offset is wrong.
 class LoginBlockParserTest {
     private fun keyPair(): RsaKeyPair = Rsa.generateKeyPair(1024)
 
-    private fun rsaPlaintext(seeds: IntArray, serverKey: Long, password: String): ByteArray {
-        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1)
+    private fun rsaPlaintext(
+        seeds: IntArray,
+        serverKey: Long,
+        password: String,
+        authPayload: ByteArray = ByteArray(4),
+    ): ByteArray {
+        require(authPayload.size == 4)
+        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + authPayload.size + 1 + password.length + 1)
         buf.writeByte(1) // magic
         for (s in seeds) buf.writeInt(s)
         buf.writeLong(serverKey)
-        buf.writeByte(0) // auth-method byte (assumed 0 = no authenticator, see LoginBlockParser doc)
+        buf.writeByte(2) // auth-method wire value for client.dm case 0
+        buf.writeBytes(authPayload) // rev 239 always reserves four bytes for the auth method payload
         buf.writeByte(0) // string-type marker byte
         buf.writeCString(password)
         return buf.array
@@ -36,8 +43,9 @@ class LoginBlockParserTest {
         password: String,
         username: String = "Rebecca_Bird",
         headerSize: Int = LoginBlockParser.CLEARTEXT_HEADER_SIZE,
+        authPayload: ByteArray = ByteArray(4),
     ): ByteArray {
-        val plaintext = rsaPlaintext(seeds, serverKey, password)
+        val plaintext = rsaPlaintext(seeds, serverKey, password, authPayload)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(headerSize) // cleartext header contents are irrelevant to the parser
         val usernameBytes = username.toByteArray(Charsets.ISO_8859_1) + 0
@@ -66,6 +74,23 @@ class LoginBlockParserTest {
 
         ok.parsed.clearPassword()
         assertTrue(ok.parsed.password.all { it == '\u0000' })
+    }
+
+    @Test fun `skips the four-byte rev 239 authentication payload before the password`() {
+        val kp = keyPair()
+        val payload = loginBlockPayload(
+            kp,
+            intArrayOf(11, 22, 33, 44),
+            serverKey = 99L,
+            password = "dummy-pw",
+            authPayload = byteArrayOf(0x12, 0x34, 0x56, 0x78),
+        )
+
+        val result = LoginBlockParser.parse(payload, kp.modulus, kp.privateExp)
+
+        val ok = assertIs<LoginBlockParser.Result.Ok>(result)
+        assertContentEquals("dummy-pw".toCharArray(), ok.parsed.password)
+        ok.parsed.clearPassword()
     }
 
     @Test fun `wrong header offset yields a structural failure without retaining payload bytes`() {

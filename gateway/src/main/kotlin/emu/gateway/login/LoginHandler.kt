@@ -119,7 +119,12 @@ suspend fun performLoginBlock(
     val payload = ByteArray(length)
     read.readFully(payload)
     val payloadSize = payload.size
-    val parsedResult = LoginBlockParser.parse(payload, rsaKeyPair.modulus, rsaKeyPair.privateExp)
+    val parsedResult = LoginBlockParser.parse(
+        payload,
+        rsaKeyPair.modulus,
+        rsaKeyPair.privateExp,
+        reconnect = reconnect,
+    )
     payload.fill(0)
 
     return when (val result = parsedResult) {

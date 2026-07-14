@@ -37,7 +37,8 @@ class GameStagePersistenceTest {
                 // Drain encoded packets so the writer can never back-pressure this unit test.
             }
         }
-        val saves = mutableListOf<Triple<Long, PlayerPosition, Long>>()
+        data class Save(val id: Long, val position: PlayerPosition, val seconds: Long, val varps: Map<Int, Int>)
+        val saves = mutableListOf<Save>()
 
         runGameStage(
             read = inbound,
@@ -46,7 +47,7 @@ class GameStagePersistenceTest {
             outboundCipher = IsaacCipher(intArrayOf(51, 52, 53, 54)),
             gameCodecs = codecs,
             player = player,
-            saveSession = { id, position, seconds -> saves += Triple(id, position, seconds) },
+            saveSession = { id, position, seconds, varps -> saves += Save(id, position, seconds, varps) },
             idleTimeout = 1.seconds,
             tickInterval = 1.milliseconds,
             maxTicks = 0,
@@ -55,8 +56,9 @@ class GameStagePersistenceTest {
         outbound.close()
         sink.join()
         assertEquals(1, saves.size)
-        assertEquals(42, saves.single().first)
-        assertEquals(player.position, saves.single().second)
-        assertTrue(saves.single().third >= 0)
+        assertEquals(42, saves.single().id)
+        assertEquals(player.position, saves.single().position)
+        assertTrue(saves.single().seconds >= 0)
+        assertEquals(emptyMap(), saves.single().varps)
     }
 }

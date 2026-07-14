@@ -19,14 +19,14 @@ class PostgresDatabaseTest {
 
         database.connection { connection ->
             connection.prepareStatement(
-                "SELECT count(*) FROM schema_migrations WHERE version IN (1, 2)",
+                "SELECT count(*) FROM schema_migrations WHERE version IN (1, 2, 3)",
             ).use { statement ->
                 statement.executeQuery().use { result ->
                     assertTrue(result.next())
-                    assertEquals(2, result.getInt(1))
+                    assertEquals(3, result.getInt(1))
                 }
             }
-            val tables = listOf("players", "player_skills", "player_items")
+            val tables = listOf("players", "player_skills", "player_items", "player_varps")
             for (table in tables) {
                 connection.prepareStatement(
                     "SELECT count(*) FROM information_schema.tables " +

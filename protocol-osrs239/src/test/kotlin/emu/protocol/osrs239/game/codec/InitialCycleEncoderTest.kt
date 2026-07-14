@@ -12,6 +12,7 @@ import emu.protocol.osrs239.game.message.IfOpenSub
 import emu.protocol.osrs239.game.message.IfOpenTop
 import emu.protocol.osrs239.game.message.IfResync
 import emu.protocol.osrs239.game.message.IfSetHide
+import emu.protocol.osrs239.game.message.Logout
 import emu.protocol.osrs239.game.message.MinimapToggle
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PacketGroupStart
@@ -27,6 +28,7 @@ import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.VarpReset
 import emu.protocol.osrs239.game.message.VarpSmall
 import emu.protocol.osrs239.game.message.WorldEntityInfo
+import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -119,6 +121,11 @@ class InitialCycleEncoderTest {
         assertEquals(emptyList(), ResetAnimsEncoder.encode(NopStreamCipher, ResetAnims).toList())
         assertEquals(bytes(0x27, 0x10), UpdateRunEnergyEncoder.encode(NopStreamCipher, UpdateRunEnergy()).toList())
         assertEquals(bytes(0, 0), UpdateRunWeightEncoder.encode(NopStreamCipher, UpdateRunWeight()).toList())
+    }
+
+    @Test fun `requested logout is an empty rev 239 logout packet`() {
+        assertEquals(GameServerProt.LOGOUT, LogoutEncoder.prot)
+        assertEquals(emptyList(), LogoutEncoder.encode(NopStreamCipher, Logout).toList())
     }
 
     @Test fun `player camera target matches the captured rev 239 camera target reader`() {

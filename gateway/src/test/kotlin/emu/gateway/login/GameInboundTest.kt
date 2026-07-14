@@ -6,6 +6,7 @@ import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
+import emu.game.ui.PlayerButtonQueue
 import emu.protocol.osrs239.buildCodecRepository
 import emu.protocol.osrs239.game.gameModule
 import emu.protocol.osrs239.game.prot.GameClientProt
@@ -30,7 +31,7 @@ class GameInboundTest {
         val requests = PlayerRouteRequestQueue()
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val job = launch {
-            drainGameInbound(input, unusedOutput, serverCipher, codecs, requests, 2.seconds)
+            drainGameInbound(input, unusedOutput, serverCipher, codecs, requests, PlayerButtonQueue(), 2.seconds)
         }
 
         input.writeEncryptedOpcode(0, clientCipher)

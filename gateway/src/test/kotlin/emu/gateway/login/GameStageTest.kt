@@ -75,11 +75,12 @@ class GameStageTest {
     }
 
     private fun rsaPlaintext(seeds: IntArray, serverKey: Long, password: String): ByteArray {
-        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1)
+        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1)
         buf.writeByte(1) // magic
         for (s in seeds) buf.writeInt(s)
         buf.writeLong(serverKey)
-        buf.writeByte(0) // auth-method byte
+        buf.writeByte(2) // auth-method wire value for client.dm case 0
+        buf.writeInt(0) // fixed four-byte auth payload
         buf.writeByte(0) // string-type marker byte
         buf.writeCString(password)
         return buf.array
@@ -125,7 +126,7 @@ class GameStageTest {
                                 runGameStage(
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                                     player = ciphers.player,
-                                    saveSession = { _, _, _ -> },
+                                    saveSession = { _, _, _, _ -> },
                                     idleTimeout = 2.seconds,
                                     tickInterval = 20.milliseconds,
                                     maxTicks = 1,

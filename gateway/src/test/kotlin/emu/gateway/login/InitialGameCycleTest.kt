@@ -12,20 +12,23 @@ import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
 import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.VarpSmall
+import emu.protocol.osrs239.game.message.VarpLarge
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class InitialGameCycleTest {
-    @Test fun `initial movement has unlimited run enabled and the client run varp agrees`() {
-        val movement = initialPlayerMovement(PlayerPosition(3222, 3218, 0))
+    @Test fun `fresh account starts walking and can still use unlimited run`() {
+        val varps = initialPlayerVarps()
+        val movement = initialPlayerMovement(PlayerPosition(3222, 3218, 0), runEnabled = false)
 
-        assertTrue(movement.runEnabled)
-        assertEquals(listOf(VarpSmall(173, 1)), initialRunVarps())
+        assertFalse(movement.runEnabled)
+        assertTrue(initialAccountVarps(varps).contains(VarpSmall(173, 0)))
     }
 
     @Test fun `cycle profile chat is visible only to administrators`() {
@@ -40,6 +43,7 @@ class InitialGameCycleTest {
 
     @Test fun `authenticated display name is used by local-player appearance and chat identity`() {
         assertEquals("Rebecca_Bird", playerAppearance("Rebecca_Bird").name)
+        assertTrue(initialAccountVarps().contains(VarpLarge(1737, Int.MIN_VALUE)))
     }
 
     @Test fun `new character starts with authentic hitpoints and otherwise level one stats`() {
