@@ -8,6 +8,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
+import io.ktor.utils.io.writeByte
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -70,6 +72,27 @@ suspend fun runGameStage(
     val session = OutboundSession(gameCodecs, outboundCipher, write)
     sendInitialScene(session)
 
+    // EXPERIMENT (milestone-5): the rev-239 rsmod onLogin sequence (LoginScript.kt) sends a batch of
+    // login-init packets right after REBUILD_NORMAL. We send NONE of them; the client reaches
+    // LOGGED_IN, renders terrain, then drops ~130ms later even with a per-tick heartbeat. Gated by
+    // EMU_LOGIN_INIT=1 to A/B test whether this batch keeps the client in-game. Raw wire (fixed-size
+    // packets: opcode ISAAC-adjusted via [outboundCipher], plaintext body), reusing the same cipher
+    // in order after the RebuildNormal opcode so the client's decryptor stays in lockstep.
+    if (System.getenv("EMU_LOGIN_INIT") == "1") {
+        logger.info { "game stage: EMU_LOGIN_INIT=1 — sending rsmod onLogin init batch after rebuild" }
+        sendLoginInitBatch(write, outboundCipher)
+    }
+
+    // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
+    // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
+    // by a per-tick packet or the login/rebuild itself.
+    val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
+    if (skipTicks) {
+        logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
+        drainInbound(read, inboundCipher, idleTimeout)
+        return@coroutineScope
+    }
+
     val tickJob = launch { GameLoop(session, tickInterval).run(maxTicks) }
     val readJob = launch {
         drainInbound(read, inboundCipher, idleTimeout)
@@ -90,6 +113,35 @@ suspend fun runGameStage(
  * rather than from a handler. The per-tick PLAYER_INFO that keeps the client in-world afterwards is
  * emitted by [GameLoop], starting immediately with its first tick.
  */
+/**
+ * EXPERIMENTAL raw sender for the rev-239 rsmod onLogin init batch (see call site). Each entry is
+ * `opcode to body`; the opcode byte is ISAAC-adjusted by [cipher] (matching the client's
+ * `rawByte - inboundIsaac.next()` opcode read), the body is plaintext. Fixed-size packets only
+ * (sizes match the client `jc.java` table), so no length prefix. Values mirror rsprot encoders
+ * (HALF_UBYTE = 128): ChatFilterSettings p1Alt1/p1Alt3(0)=0x80; IfOpenTop p2Alt2(548)=[0x02,0xA4];
+ * UpdateRunEnergy p2(100)=[0,100]; boolean/reset packets = 0 / empty.
+ */
+private suspend fun sendLoginInitBatch(write: ByteWriteChannel, cipher: IsaacCipher) {
+    val packets: List<Pair<Int, ByteArray>> = listOf(
+        124 to byteArrayOf(0x80.toByte(), 0x80.toByte()), // CHAT_FILTER_SETTINGS  p1Alt1(0),p1Alt3(0)
+        75 to byteArrayOf(0),                              // HIDENPCOPS  pboolean(false)
+        21 to byteArrayOf(0),                              // HIDELOCOPS
+        73 to byteArrayOf(0),                              // HIDEOBJOPS
+        44 to ByteArray(0),                                // VARP_RESET  (empty)
+        3 to ByteArray(0),                                 // CAM_RESET   (empty)
+        64 to byteArrayOf(0, 100),                         // UPDATE_RUNENERGY  p2(100)
+        31 to byteArrayOf(0, 0),                           // UPDATE_RUNWEIGHT  p2(0)
+        92 to ByteArray(0),                                // RESET_ANIMS (empty)
+        43 to byteArrayOf(0),                              // MINIMAP_TOGGLE  p1(0)
+        96 to byteArrayOf(0x02, 0xA4.toByte()),            // IF_OPENTOP  p2Alt2(548 = fixed gameframe)
+    )
+    for ((opcode, body) in packets) {
+        write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())
+        if (body.isNotEmpty()) write.writeFully(body)
+    }
+    write.flush()
+}
+
 private suspend fun sendInitialScene(session: OutboundSession) {
     logger.info { "game stage: sending initial scene (RebuildNormal) for local player index $LOCAL_PLAYER_INDEX" }
     session.send(RebuildNormal(plane = SPAWN_PLANE, x = SPAWN_X, y = SPAWN_Y, localPlayerIndex = LOCAL_PLAYER_INDEX))
