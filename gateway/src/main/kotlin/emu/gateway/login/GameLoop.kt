@@ -1,8 +1,19 @@
 package emu.gateway.login
 
+import emu.game.cycle.CyclePhase
+import emu.game.cycle.CycleProcess
+import emu.game.cycle.FixedRateTickSchedule
+import emu.game.cycle.GAME_TICK_MILLIS
+import emu.game.cycle.GameCycle
+import emu.game.pathfinding.MovementUpdate
+import emu.game.pathfinding.OpenCollisionMap
+import emu.game.pathfinding.PlayerMovement
+import emu.game.pathfinding.PlayerRouteRequestQueue
+import emu.game.pathfinding.Tile
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.PlayerMovement as ProtocolPlayerMovement
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
@@ -14,28 +25,21 @@ import kotlin.time.Duration.Companion.milliseconds
 private val logger = KotlinLogging.logger {}
 
 /**
- * The authentic OSRS server cycle length: one game tick is 600ms (LostCity `World.TICKRATE`, see
- * docs/superpowers/research/2026-07-14-tick-cycle-queue-architecture.md §1.1).
+ * The authentic OSRS server cycle length: one game tick is 600ms (LostCity `World.TICKRATE`; see
+ * `2026-07-14-lostcity-cycle-queues-blurite-pathfinding.md`).
  */
-val TICK_INTERVAL: Duration = 600.milliseconds
+val TICK_INTERVAL: Duration = GAME_TICK_MILLIS.milliseconds
 
 /**
  * The per-connection game tick loop — the milestone-5 seed of the multi-player `World` tick.
  *
  * A freshly logged-in client only stays in-game while the server keeps feeding it a PLAYER_INFO
- * (GPI) packet **every** cycle; if the server sends the initial scene and then goes silent the
- * client starves and drops the connection ~130ms later (the milestone-4 bug — see the research doc
- * §3.2/§6.5). This loop is that per-tick heartbeat: each [tick] builds and sends this connection's
- * PLAYER_INFO, and [run] fires a tick immediately and then every [tickInterval], drift-corrected so
- * the average cadence holds even when a tick runs long (the LostCity/void scheduler, research §1.2).
+ * (GPI) packet **every** cycle. [run] fires a cycle immediately and then every [tickInterval],
+ * drift-corrected so the average cadence holds even when a cycle runs long.
  *
- * It is deliberately shaped like a single-connection slice of the real `World`: [tick] is the one
- * place per-cycle work happens (today just "build info + flush"; later it grows the LostCity phase
- * order — drain inbound queue, run player/npc logic, build NPC-info + zone deltas), and [session]
- * reuses the shared [OutboundSession] → [emu.netcore.pipeline.writePacket] → ISAAC path verbatim, so
- * every server->client packet advances the outbound keystream exactly once for its opcode and stays
- * in lockstep with the client. Single-threaded per connection is fine for now; promoting this to the
- * authoritative single-thread world dispatcher is a later, mechanical move (research §6.1/§6.2).
+ * It is a single-connection slice of the real `World`: [GameCycle] drains bounded client input,
+ * advances movement in the player phase, flushes update info in client output, then clears
+ * per-cycle state. [session] reuses the shared registry/ISAAC write path verbatim.
  */
 class GameLoop(
     private val session: OutboundSession,
@@ -44,29 +48,42 @@ class GameLoop(
     private val npcOriginX: Int = LOCAL_SCENE_ORIGIN_X,
     /** Scene-local Z tile (`spawnZ - baseZ`) used by SET_NPC_UPDATE_ORIGIN. */
     private val npcOriginZ: Int = LOCAL_SCENE_ORIGIN_Z,
+    private val playerMovement: PlayerMovement =
+        PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
+    private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
+    cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
+    private val cycle =
+        GameCycle(
+            routeRequests.cycleProcesses(playerMovement) +
+                cycleProcesses +
+                playerMovement.cycleProcesses() +
+                CycleProcess(CyclePhase.CLIENT_OUTPUT) { tickIndex ->
+                    flushClientOutput(tickIndex)
+                },
+        )
+
     /**
-     * One steady-state game cycle: declare an atomic group containing active-world context, NPC
-     * origin, idle local-player GPI and empty NPC info, then terminate the cycle. The appearance was
-     * established by [sendInitialGameCycle], so repeating it here would be an incorrect second
-     * extended-info update. The group boundary matches every post-login cycle in the real capture.
+     * Flushes active-world context, NPC origin, local-player GPI and empty NPC info as one atomic
+     * group, then terminates the client cycle. Appearance was established by [sendInitialGameCycle]
+     * and is not repeated; GPI carries this cycle's optional walk/run delta.
      */
-    suspend fun tick(tickIndex: Int) {
+    private suspend fun flushClientOutput(tickIndex: Long) {
         sendPacketGroup(
             session,
             listOf(
                 SetActiveWorld(),
                 SetNpcUpdateOrigin(npcOriginX, npcOriginZ),
-                PlayerInfo(appearance = null),
+                PlayerInfo(appearance = null, movement = playerMovement.update.toProtocolMovement()),
                 NpcInfo,
             ),
         )
         session.send(ServerTickEnd)
-        logger.debug { "game loop: sent atomic idle world group + SERVER_TICK_END for tick $tickIndex" }
+        logger.debug { "game loop: sent atomic world group + SERVER_TICK_END for tick $tickIndex" }
     }
 
     /**
-     * Runs [tick] immediately, then re-schedules itself every [tickInterval] with drift correction
+     * Runs one cycle immediately, then re-schedules every [tickInterval] with drift correction
      * (`delay = interval - work - accumulated_drift`, floored at 0 — the LostCity/void formula): if
      * a tick blows the budget the next fires immediately rather than letting error accumulate.
      *
@@ -77,13 +94,14 @@ class GameLoop(
     suspend fun run(maxTicks: Int = Int.MAX_VALUE) {
         val intervalMs = System.getenv("EMU_TICK_INTERVAL_MS")?.toLongOrNull() ?: tickInterval.inWholeMilliseconds
         val initialMs = System.getenv("EMU_TICK_INITIAL_MS")?.toLongOrNull() ?: 0L
+        require(maxTicks >= 0) { "maxTicks must be non-negative" }
+        val schedule = FixedRateTickSchedule(intervalMs)
         if (initialMs > 0) delay(initialMs)
-        var nextTick = System.currentTimeMillis()
         var ticks = 0
         while (ticks < maxTicks) {
             val start = System.currentTimeMillis()
             try {
-                tick(ticks)
+                cycle.tick()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -91,10 +109,16 @@ class GameLoop(
                 throw e
             }
             ticks++
-            nextTick += intervalMs
-            val drift = maxOf(0L, start - nextTick)
-            delay(maxOf(0L, intervalMs - (System.currentTimeMillis() - start) - drift))
+            delay(schedule.delayAfterTick(start, System.currentTimeMillis()))
         }
         logger.debug { "game loop: reached tick cap $maxTicks; stopping" }
     }
 }
+
+/** Keeps protocol-specific direction encoding outside the game simulation module. */
+private fun MovementUpdate.toProtocolMovement(): ProtocolPlayerMovement? =
+    when (this) {
+        MovementUpdate.Idle -> null
+        is MovementUpdate.Walk -> ProtocolPlayerMovement.Walk(deltaX, deltaY)
+        is MovementUpdate.Run -> ProtocolPlayerMovement.Run(deltaX, deltaY)
+    }

@@ -7,11 +7,12 @@ import emu.netcore.codec.MessageEncoder
 import emu.netcore.prot.Prot
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.PlayerMovement
 import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
- * Encodes [PlayerInfo] (opcode 28) as the rev-239 OSRS "GPI" bit stream for the minimal case: only
- * the local player is present, nobody else is added, and everyone is stationary. Verified against
+ * Encodes [PlayerInfo] (opcode 28) as the rev-239 OSRS "GPI" bit stream for the current case: only
+ * the local player is present and nobody else is added. Verified against
  * the rev-239 client's own reference GPI decoder (rsprot `osrs-239` `PlayerInfoClient.decodeBitCodes`)
  * and driven against the running client 2026-07-14 (it reaches LOGGED_IN and holds).
  *
@@ -40,11 +41,8 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  * the milestone-4→5 disconnect. Encoding it as `active=0` (a stationary run of length 0) is the
  * correct no-movement update.
  *
- * **Extended-info / appearance:** the appearance block is, in rev 239, a serialized sub-buffer
- * appended after the four bit sections; it is not yet reproduced here, so this encoder supports only
- * `appearance == null` (no extended info). Sending that keeps the client in-world with terrain
- * rendered and the connection held; the avatar simply has no model until the appearance sub-buffer
- * format is implemented. See the research doc §4c.
+ * **Extended-info / appearance:** when present, the appearance flag and serialized sub-buffer are
+ * appended after the four bit sections. Steady-state cycles omit it and retain the initial model.
  *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
  * adjustment is applied by the pipeline, not here — this method never touches [cipher].
@@ -73,25 +71,34 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     override fun encode(cipher: StreamCipher, message: PlayerInfo): ByteArray {
         val bits = BitBuf()
         val appearance = message.appearance
+        val movement = message.movement
 
         // High-resolution section: the sole high-res player is the local avatar. Its byte layout is
         // identical whether the client reads it in the "active-last-cycle" (cycle 0) or
         // "inactive-last-cycle" (cycle 1+) high-res section, because both sections run the same
         // active/getHighResolutionPlayerPosition/readStationary logic and byte-align identically
         // (rev-239 PlayerInfoClient.decodeBitCodes) — so this encoding is cycle-independent.
-        if (appearance == null) {
+        if (appearance == null && movement == null) {
             // No extended info: a zero-length stationary run (selector 0 => skip 0). Sets the local
             // player IDLE with no avatar model — the minimal per-tick heartbeat.
             bits.writeBits(1, 0) // active? no -> stationary run
             bits.writeBits(2, 0) // stationary selector 0 => 0 further players skipped
         } else {
-            // Active update carrying extended info: active=1, has-extended-info=1, movement
-            // opcode 0 (idle). getHighResolutionPlayerPosition treats opcode 0 + extended-info as a
-            // clean IDLE (NOT the `localIndex == idx` throw that active-with-no-extended-info hits),
-            // and queues this index for the extended-info pass below.
+            // Active movement and/or extended-info update. An opcode-0 idle update is legal only
+            // with extended info; the branch above keeps an unextended idle player stationary.
             bits.writeBits(1, 1) // active? yes
-            bits.writeBits(1, 1) // has extended info? yes
-            bits.writeBits(2, 0) // movement opcode 0 => idle (no walk/run)
+            bits.writeBits(1, if (appearance != null) 1 else 0)
+            when (movement) {
+                null -> bits.writeBits(2, 0)
+                is PlayerMovement.Walk -> {
+                    bits.writeBits(2, 1)
+                    bits.writeBits(3, walkDirection(movement.deltaX, movement.deltaY))
+                }
+                is PlayerMovement.Run -> {
+                    bits.writeBits(2, 2)
+                    bits.writeBits(4, runDirection(movement.deltaX, movement.deltaY))
+                }
+            }
         }
         alignToByte(bits)
 
@@ -163,4 +170,40 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
         val remainder = bits.bitPosition and 7
         if (remainder != 0) bits.writeBits(8 - remainder, 0)
     }
+
+    /** Rev-239 opcode-1 direction table, ordered south-west through north-east. */
+    private fun walkDirection(deltaX: Int, deltaY: Int): Int =
+        when (deltaX to deltaY) {
+            -1 to -1 -> 0
+            0 to -1 -> 1
+            1 to -1 -> 2
+            -1 to 0 -> 3
+            1 to 0 -> 4
+            -1 to 1 -> 5
+            0 to 1 -> 6
+            1 to 1 -> 7
+            else -> error("invalid walk delta: $deltaX,$deltaY")
+        }
+
+    /** Rev-239 opcode-2 table for the outer ring of the 5x5 two-step delta grid. */
+    private fun runDirection(deltaX: Int, deltaY: Int): Int =
+        when (deltaX to deltaY) {
+            -2 to -2 -> 0
+            -1 to -2 -> 1
+            0 to -2 -> 2
+            1 to -2 -> 3
+            2 to -2 -> 4
+            -2 to -1 -> 5
+            2 to -1 -> 6
+            -2 to 0 -> 7
+            2 to 0 -> 8
+            -2 to 1 -> 9
+            2 to 1 -> 10
+            -2 to 2 -> 11
+            -1 to 2 -> 12
+            0 to 2 -> 13
+            1 to 2 -> 14
+            2 to 2 -> 15
+            else -> error("invalid run delta: $deltaX,$deltaY")
+        }
 }

@@ -11,6 +11,7 @@ tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
 }
 dependencies {
+    implementation(project(":game"))
     implementation(project(":net-core"))
     implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))

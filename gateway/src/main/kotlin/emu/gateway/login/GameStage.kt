@@ -1,17 +1,28 @@
 package emu.gateway.login
 
 import emu.crypto.IsaacCipher
+import emu.game.pathfinding.OpenCollisionMap
+import emu.game.pathfinding.PlayerMovement
+import emu.game.pathfinding.PlayerRouteRequestQueue
+import emu.game.pathfinding.Tile
+import emu.gateway.game.installGameHandlers
 import emu.netcore.codec.CodecRepository
+import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.OutboundSession
+import emu.netcore.pipeline.ProtocolStage
+import emu.netcore.prot.Prot
+import emu.protocol.osrs239.game.prot.GameClientProt
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
+import io.ktor.utils.io.readFully
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -29,9 +40,9 @@ private val logger = KotlinLogging.logger {}
 val GAME_IDLE_TIMEOUT: Duration = 30.seconds
 
 /** Lumbridge, the fixed milestone-3 spawn tile for every newly logged-in local player. */
-private const val SPAWN_PLANE = 0
-private const val SPAWN_X = 3222
-private const val SPAWN_Y = 3218
+internal const val SPAWN_PLANE = 0
+internal const val SPAWN_X = 3222
+internal const val SPAWN_Y = 3218
 
 /**
  * Milestone-5 game stage: puts the client in-world and then keeps it there.
@@ -39,10 +50,10 @@ private const val SPAWN_Y = 3218
  * On entry it sends [sendInitialGameCycle]: the Lumbridge rebuild plus the capture-shaped atomic
  * entity/player/NPC/zone group and neutral rev-239 frame/account state. It then runs two sibling
  * coroutines for the connection's lifetime — the network↔game split the research doc mandates:
- *  - a **tick loop** ([GameLoop]) that sends an atomic idle player/NPC group every 600ms; this steady
- *    cycle stream keeps the client in IN_GAME after the initial cycle renders the terrain.
- *  - an **inbound drain** ([drainInbound]) that keeps the socket read side clear and enforces the
- *    idle timeout.
+ *  - a **tick loop** ([GameLoop]) that drains route requests, moves the player, and sends an atomic
+ *    player/NPC group every 600ms; this steady cycle stream keeps the client in-game.
+ *  - an **inbound protocol stage** ([drainGameInbound]) that frames all rev-239 client packets,
+ *    dispatches implemented messages, and enforces the idle timeout.
  *
  * When either side ends (the client disconnects, or it goes idle past [idleTimeout]) the other is
  * cancelled and the connection is handed back to [emu.gateway.handleConnection]'s `finally` to close.
@@ -67,6 +78,9 @@ suspend fun runGameStage(
     sendLoginInit: Boolean = System.getenv("EMU_LOGIN_INIT") != "0",
 ): Unit = coroutineScope {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
+    val movement = PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap)
+    val routeRequests = PlayerRouteRequestQueue()
+    val gameLoop = GameLoop(session, tickInterval, playerMovement = movement, routeRequests = routeRequests)
     val appearance = if (System.getenv("EMU_NO_APPEARANCE") == "1") null else PlayerAppearance()
     sendInitialGameCycle(
         session = session,
@@ -84,13 +98,13 @@ suspend fun runGameStage(
     val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
     if (skipTicks) {
         logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
-        drainInbound(read, inboundCipher, idleTimeout)
+        drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
         return@coroutineScope
     }
 
-    val tickJob = launch { GameLoop(session, tickInterval).run(maxTicks) }
+    val tickJob = launch { gameLoop.run(maxTicks) }
     val readJob = launch {
-        drainInbound(read, inboundCipher, idleTimeout)
+        drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
         // The client is gone / idle: stop the heartbeat so this connection can close.
         tickJob.cancel()
     }
@@ -102,35 +116,59 @@ suspend fun runGameStage(
 }
 
 /**
- * Keeps the connection's read side drained for the whole GAME stage: blocks on each inbound byte,
- * decrypts just the opcode ([inboundCipher]) for visibility, and discards it. Returns — ending the
- * stage — when the client disconnects (`readByte` throws on EOF) or when [idleTimeout] elapses with
- * no inbound byte at all (a slowloris connection that logged in and then never sends another packet,
- * CLAUDE.md §10). The deadline resets on every byte received, so an active-but-slow client is never
- * penalized.
- *
- * We do NOT yet have a rev-239 game-opcode size table for *inbound* packets (that arrives with real
- * game-packet decoding), so this cannot frame-and-discard each inbound packet's payload the way
- * [emu.netcore.pipeline.ProtocolStage] does for JS5/login — it decrypts one ISAAC int per byte,
- * which will not stay opcode-aligned with the client, but that is harmless here: nothing consumes
- * the decoded opcode and the client never validates our inbound keystream. The point is only to keep
- * reading so the socket buffer never backs up. Replace with proper per-opcode payload sizes when
- * inbound game-packet decoding lands.
+ * Runs the revision-neutral [ProtocolStage] over rev-239's complete inbound size table. Implemented
+ * packets are decoded and type-dispatched; declared but unsupported packets are framed and dropped,
+ * preserving one ISAAC advance per opcode. Both opcode and whole-payload reads have [idleTimeout]
+ * deadlines and variable bodies are capped to the injected client's 10,000-byte packet buffer.
  */
-private suspend fun drainInbound(read: ByteReadChannel, inboundCipher: IsaacCipher, idleTimeout: Duration) {
-    while (true) {
-        val raw = try {
-            withTimeoutOrNull(idleTimeout) { read.readByte() }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            logger.info { "game stage: inbound read ended (${e.javaClass.simpleName}: ${e.message}); ending stage" }
-            return
-        } ?: run {
-            logger.info { "game stage: idle for $idleTimeout with no inbound packet; closing connection" }
-            return
-        }
-        val opcode = ((raw.toInt() and 0xFF) - inboundCipher.nextInt()) and 0xFF
-        logger.debug { "game stage: inbound opcode $opcode (payload framing not implemented until the game-packet milestone)" }
+internal suspend fun drainGameInbound(
+    read: ByteReadChannel,
+    write: ByteWriteChannel,
+    inboundCipher: IsaacCipher,
+    gameCodecs: CodecRepository,
+    routeRequests: PlayerRouteRequestQueue,
+    idleTimeout: Duration,
+) {
+    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests).build()
+    val stage =
+        ProtocolStage(
+            gameCodecs,
+            handlers,
+            readOpcode = { channel ->
+                withTimeout(idleTimeout) {
+                    ((channel.readByte().toInt() and 0xFF) - inboundCipher.nextInt()) and 0xFF
+                }
+            },
+            readPayload = { channel, prot ->
+                withTimeout(idleTimeout) { readGamePayload(channel, prot) }
+            },
+            findProt = GameClientProt::find,
+        )
+    try {
+        stage.run(read, write)
+    } catch (e: TimeoutCancellationException) {
+        logger.info { "game stage: idle for $idleTimeout during an inbound packet; closing connection" }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        logger.info { "game stage: inbound read ended (${e.javaClass.simpleName}: ${e.message}); ending stage" }
     }
 }
+
+/** Reads one fixed, var-byte, or var-short body with a hard allocation bound. */
+private suspend fun readGamePayload(read: ByteReadChannel, prot: Prot): ByteArray {
+    val size =
+        when (prot.size) {
+            Prot.VAR_BYTE -> read.readByte().toInt() and 0xFF
+            Prot.VAR_SHORT -> {
+                val high = read.readByte().toInt() and 0xFF
+                val low = read.readByte().toInt() and 0xFF
+                (high shl 8) or low
+            }
+            else -> prot.size
+        }
+    require(size in 0..MAX_GAME_PACKET_SIZE) { "invalid game packet size $size for opcode ${prot.opcode}" }
+    return ByteArray(size).also { read.readFully(it) }
+}
+
+private const val MAX_GAME_PACKET_SIZE = 10_000

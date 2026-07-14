@@ -19,6 +19,11 @@ import io.ktor.utils.io.ByteWriteChannel
  * [readOpcode]/[readPayload] keep this stage agnostic to how a protocol frames its
  * opcode/length (e.g. JS5's fixed 4-byte requests vs game var-byte packets), so the same
  * stage drives every protocol.
+ *
+ * [findProt] normally resolves through the decoder registry, preserving fail-closed behavior for
+ * an unknown opcode. A revision may instead supply its complete opcode/size table: packets that
+ * have a declared [Prot] but no implemented decoder are then framed and discarded, keeping the
+ * stream cipher aligned without forcing placeholder message types into the registry.
  */
 class ProtocolStage(
     private val codecs: CodecRepository,
@@ -27,6 +32,7 @@ class ProtocolStage(
     private val readOpcode: suspend (ByteReadChannel) -> Int,
     private val readPayload: suspend (ByteReadChannel, Prot) -> ByteArray,
     private val writeOpcode: Boolean = true,
+    private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot },
 ) {
     suspend fun run(read: ByteReadChannel, write: ByteWriteChannel) {
         val ctx = object : HandlerContext {
@@ -34,8 +40,9 @@ class ProtocolStage(
         }
         while (true) {
             val opcode = readOpcode(read)
-            val decoder = codecs.decoder(opcode) ?: return // unknown opcode: close
-            val payload = readPayload(read, decoder.prot)
+            val prot = findProt(opcode) ?: return
+            val payload = readPayload(read, prot)
+            val decoder = codecs.decoder(opcode) ?: continue
             val message = decoder.decode(JagexBuffer(payload))
             handlers.dispatch(message, ctx)
         }

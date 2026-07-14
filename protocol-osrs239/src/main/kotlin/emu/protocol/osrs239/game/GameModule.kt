@@ -1,5 +1,6 @@
 package emu.protocol.osrs239.game
 
+import emu.netcore.codec.MessageDecoder
 import emu.netcore.codec.MessageEncoder
 import emu.protocol.osrs239.game.codec.AmbienceStopEncoder
 import emu.protocol.osrs239.game.codec.CamResetEncoder
@@ -13,6 +14,7 @@ import emu.protocol.osrs239.game.codec.IfOpenTopEncoder
 import emu.protocol.osrs239.game.codec.IfResyncEncoder
 import emu.protocol.osrs239.game.codec.IfSetHideEncoder
 import emu.protocol.osrs239.game.codec.MinimapToggleEncoder
+import emu.protocol.osrs239.game.codec.MoveGameClickDecoder
 import emu.protocol.osrs239.game.codec.NpcInfoEncoder
 import emu.protocol.osrs239.game.codec.PacketGroupStartEncoder
 import emu.protocol.osrs239.game.codec.PlayerInfoEncoder
@@ -42,6 +44,7 @@ import org.koin.dsl.module
  * (docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §4b).
  */
 val gameModule = module {
+    single(named("game.moveGameClick")) { MoveGameClickDecoder } bind MessageDecoder::class
     single(named("game.siteSettings")) { SiteSettingsEncoder } bind MessageEncoder::class
     single(named("game.chatFilterSettings")) { ChatFilterSettingsEncoder } bind MessageEncoder::class
     single(named("game.hideNpcOps")) { HideNpcOpsEncoder } bind MessageEncoder::class

@@ -4,6 +4,7 @@ import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.PlayerMovement
 import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -75,6 +76,22 @@ class PlayerInfoEncoderTest {
         while (true) { val b = u8(); if (b == 0) break; nameBytes.append(b.toChar()) }
         assertEquals("player", nameBytes.toString())
         assertEquals(3, u8(), "combat level")
+    }
+
+    @Test fun `walk movement uses active opcode one and the rev239 three-bit direction`() {
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(movement = PlayerMovement.Walk(1, 0)))
+
+        // active=1, no ext=0, opcode=01, east direction=100, byte pad=0
+        assertEquals(0x98, body[0].toInt() and 0xFF)
+        assertEquals(3, body.size)
+    }
+
+    @Test fun `run movement uses active opcode two and the rev239 four-bit delta`() {
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(movement = PlayerMovement.Run(2, 0)))
+
+        // active=1, no ext=0, opcode=10, east-two delta=1000
+        assertEquals(0xA8, body[0].toInt() and 0xFF)
+        assertEquals(3, body.size)
     }
 
     @Test fun `encode never consumes the cipher`() {
