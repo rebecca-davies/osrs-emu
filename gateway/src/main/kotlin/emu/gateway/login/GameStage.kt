@@ -118,7 +118,7 @@ private suspend fun drainInbound(read: ByteReadChannel, inboundCipher: IsaacCiph
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            logger.info { "game stage: client disconnected (${e.message}); ending stage" }
+            logger.info { "game stage: inbound read ended (${e.javaClass.simpleName}: ${e.message}); ending stage" }
             return
         } ?: run {
             logger.info { "game stage: idle for $idleTimeout with no inbound packet; closing connection" }

@@ -48,6 +48,7 @@ class GameLoop(
     suspend fun tick() {
         session.send(PlayerInfo(appearance = null))
         session.send(ServerTickEnd)
+        logger.debug { "game loop: sent tick (PLAYER_INFO op28 + SERVER_TICK_END op83)" }
     }
 
     /**
@@ -67,7 +68,14 @@ class GameLoop(
         var ticks = 0
         while (ticks < maxTicks) {
             val start = System.currentTimeMillis()
-            tick()
+            try {
+                tick()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                logger.warn(e) { "game loop: tick #$ticks send FAILED (server-side write error) — this closes the connection" }
+                throw e
+            }
             ticks++
             nextTick += intervalMs
             val drift = maxOf(0L, start - nextTick)
