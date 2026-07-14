@@ -18,6 +18,7 @@ import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
 import java.io.File
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,12 +56,16 @@ private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
     return Triple(plane, x, y)
 }
 
+/** Number of per-tick PLAYER_INFO heartbeats the test drives the loop through (see [GameLoop]). */
+private const val HEARTBEAT_TICKS = 3
+
 /**
  * Proves the milestone-5 game stage: after a real login exchange reaches response code 2, the
- * server proactively pushes the initial scene — [emu.protocol.osrs239.game.message.RebuildNormal]
- * then [emu.protocol.osrs239.game.message.PlayerInfo] — with opcodes ISAAC-adjusted by the outbound cipher
- * (seeds+50, per [performLoginBlock]'s doc), before holding the connection open. Mirrors
- * [LoginBlockFlowTest]'s harness, extended to drive [runGameStage] on the resulting [GameCiphers].
+ * server proactively pushes the initial scene ([emu.protocol.osrs239.game.message.RebuildNormal])
+ * and then, per [GameLoop], a PLAYER_INFO heartbeat **every tick** — each with its opcode
+ * ISAAC-adjusted by the outbound cipher (seeds+50, per [performLoginBlock]'s doc). Mirrors
+ * [LoginBlockFlowTest]'s harness, extended to drive [runGameStage] with a short tick interval and a
+ * small tick cap so a handful of heartbeats can be asserted without a real-time sleep.
  */
 class GameStageTest {
 
@@ -118,6 +123,8 @@ class GameStageTest {
                                 runGameStage(
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                                     idleTimeout = 2.seconds,
+                                    tickInterval = 20.milliseconds,
+                                    maxTicks = HEARTBEAT_TICKS,
                                 )
                             }
                         }
@@ -170,14 +177,20 @@ class GameStageTest {
         assertEquals(3222, x)
         assertEquals(3218, y)
 
-        // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
-        val opcode2 = cr.readByte().toInt() and 0xFF
-        val expectedOpcode2 = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-        assertEquals(expectedOpcode2, opcode2)
-        assertEquals(PLAYER_INFO_BODY_SIZE, readU16(cr))
+        // The heartbeat: PLAYER_INFO is sent EVERY tick, so a healthy in-game client receives a
+        // steady stream of them. Assert the first [HEARTBEAT_TICKS] each arrive with the next
+        // ISAAC-adjusted opcode (proving the outbound keystream advances exactly once per packet and
+        // stays in lockstep with the client) and the byte-exact appearance-less body length.
+        repeat(HEARTBEAT_TICKS) { tick ->
+            // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
+            val opcode = cr.readByte().toInt() and 0xFF
+            val expectedOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedOpcode, opcode, "PLAYER_INFO opcode for heartbeat tick $tick")
+            assertEquals(PLAYER_INFO_BODY_SIZE, readU16(cr), "PLAYER_INFO body size for heartbeat tick $tick")
 
-        val playerInfoBody = ByteArray(PLAYER_INFO_BODY_SIZE)
-        cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
+            val playerInfoBody = ByteArray(PLAYER_INFO_BODY_SIZE)
+            cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
+        }
 
         serverJob.cancel()
         client.close(); server.close(); selector.close()

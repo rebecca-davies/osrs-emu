@@ -15,9 +15,11 @@ private object PlayerInfoExplodingCipher : StreamCipher {
 }
 
 /**
- * Pins PLAYER_INFO (opcode 28) for the minimal single-local-player case, reconstructed from the
- * rev-239 decompile (`dy.ae`/`dy.uq`/`dy.ax`). The HD section flags the local player as updated,
- * stationary, no extended info; the LD section skips all 2046 other slots in one skip-count.
+ * Pins PLAYER_INFO (opcode 28) for the minimal single-local-player case, verified against the
+ * rev-239 client's own reference GPI decoder (rsprot `PlayerInfoClient`). The high-resolution
+ * section encodes the local player as a stationary run (active=0); the low-resolution section skips
+ * all 2046 other slots in one stationary run. Sending the local player as an *active* update with
+ * movement-opcode 0 (the old encoding) makes the client throw and disconnect.
  */
 class PlayerInfoEncoderTest {
     @Test fun `binds to the PLAYER_INFO prot and message type`() {
@@ -28,10 +30,10 @@ class PlayerInfoEncoderTest {
     @Test fun `encodes the minimal appearance-less GPI as three bytes`() {
         val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(appearance = null))
 
-        // HD section (byte-aligned): kg(1)=1 update, kg(1)=0 no-extended, kg(2)=0 stationary
-        //   -> bits 1 0 00, padded -> 0b10000000 = 0x80.
-        assertEquals(0x80, body[0].toInt() and 0xFF)
-        // LD section (byte-aligned): kg(1)=0 no-add, kg(2)=3 (11-bit skip follows), kg(11)=2045
+        // High-res section (byte-aligned): active=0, stationary selector 0 -> bits 0 00, padded
+        //   -> 0b00000000 = 0x00. (The local player is stationary, encoded as a length-0 run.)
+        assertEquals(0x00, body[0].toInt() and 0xFF)
+        // Low-res section (byte-aligned): active=0, selector 3 (11-bit count follows), count=2045
         //   -> bits 0 11 11111111101, byte-aligned -> 0x7F 0xF4.
         assertEquals(0x7F, body[1].toInt() and 0xFF)
         assertEquals(0xF4, body[2].toInt() and 0xFF)

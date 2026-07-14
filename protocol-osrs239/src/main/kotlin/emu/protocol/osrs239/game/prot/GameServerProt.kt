@@ -24,4 +24,12 @@ object GameServerProt {
      * breakdown (§4b/§4c — MEDIUM/LOW on the exact bit layout, iterate against the real client).
      */
     val PLAYER_INFO = Prot(28, Prot.VAR_SHORT)
+
+    /**
+     * End-of-tick marker: an empty, fixed-size packet sent after each tick's PLAYER_INFO so the
+     * client finalizes the cycle. Opcode 83 (rsprot `GameServerProtId.SERVER_TICK_END`), size 0.
+     * rsmod writes it once per player at the tail of every post-tick flush; without it the client
+     * receives PLAYER_INFO but never gets the per-cycle terminator and drops the connection.
+     */
+    val SERVER_TICK_END = Prot(83, 0)
 }

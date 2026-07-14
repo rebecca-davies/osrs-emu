@@ -8,32 +8,41 @@ import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
- * Encodes [PlayerInfo] (opcode 28) as the standard OSRS "GPI" bit stream for the minimal case:
- * only the local player is present, nobody else is updated or added, and the local player is
- * stationary. Reconstructed from the rev-239 decompile (`dy.ae`/`dy.uq`/`dy.ax`) 2026-07-14.
+ * Encodes [PlayerInfo] (opcode 28) as the rev-239 OSRS "GPI" bit stream for the minimal case: only
+ * the local player is present, nobody else is added, and everyone is stationary. Verified against
+ * the rev-239 client's own reference GPI decoder (rsprot `osrs-239` `PlayerInfoClient.decodeBitCodes`)
+ * and driven against the running client 2026-07-14 (it reaches LOGGED_IN and holds).
  *
- * **Structure (`dy.ae` runs `uq` then, byte-aligned, the extended-info byte block via `yq`):**
- * the bit stream has two byte-aligned sections — a high-definition (HD) section iterating the
- * players already in-scene (`dy.aa`'s `ae[]` list; after GPI-init that is just the local player)
- * and a low-definition (LD) section iterating everyone else (`aq[]`, the other 2046 slots). Each
- * section is a per-player loop: read `kg(1)` "does this player have an update?"; if 0, read a
- * **skip count** (`kg(2)` selector → `0`=skip 0 / `1`=`kg(5)` / `2`=`kg(8)` / `3`=`kg(11)`, all
- * confirmed in `dy` at the `as()` helper) to fast-forward past a run of non-updated players; if 1,
- * read that player's update via `dy.ax` = `kg(1)` has-extended-info (queues the player for the
- * byte block) then `kg(2)` movement type (`0`=none). Each section is byte-aligned (the client's
- * `xv.av()`) at its end.
+ * **Structure — the rev-239 GPI is four byte-aligned bit sections, in this order** (client
+ * `decodeBitCodes`; the server encoder is rsprot `PlayerInfo.pBitcodes`):
+ *  1. high-resolution players whose flag was "active last cycle",
+ *  2. high-resolution players whose flag was "inactive/stationary last cycle",
+ *  3. low-resolution players "inactive last cycle",
+ *  4. low-resolution players "active last cycle".
  *
- * **Local player:** flagged with an update (`kg(1)=1`) and movement type 0 (stationary). Its
- * has-extended-info bit is 1 iff [PlayerInfo.appearance] is non-null.
+ * Each section is a per-player loop reading `gBits(1)` "active?": a `0` reads a **stationary run**
+ * (`gBits(2)` selector → `0`=skip 0 / `1`=`gBits(5)` / `2`=`gBits(8)` / `3`=`gBits(11)`) that
+ * fast-forwards past that many further non-updating players; a `1` reads that player's movement +
+ * extended-info bits. Each section byte-aligns at its end, and a section with no qualifying players
+ * emits **zero** bytes.
  *
- * **Extended-info / appearance:** the appearance block (extended-info mask bit `0x100`, read by
- * `dy.ab`) is, in rev 239, a **serialized sub-buffer** — `xv.ea()` u16, `xv.ej()` id, then a
- * length-prefixed blob deserialized by `kk.af`/`zo.al` into the avatar's kit/model data — not the
- * classic 317-era flat appearance block. It is not yet reproduced here, so this encoder currently
- * ignores a non-null [PlayerInfo.appearance] beyond setting the has-extended bit would require the
- * matching bytes; to stay byte-exact it therefore only supports `appearance == null` (no extended
- * info). Sending that keeps the client in-world with terrain rendered; the avatar has no model
- * until the appearance sub-buffer format is implemented. See the research doc §4c.
+ * After GPI-init (sent inside REBUILD_NORMAL) the client has exactly one high-resolution player (the
+ * local avatar) and 2046 low-resolution players (every other slot). Which of the paired sections
+ * carries them flips each cycle as their flags toggle, but empty sections cost no bytes and the
+ * non-empty ones are byte-identical, so **the wire body is the same every tick**: a stationary local
+ * player followed by a single stationary run skipping the remaining 2045 low-resolution slots.
+ *
+ * **Local player = a stationary run, NOT an active update.** Emitting the local player as `active=1`
+ * with movement-opcode 0 and no extended info makes the client's `getHighResolutionPlayerPosition`
+ * hit `if (opcode == 0) ... else if (localIndex == idx) throw` and drop the connection instantly —
+ * the milestone-4→5 disconnect. Encoding it as `active=0` (a stationary run of length 0) is the
+ * correct no-movement update.
+ *
+ * **Extended-info / appearance:** the appearance block is, in rev 239, a serialized sub-buffer
+ * appended after the four bit sections; it is not yet reproduced here, so this encoder supports only
+ * `appearance == null` (no extended info). Sending that keeps the client in-world with terrain
+ * rendered and the connection held; the avatar simply has no model until the appearance sub-buffer
+ * format is implemented. See the research doc §4c.
  *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
  * adjustment is applied by the pipeline, not here — this method never touches [cipher].
@@ -42,36 +51,36 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     override val prot: Prot = GameServerProt.PLAYER_INFO
     override val messageType = PlayerInfo::class.java
 
-    /** Number of low-definition (not-in-scene) player slots after GPI-init: 2047 slots minus the local index. */
-    private const val LOW_DEF_PLAYER_COUNT = 2046
+    /** Low-resolution (not-in-scene) player slots after GPI-init: 2047 slots minus the local index. */
+    private const val LOW_RES_PLAYER_COUNT = 2046
 
-    /** `kg(2)` skip selector meaning "an 11-bit count follows" (`dy` `as()` helper). */
-    private const val SKIP_SELECTOR_11_BITS = 3
+    /** Stationary-run selector meaning "an 11-bit count follows" (client `readStationary`). */
+    private const val STATIONARY_SELECTOR_11_BITS = 3
 
     override fun encode(cipher: StreamCipher, message: PlayerInfo): ByteArray {
         require(message.appearance == null) {
             "PlayerInfoEncoder does not yet reproduce the rev-239 appearance sub-buffer; send PlayerInfo(null)"
         }
-        val hasExtended = message.appearance != null
 
         val bits = BitBuf()
 
-        // --- HD section: the local player (the only in-scene player after GPI-init) ---
-        bits.writeBits(1, 1) // local player has an update
-        bits.writeBits(1, if (hasExtended) 1 else 0) // dy.ax: has extended info?
-        bits.writeBits(2, 0) // dy.ax: movement type 0 = stationary
+        // High-resolution section: the local player, stationary. active=0 opens a stationary run,
+        // selector 0 => skip 0 further players (the local avatar is the only high-res player).
+        bits.writeBits(1, 0) // active? no -> stationary run
+        bits.writeBits(2, 0) // stationary selector 0 => 0 further players skipped
         alignToByte(bits)
 
-        // --- LD section: every other slot, none added. Skip the whole run in one step. ---
-        bits.writeBits(1, 0) // first LD player: no update/add
-        bits.writeBits(2, SKIP_SELECTOR_11_BITS) // an 11-bit skip count follows
-        bits.writeBits(11, LOW_DEF_PLAYER_COUNT - 1) // skip the remaining slots (this one + N-1 more)
+        // Low-resolution section: every other slot, all stationary, none added. One stationary run
+        // covers this first slot plus the remaining 2045 (the client counts the run's own slot).
+        bits.writeBits(1, 0) // active? no -> stationary run
+        bits.writeBits(2, STATIONARY_SELECTOR_11_BITS) // an 11-bit count follows
+        bits.writeBits(11, LOW_RES_PLAYER_COUNT - 1) // 2045 further slots skipped
         alignToByte(bits)
 
         return bits.toByteArray()
     }
 
-    /** Pads the bit stream with zero bits up to the next byte boundary (the client's `xv.av()`). */
+    /** Pads the bit stream with zero bits up to the next byte boundary (the client byte-aligns each section). */
     private fun alignToByte(bits: BitBuf) {
         val remainder = bits.bitPosition and 7
         if (remainder != 0) bits.writeBits(8 - remainder, 0)
