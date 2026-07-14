@@ -190,7 +190,7 @@ class GameStreamOracleTest {
 
         val expected = buildList {
             add(49 to 4614)
-            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0))
+            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0, 97 to 3))
             add(93 to 2)
             add(47 to 3)
             add(116 to 2)

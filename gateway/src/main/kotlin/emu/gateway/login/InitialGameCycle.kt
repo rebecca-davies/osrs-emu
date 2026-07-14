@@ -1,7 +1,9 @@
 package emu.gateway.login
 
+import emu.game.cycle.CycleProfileSnapshot
 import emu.netcore.message.OutgoingMessage
 import emu.netcore.pipeline.OutboundSession
+import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset
 import emu.protocol.osrs239.game.message.CamTargetPlayer
@@ -30,6 +32,7 @@ import emu.protocol.osrs239.game.message.UpdateRunWeight
 import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
 import emu.protocol.osrs239.game.message.VarpReset
+import emu.protocol.osrs239.game.message.VarpSmall
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -59,6 +62,18 @@ internal fun initialStatMessages(): List<UpdateStat> =
         if (stat == HITPOINTS_STAT) UpdateStat(stat, 10, 10, 1_154)
         else UpdateStat(stat, 1, 1, 0)
     }
+
+/** Run stays enabled and energy remains at the separately-published 100% for this early world. */
+internal fun initialRunVarps(): List<VarpSmall> = listOf(VarpSmall(RUN_MODE_VARP, 1))
+
+/** Formats the rolling cycle telemetry as an in-game admin message. */
+internal fun adminCycleReport(rank: PlayerRank, snapshot: CycleProfileSnapshot): MessageGame? {
+    if (rank != PlayerRank.ADMINISTRATOR) return null
+    val text =
+        "Cycle profile: cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
+            "max=${millis(snapshot.maxNanos)}ms, lag spikes=${snapshot.lagSpikes}."
+    return MessageGame(MessageGame.GAME_MESSAGE, text)
+}
 
 /**
  * Builds the capture-shaped atomic initial world group: active-world context, NPC origin, empty
@@ -141,6 +156,7 @@ internal suspend fun sendInitialGameCycle(
     session.send(HideLocOps())
     session.send(HideObjOps())
     session.send(VarpReset)
+    for (varp in initialRunVarps()) session.send(varp)
 
     sendPacketGroup(session, initialWorldGroup(appearance, localPlayerIndex))
 
@@ -181,3 +197,6 @@ private val INITIAL_ZONE_SPIRAL: List<Pair<Int, Int>> = listOf(
 
 private const val OSRS_SKILL_COUNT = 23
 private const val HITPOINTS_STAT = 3
+private const val RUN_MODE_VARP = 173
+
+private fun millis(nanos: Long): Double = nanos / 1_000_000.0

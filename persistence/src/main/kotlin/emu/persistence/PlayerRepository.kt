@@ -7,7 +7,7 @@ class PlayerRepository(private val database: PostgresDatabase) {
     internal fun findByUsername(username: String): StoredPlayer? =
         database.connection { connection ->
             connection.prepareStatement(
-                "SELECT id, username, password_hash, display_name, x, y, plane, play_time_seconds " +
+                "SELECT id, username, password_hash, display_name, x, y, plane, play_time_seconds, rank " +
                     "FROM players WHERE username = ?",
             ).use { statement ->
                 statement.setString(1, username)
@@ -25,7 +25,7 @@ class PlayerRepository(private val database: PostgresDatabase) {
             connection.prepareStatement(
                 "INSERT INTO players(username, password_hash, display_name, x, y, plane) " +
                     "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (username) DO NOTHING " +
-                    "RETURNING id, username, password_hash, display_name, x, y, plane, play_time_seconds",
+                    "RETURNING id, username, password_hash, display_name, x, y, plane, play_time_seconds, rank",
             ).use { statement ->
                 statement.setString(1, identity.username)
                 statement.setString(2, passwordHash)
@@ -59,6 +59,17 @@ class PlayerRepository(private val database: PostgresDatabase) {
         }
     }
 
+    /** Administrative privilege update; the new rank takes effect on the player's next login. */
+    fun setRank(playerId: Long, rank: PlayerRank) {
+        database.connection { connection ->
+            connection.prepareStatement("UPDATE players SET rank = ? WHERE id = ?").use { statement ->
+                statement.setInt(1, rank.id)
+                statement.setLong(2, playerId)
+                check(statement.executeUpdate() == 1) { "player $playerId no longer exists" }
+            }
+        }
+    }
+
     private fun ResultSet.storedPlayer(): StoredPlayer =
         StoredPlayer(
             player =
@@ -68,6 +79,7 @@ class PlayerRepository(private val database: PostgresDatabase) {
                     displayName = getString("display_name"),
                     position = PlayerPosition(getInt("x"), getInt("y"), getInt("plane")),
                     playTimeSeconds = getLong("play_time_seconds"),
+                    rank = PlayerRank.fromId(getInt("rank")),
                 ),
             passwordHash = getString("password_hash"),
         )

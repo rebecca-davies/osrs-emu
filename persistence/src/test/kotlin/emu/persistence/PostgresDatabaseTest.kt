@@ -19,11 +19,11 @@ class PostgresDatabaseTest {
 
         database.connection { connection ->
             connection.prepareStatement(
-                "SELECT count(*) FROM schema_migrations WHERE version = 1",
+                "SELECT count(*) FROM schema_migrations WHERE version IN (1, 2)",
             ).use { statement ->
                 statement.executeQuery().use { result ->
                     assertTrue(result.next())
-                    assertEquals(1, result.getInt(1))
+                    assertEquals(2, result.getInt(1))
                 }
             }
             val tables = listOf("players", "player_skills", "player_items")
@@ -42,11 +42,11 @@ class PostgresDatabaseTest {
             connection.prepareStatement(
                 "SELECT count(*) FROM information_schema.columns " +
                     "WHERE table_schema = 'public' AND table_name = 'players' " +
-                    "AND column_name IN ('x', 'y', 'plane', 'play_time_seconds') AND is_nullable = 'NO'",
+                    "AND column_name IN ('x', 'y', 'plane', 'play_time_seconds', 'rank') AND is_nullable = 'NO'",
             ).use { statement ->
                 statement.executeQuery().use { result ->
                     assertTrue(result.next())
-                    assertEquals(4, result.getInt(1))
+                    assertEquals(5, result.getInt(1))
                 }
             }
         }

@@ -84,10 +84,7 @@ suspend fun runGameStage(
 ): Unit {
     val sessionStarted = System.nanoTime()
     val session = OutboundSession(gameCodecs, outboundCipher, write)
-    val movement = PlayerMovement(
-        Tile(player.position.x, player.position.y, player.position.plane),
-        OpenCollisionMap,
-    )
+    val movement = initialPlayerMovement(player.position)
     val routeRequests = PlayerRouteRequestQueue()
     val gameLoop = GameLoop(
         session,
@@ -95,6 +92,9 @@ suspend fun runGameStage(
         playerMovement = movement,
         routeRequests = routeRequests,
         profileLabel = "player ${player.id}",
+        onProfileReport = { snapshot ->
+            adminCycleReport(player.rank, snapshot)?.let { session.send(it) }
+        },
     )
     try {
         coroutineScope {
@@ -147,6 +147,12 @@ suspend fun runGameStage(
         }
     }
 }
+
+/** Creates the live movement session with server-authoritative unlimited run enabled. */
+internal fun initialPlayerMovement(position: PlayerPosition): PlayerMovement =
+    PlayerMovement(Tile(position.x, position.y, position.plane), OpenCollisionMap).apply {
+        runEnabled = true
+    }
 
 /**
  * Runs the revision-neutral [ProtocolStage] over rev-239's complete inbound size table. Implemented

@@ -26,6 +26,20 @@ data class PlayerIdentity(
 /** Persisted position, independent of the game module's live movement type. */
 data class PlayerPosition(val x: Int, val y: Int, val plane: Int)
 
+/** Stable persisted privilege levels, independent of any one client's wire representation. */
+enum class PlayerRank(val id: Int) {
+    PLAYER(0),
+    MODERATOR(1),
+    ADMINISTRATOR(2),
+    ;
+
+    companion object {
+        fun fromId(id: Int): PlayerRank =
+            entries.firstOrNull { it.id == id }
+                ?: throw IllegalArgumentException("unsupported player rank id $id")
+    }
+}
+
 /** Account and character state loaded into one live game session. */
 data class PlayerRecord(
     val id: Long,
@@ -33,6 +47,7 @@ data class PlayerRecord(
     val displayName: String,
     val position: PlayerPosition,
     val playTimeSeconds: Long,
+    val rank: PlayerRank = PlayerRank.PLAYER,
 )
 
 /** Result of case-insensitive password authentication or first-login creation. */

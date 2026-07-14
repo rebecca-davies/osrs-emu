@@ -5,6 +5,7 @@ import emu.crypto.NopStreamCipher
 import emu.crypto.RsaKeyPair
 import emu.persistence.AuthenticationResult
 import emu.persistence.PlayerRecord
+import emu.persistence.PlayerRank
 import emu.protocol.osrs239.login.codec.LoginResponseEncoder
 import emu.protocol.osrs239.login.message.LoginResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -56,9 +57,9 @@ private const val DI_OFFSET = 7
  * (37); a mismatch calls `xz.ai(byte)` and bounces to the login screen. It then (state `cd.am`)
  * waits until 37 bytes are available, but consumes only this 34-byte login-info payload:
  * ```
- * [1] account-hash-present flag  [4] account hash (read regardless of the flag)
- * [1] jo  [1] member flag  [2] di (u16)  [1] ef
- * [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes)
+ * [1] authenticator flag  [4] encrypted authenticator code
+ * [1] staff-mod level  [1] player-mod flag  [2] local player index  [1] members flag
+ * [8] account hash  [8] user id  [8] user hash              (= 34 parsed bytes)
  * ```
  * The final three bytes in the advertised span are the immediately following first game packet's
  * smart opcode (one byte for REBUILD_NORMAL) and u16 body length. Adding three account-info pad
@@ -68,10 +69,19 @@ private const val DI_OFFSET = 7
  * carries [LOCAL_PLAYER_INDEX] — the client needs this to index its own player array and draw the
  * avatar the game stage's `PlayerInfo` packet describes.
  */
-val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock()
+val LOGIN_SUCCESS_TRAILER: ByteArray = loginSuccessTrailer(PlayerRank.PLAYER)
 
-private fun buildLoginInfoBlock(): ByteArray {
+/** Index of the rev-239 rights byte in the complete span+login-info trailer. */
+internal const val LOGIN_RIGHTS_TRAILER_OFFSET = 6
+internal const val LOGIN_PLAYER_MOD_TRAILER_OFFSET = 7
+
+private fun loginSuccessTrailer(rank: PlayerRank): ByteArray =
+    byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock(rank)
+
+private fun buildLoginInfoBlock(rank: PlayerRank): ByteArray {
     val block = ByteArray(LOGIN_INFO_PAYLOAD_LENGTH)
+    block[RIGHTS_OFFSET] = rank.loginStaffModLevel.toByte()
+    block[PLAYER_MOD_OFFSET] = if (rank.loginPlayerModerator) 1 else 0
     block[DI_OFFSET] = (LOCAL_PLAYER_INDEX ushr 8).toByte()
     block[DI_OFFSET + 1] = LOCAL_PLAYER_INDEX.toByte()
     return block
@@ -158,7 +168,7 @@ suspend fun performLoginBlock(
                 write.writeFully(
                     LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(LoginResponse.SUCCESS)),
                 )
-                if (!reconnect) write.writeFully(LOGIN_SUCCESS_TRAILER)
+                if (!reconnect) write.writeFully(loginSuccessTrailer(authentication.player.rank))
                 write.flush()
 
                 AuthenticatedGameLogin(inbound, outbound, authentication.player)
@@ -174,3 +184,16 @@ private suspend fun readU16(read: ByteReadChannel): Int {
     val lo = read.readByte().toInt() and 0xFF
     return (hi shl 8) or lo
 }
+
+private const val RIGHTS_OFFSET = LOGIN_RIGHTS_TRAILER_OFFSET - 1
+private const val PLAYER_MOD_OFFSET = LOGIN_PLAYER_MOD_TRAILER_OFFSET - 1
+
+private val PlayerRank.loginStaffModLevel: Int
+    get() = when (this) {
+        PlayerRank.PLAYER -> 0
+        PlayerRank.MODERATOR -> 1
+        PlayerRank.ADMINISTRATOR -> 2
+    }
+
+private val PlayerRank.loginPlayerModerator: Boolean
+    get() = this != PlayerRank.PLAYER

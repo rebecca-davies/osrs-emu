@@ -3,6 +3,7 @@ package emu.gateway.login
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
 import emu.game.cycle.CycleProfiler
+import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.FixedRateTickSchedule
 import emu.game.cycle.GAME_TICK_MILLIS
 import emu.game.cycle.GameCycle
@@ -53,6 +54,7 @@ class GameLoop(
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
     private val profileLabel: String = "connection",
+    private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
     private val cycle =
@@ -126,6 +128,7 @@ class GameLoop(
                         "cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
                         "max=${millis(snapshot.maxNanos)}ms, lagSpikes=${snapshot.lagSpikes}"
                 }
+                onProfileReport(snapshot)
             }
             ticks++
             delay(schedule.delayAfterTick(start, System.currentTimeMillis()))

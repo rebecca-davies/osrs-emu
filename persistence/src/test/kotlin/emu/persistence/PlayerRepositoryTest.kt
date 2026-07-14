@@ -20,6 +20,7 @@ class PlayerRepositoryTest {
         assertEquals(name.lowercase().replace('_', ' '), player.player.username)
         assertEquals(SPAWN, player.player.position)
         assertEquals(0, player.player.playTimeSeconds)
+        assertEquals(PlayerRank.PLAYER, player.player.rank)
 
         val authenticated = fixture.accounts.loginOrCreate(name.lowercase().replace('_', ' '), password, SPAWN)
         assertEquals(
@@ -30,6 +31,22 @@ class PlayerRepositoryTest {
             AuthenticationResult.InvalidCredentials,
             fixture.accounts.loginOrCreate(name, "wrong password".toCharArray(), SPAWN),
         )
+    }
+
+    @Test fun `rank changes are loaded on the next login`() {
+        val fixture = fixtureOrNull() ?: return
+        val name = "R${UUID.randomUUID().toString().take(8)}"
+        val password = "rank password".toCharArray()
+        val player = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+
+        fixture.players.setRank(player.id, PlayerRank.ADMINISTRATOR)
+
+        val loaded = assertIs<AuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password, SPAWN),
+        ).player
+        assertEquals(PlayerRank.ADMINISTRATOR, loaded.rank)
     }
 
     @Test

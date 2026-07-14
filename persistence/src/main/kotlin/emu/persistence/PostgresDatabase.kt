@@ -65,6 +65,10 @@ class PostgresDatabase(config: PostgresConfig) {
             "CREATE TABLE IF NOT EXISTS schema_migrations (" +
                 "version INTEGER PRIMARY KEY, " +
                 "applied_at TIMESTAMPTZ NOT NULL DEFAULT now())"
-        val MIGRATIONS = listOf(Migration(1, "/db/migration/V1__players.sql"))
+        val MIGRATIONS =
+            listOf(
+                Migration(1, "/db/migration/V1__players.sql"),
+                Migration(2, "/db/migration/V2__player_rank.sql"),
+            )
     }
 }
