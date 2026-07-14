@@ -4,6 +4,7 @@ import emu.netcore.codec.MessageEncoder
 import emu.protocol.osrs239.game.codec.PlayerInfoEncoder
 import emu.protocol.osrs239.game.codec.RebuildNormalEncoder
 import emu.protocol.osrs239.game.codec.ServerTickEndEncoder
+import emu.protocol.osrs239.game.codec.SetActiveWorldEncoder
 import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -15,6 +16,7 @@ import org.koin.dsl.module
  */
 val gameModule = module {
     single(named("game.rebuildNormal")) { RebuildNormalEncoder } bind MessageEncoder::class
+    single(named("game.setActiveWorld")) { SetActiveWorldEncoder } bind MessageEncoder::class
     single(named("game.playerInfo")) { PlayerInfoEncoder } bind MessageEncoder::class
     single(named("game.serverTickEnd")) { ServerTickEndEncoder } bind MessageEncoder::class
 }

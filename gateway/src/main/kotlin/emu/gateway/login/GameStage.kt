@@ -124,24 +124,34 @@ suspend fun runGameStage(
  * UpdateRunEnergy p2(100)=[0,100]; boolean/reset packets = 0 / empty.
  */
 private suspend fun sendLoginInitBatch(write: ByteWriteChannel, cipher: IsaacCipher) {
-    val packets: List<Pair<Int, ByteArray>> = listOf(
-        124 to byteArrayOf(0x80.toByte(), 0x80.toByte()), // CHAT_FILTER_SETTINGS  p1Alt1(0),p1Alt3(0)
-        75 to byteArrayOf(0),                              // HIDENPCOPS  pboolean(false)
-        21 to byteArrayOf(0),                              // HIDELOCOPS
-        73 to byteArrayOf(0),                              // HIDEOBJOPS
-        44 to ByteArray(0),                                // VARP_RESET  (empty)
-        3 to ByteArray(0),                                 // CAM_RESET   (empty)
-        64 to byteArrayOf(0, 100),                         // UPDATE_RUNENERGY  p2(100)
-        31 to byteArrayOf(0, 0),                           // UPDATE_RUNWEIGHT  p2(0)
-        92 to ByteArray(0),                                // RESET_ANIMS (empty)
-        43 to byteArrayOf(0),                              // MINIMAP_TOGGLE  p1(0)
-        96 to byteArrayOf(0x00, 0x25),                     // IF_OPENTOP  g2Alt2(165 = toplevel_display) — the REAL rev-239 frame (was 548, a legacy id absent from the rev-239 cache; see docs/.../2026-07-14-real-rev239-login-capture.md)
-    )
+    // DIAGNOSTIC toggle (milestone-5 bisection): EMU_TOPLEVEL_ID overrides the IF_OPENTOP interface
+    // id (default 165 = the real rev-239 toplevel_display), and the special value -1 SKIPS the
+    // IF_OPENTOP packet entirely — so we can A/B whether opening the real toplevel (without its
+    // sub-interfaces/varbits) triggers the post-login drop, vs the legacy 548, vs no frame at all.
+    val toplevelId = System.getenv("EMU_TOPLEVEL_ID")?.toIntOrNull() ?: 165
+    val packets: List<Pair<Int, ByteArray>> = buildList {
+        add(124 to byteArrayOf(0x80.toByte(), 0x80.toByte())) // CHAT_FILTER_SETTINGS  p1Alt1(0),p1Alt3(0)
+        add(75 to byteArrayOf(0))                              // HIDENPCOPS  pboolean(false)
+        add(21 to byteArrayOf(0))                              // HIDELOCOPS
+        add(73 to byteArrayOf(0))                              // HIDEOBJOPS
+        add(44 to ByteArray(0))                                // VARP_RESET  (empty)
+        add(3 to ByteArray(0))                                 // CAM_RESET   (empty)
+        add(64 to byteArrayOf(0, 100))                         // UPDATE_RUNENERGY  p2(100)
+        add(31 to byteArrayOf(0, 0))                           // UPDATE_RUNWEIGHT  p2(0)
+        add(92 to ByteArray(0))                                // RESET_ANIMS (empty)
+        add(43 to byteArrayOf(0))                              // MINIMAP_TOGGLE  p1(0)
+        if (toplevelId >= 0) {
+            // IF_OPENTOP  g2Alt2(id) = [id ushr 8, (id + 128) and 0xFF]. 165 = the real rev-239
+            // toplevel_display (was 548, a legacy id).
+            add(96 to byteArrayOf((toplevelId ushr 8).toByte(), ((toplevelId and 0xFF) + 128 and 0xFF).toByte()))
+        }
+    }
     for ((opcode, body) in packets) {
         write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())
         if (body.isNotEmpty()) write.writeFully(body)
     }
     write.flush()
+    logger.info { "game stage: sent onLogin init batch (${packets.size} packets, toplevelId=$toplevelId)" }
 }
 
 private suspend fun sendInitialScene(session: OutboundSession) {

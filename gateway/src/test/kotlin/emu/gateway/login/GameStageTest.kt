@@ -189,6 +189,13 @@ class GameStageTest {
         // (proving the outbound keystream advances exactly once per packet — PLAYER_INFO then
         // SERVER_TICK_END — and stays in lockstep with the client) and the byte-exact body framing.
         repeat(HEARTBEAT_TICKS) { tick ->
+            // Each tick begins with SET_ACTIVE_WORLD (op47, fixed 3-byte body: root world 0 + level).
+            val sawOpcode = cr.readByte().toInt() and 0xFF
+            val expectedSawOpcode = (GameServerProt.SET_ACTIVE_WORLD.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedSawOpcode, sawOpcode, "SET_ACTIVE_WORLD opcode for heartbeat tick $tick")
+            val sawBody = ByteArray(3)
+            cr.readFully(sawBody)
+
             // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
             val piOpcode = cr.readByte().toInt() and 0xFF
             val expectedPiOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF

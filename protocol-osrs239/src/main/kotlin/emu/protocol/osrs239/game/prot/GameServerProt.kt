@@ -18,6 +18,17 @@ object GameServerProt {
     val REBUILD_NORMAL = Prot(49, Prot.VAR_SHORT)
 
     /**
+     * Sets the client's **active world** context for the packets that follow (player info, npc
+     * info, zone updates). Opcode 47 (rsprot `SET_ACTIVE_WORLD_V2`), fixed size 3: a signed u16
+     * world index (`0` = the root/top-level world since rev 237) followed by a u8 active level
+     * (the plane). rsmod (`RspCycle.flush`) and the rsprot guide both send this as the **first**
+     * packet of every post-tick flush, before PLAYER_INFO — the rev-235+ world-entity system
+     * processes player/npc info relative to the active world, so without it being set to the root
+     * world the client has no valid world context and drops the connection right after login.
+     */
+    val SET_ACTIVE_WORLD = Prot(47, 3)
+
+    /**
      * Per-tick player info: local + other players' movement bits, and extended info (appearance,
      * chat, animation, ...). Opcode 28 (`jc.bv`), size -2 (var-short). See [PlayerInfoEncoder] for
      * the current minimal (single-local-player, appearance-only) encoding and its confidence
