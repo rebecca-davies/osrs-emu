@@ -131,6 +131,7 @@ class GameStageTest {
                                     idleTimeout = 2.seconds,
                                     tickInterval = 20.milliseconds,
                                     maxTicks = HEARTBEAT_TICKS,
+                                    sendLoginInit = false,
                                 )
                             }
                         }
@@ -161,10 +162,14 @@ class GameStageTest {
         cw.writeFully(payload)
 
         val responseCode = cr.readByte().toInt() and 0xFF
-        val trailer = ByteArray(LOGIN_SUCCESS_TRAILER.size)
-        cr.readFully(trailer)
         assertEquals(2, responseCode)
-        assertEquals(LOGIN_SUCCESS_TRAILER.toList(), trailer.toList())
+
+        // Mirror the client's real fresh-login boundary instead of trusting the server constant:
+        // one advertised span byte, exactly 34 account-info bytes, then the first game header.
+        // A three-byte pad here used to be consumed as an empty rebuild and advanced ISAAC once.
+        assertEquals(37, cr.readByte().toInt() and 0xFF, "login-info advertised span")
+        val loginInfo = ByteArray(34).also { cr.readFully(it) }
+        assertEquals(LOGIN_SUCCESS_TRAILER.drop(1), loginInfo.toList(), "login-info payload")
 
         // Independent cipher, seeded identically to the server's outbound (seeds+50, per
         // performLoginBlock's doc), to compute the expected ISAAC-adjusted opcode bytes.
@@ -183,41 +188,40 @@ class GameStageTest {
         assertEquals(3222, x)
         assertEquals(3218, y)
 
-        // The heartbeat: EACH tick the loop sends PLAYER_INFO (GPI) then SERVER_TICK_END (the
-        // per-cycle terminator), so a healthy in-game client receives a steady stream of both. Assert
-        // the first [HEARTBEAT_TICKS] each arrive, in that order, with the next ISAAC-adjusted opcode
-        // (proving the outbound keystream advances exactly once per packet — PLAYER_INFO then
-        // SERVER_TICK_END — and stays in lockstep with the client) and the byte-exact body framing.
+        suspend fun expectPacket(prot: emu.netcore.prot.Prot, bodySize: Int, label: String): ByteArray {
+            val opcode = cr.readByte().toInt() and 0xFF
+            val expectedOpcode = (prot.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedOpcode, opcode, "$label opcode")
+            if (prot.size == emu.netcore.prot.Prot.VAR_SHORT) {
+                assertEquals(bodySize, readU16(cr), "$label body size")
+            }
+            return ByteArray(bodySize).also { cr.readFully(it) }
+        }
+
+        // Initial cycle: the appearance-bearing player update, entity/NPC streams and all 49 zone
+        // resets are one declared atomic group, exactly like the real rev-239 capture.
+        val initialGroupHeader = expectPacket(GameServerProt.PACKET_GROUP_START, 2, "initial packet group")
+        assertEquals(295, ((initialGroupHeader[0].toInt() and 0xFF) shl 8) or (initialGroupHeader[1].toInt() and 0xFF))
+        expectPacket(GameServerProt.SET_ACTIVE_WORLD, 3, "initial active world")
+        expectPacket(GameServerProt.SET_NPC_UPDATE_ORIGIN, 2, "initial npc origin")
+        expectPacket(GameServerProt.WORLD_ENTITY_INFO, 1, "initial world entity info")
+        expectPacket(GameServerProt.PLAYER_INFO, APPEARANCE_PLAYER_INFO_BODY_SIZE, "initial player info")
+        expectPacket(GameServerProt.NPC_INFO, 1, "initial npc info")
+        repeat(49) { zone ->
+            expectPacket(GameServerProt.UPDATE_ZONE_FULL_FOLLOWS, 3, "initial zone $zone")
+        }
+        expectPacket(GameServerProt.CAM_TARGET_V4, 5, "initial player camera target")
+        expectPacket(GameServerProt.SERVER_TICK_END, 0, "initial tick end")
+
+        // Every steady-state heartbeat is a smaller atomic group with idle player and empty NPC info.
         repeat(HEARTBEAT_TICKS) { tick ->
-            // Each tick begins with SET_ACTIVE_WORLD (op47, fixed 3-byte body: root world 0 + level).
-            val sawOpcode = cr.readByte().toInt() and 0xFF
-            val expectedSawOpcode = (GameServerProt.SET_ACTIVE_WORLD.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedSawOpcode, sawOpcode, "SET_ACTIVE_WORLD opcode for heartbeat tick $tick")
-            val sawBody = ByteArray(3)
-            cr.readFully(sawBody)
-
-            // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
-            val piOpcode = cr.readByte().toInt() and 0xFF
-            val expectedPiOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedPiOpcode, piOpcode, "PLAYER_INFO opcode for heartbeat tick $tick")
-            // Tick 0 carries the local player's appearance extended-info (larger body); later ticks
-            // are the minimal appearance-less idle GPI (see GameLoop.tick).
-            val expectedBodySize = if (tick == 0) APPEARANCE_PLAYER_INFO_BODY_SIZE else PLAYER_INFO_BODY_SIZE
-            assertEquals(expectedBodySize, readU16(cr), "PLAYER_INFO body size for heartbeat tick $tick")
-
-            val playerInfoBody = ByteArray(expectedBodySize)
-            cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
-
-            // SET_NPC_UPDATE_ORIGIN (op116, fixed 2-byte body) follows PLAYER_INFO each tick.
-            val originOpcode = cr.readByte().toInt() and 0xFF
-            val expectedOriginOpcode = (GameServerProt.SET_NPC_UPDATE_ORIGIN.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedOriginOpcode, originOpcode, "SET_NPC_UPDATE_ORIGIN opcode for heartbeat tick $tick")
-            cr.readFully(ByteArray(2))
-
-            // SERVER_TICK_END is FIXED size 0: [opcode+K] alone — no length prefix, no body.
-            val steOpcode = cr.readByte().toInt() and 0xFF
-            val expectedSteOpcode = (GameServerProt.SERVER_TICK_END.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedSteOpcode, steOpcode, "SERVER_TICK_END opcode for heartbeat tick $tick")
+            val groupHeader = expectPacket(GameServerProt.PACKET_GROUP_START, 2, "heartbeat group $tick")
+            assertEquals(17, ((groupHeader[0].toInt() and 0xFF) shl 8) or (groupHeader[1].toInt() and 0xFF))
+            expectPacket(GameServerProt.SET_ACTIVE_WORLD, 3, "heartbeat active world $tick")
+            expectPacket(GameServerProt.SET_NPC_UPDATE_ORIGIN, 2, "heartbeat npc origin $tick")
+            expectPacket(GameServerProt.PLAYER_INFO, PLAYER_INFO_BODY_SIZE, "heartbeat player info $tick")
+            expectPacket(GameServerProt.NPC_INFO, 1, "heartbeat npc info $tick")
+            expectPacket(GameServerProt.SERVER_TICK_END, 0, "heartbeat tick end $tick")
         }
 
         serverJob.cancel()

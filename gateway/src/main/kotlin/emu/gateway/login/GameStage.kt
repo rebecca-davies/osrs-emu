@@ -3,13 +3,11 @@ package emu.gateway.login
 import emu.crypto.IsaacCipher
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.game.message.RebuildNormal
+import emu.protocol.osrs239.game.message.PlayerAppearance
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
-import io.ktor.utils.io.writeByte
-import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -38,20 +36,18 @@ private const val SPAWN_Y = 3218
 /**
  * Milestone-5 game stage: puts the client in-world and then keeps it there.
  *
- * On entry it pushes the initial scene ([RebuildNormal] — the scene/map rebuild that lands the local
- * player, [LOCAL_PLAYER_INDEX], at [SPAWN_X]/[SPAWN_Y]), then runs two sibling coroutines for the
- * connection's lifetime — the network↔game split the research doc mandates (§4.2):
- *  - a **tick loop** ([GameLoop]) that sends a PLAYER_INFO (GPI) heartbeat every 600ms; this steady
- *    per-tick packet is what keeps the client in IN_GAME (without it the client starves and drops —
- *    the milestone-4 bug, research §3.2). The initial [RebuildNormal] renders terrain; the heartbeat
- *    holds the connection.
+ * On entry it sends [sendInitialGameCycle]: the Lumbridge rebuild plus the capture-shaped atomic
+ * entity/player/NPC/zone group and neutral rev-239 frame/account state. It then runs two sibling
+ * coroutines for the connection's lifetime — the network↔game split the research doc mandates:
+ *  - a **tick loop** ([GameLoop]) that sends an atomic idle player/NPC group every 600ms; this steady
+ *    cycle stream keeps the client in IN_GAME after the initial cycle renders the terrain.
  *  - an **inbound drain** ([drainInbound]) that keeps the socket read side clear and enforces the
  *    idle timeout.
  *
  * When either side ends (the client disconnects, or it goes idle past [idleTimeout]) the other is
  * cancelled and the connection is handed back to [emu.gateway.handleConnection]'s `finally` to close.
  *
- * Every server->client packet (the [RebuildNormal] and each PLAYER_INFO) is written through the same
+ * Every server->client packet is written through the same
  * [OutboundSession] — a thin wrapper over [emu.netcore.pipeline.writePacket] and the shared
  * [gameCodecs] registry — so each advances the outbound ISAAC keystream exactly once for its opcode
  * and this function never hand-rolls opcode/body bytes (CLAUDE.md §1/§9).
@@ -68,22 +64,19 @@ suspend fun runGameStage(
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
-    sendLoginInit: Boolean = System.getenv("EMU_LOGIN_INIT") == "1",
+    sendLoginInit: Boolean = System.getenv("EMU_LOGIN_INIT") != "0",
 ): Unit = coroutineScope {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
-    sendInitialScene(session)
-
-    // EXPERIMENT (milestone-5): the rev-239 rsmod onLogin sequence (LoginScript.kt) sends a batch of
-    // login-init packets right after REBUILD_NORMAL. We send NONE of them; the client reaches
-    // LOGGED_IN, renders terrain, then drops ~130ms later even with a per-tick heartbeat. Gated by
-    // EMU_LOGIN_INIT=1 (overridable via [sendLoginInit] for tests) to A/B test whether this batch
-    // keeps the client in-game. Raw wire (fixed-size packets: opcode ISAAC-adjusted via
-    // [outboundCipher], plaintext body), reusing the same cipher in order after the RebuildNormal
-    // opcode so the client's decryptor stays in lockstep.
-    if (sendLoginInit) {
-        logger.info { "game stage: sending rsmod onLogin init batch after rebuild" }
-        sendLoginInitBatch(write, outboundCipher)
-    }
+    val appearance = if (System.getenv("EMU_NO_APPEARANCE") == "1") null else PlayerAppearance()
+    sendInitialGameCycle(
+        session = session,
+        spawnPlane = SPAWN_PLANE,
+        spawnX = SPAWN_X,
+        spawnY = SPAWN_Y,
+        localPlayerIndex = LOCAL_PLAYER_INDEX,
+        appearance = appearance,
+        includeLoginState = sendLoginInit,
+    )
 
     // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
     // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
@@ -106,57 +99,6 @@ suspend fun runGameStage(
     // hit its tick cap (tests) — then stop the reader if it is still blocked awaiting a byte.
     tickJob.join()
     readJob.cancel()
-}
-
-/**
- * Sends the local player's initial scene: [RebuildNormal], the scene/map rebuild that puts the
- * client in-world with terrain rendered around [LOCAL_PLAYER_INDEX]'s spawn tile. It is a proactive
- * push (not a reply to any inbound packet), which is why it happens unconditionally before the loops
- * rather than from a handler. The per-tick PLAYER_INFO that keeps the client in-world afterwards is
- * emitted by [GameLoop], starting immediately with its first tick.
- */
-/**
- * EXPERIMENTAL raw sender for the rev-239 rsmod onLogin init batch (see call site). Each entry is
- * `opcode to body`; the opcode byte is ISAAC-adjusted by [cipher] (matching the client's
- * `rawByte - inboundIsaac.next()` opcode read), the body is plaintext. Fixed-size packets only
- * (sizes match the client `jc.java` table), so no length prefix. Values mirror rsprot encoders
- * (HALF_UBYTE = 128): ChatFilterSettings p1Alt1/p1Alt3(0)=0x80; IfOpenTop p2Alt2(548)=[0x02,0xA4];
- * UpdateRunEnergy p2(100)=[0,100]; boolean/reset packets = 0 / empty.
- */
-private suspend fun sendLoginInitBatch(write: ByteWriteChannel, cipher: IsaacCipher) {
-    // DIAGNOSTIC toggle (milestone-5 bisection): EMU_TOPLEVEL_ID overrides the IF_OPENTOP interface
-    // id (default 165 = the real rev-239 toplevel_display), and the special value -1 SKIPS the
-    // IF_OPENTOP packet entirely — so we can A/B whether opening the real toplevel (without its
-    // sub-interfaces/varbits) triggers the post-login drop, vs the legacy 548, vs no frame at all.
-    val toplevelId = System.getenv("EMU_TOPLEVEL_ID")?.toIntOrNull() ?: 165
-    val packets: List<Pair<Int, ByteArray>> = buildList {
-        add(124 to byteArrayOf(0x80.toByte(), 0x80.toByte())) // CHAT_FILTER_SETTINGS  p1Alt1(0),p1Alt3(0)
-        add(75 to byteArrayOf(0))                              // HIDENPCOPS  pboolean(false)
-        add(21 to byteArrayOf(0))                              // HIDELOCOPS
-        add(73 to byteArrayOf(0))                              // HIDEOBJOPS
-        add(44 to ByteArray(0))                                // VARP_RESET  (empty)
-        add(3 to ByteArray(0))                                 // CAM_RESET   (empty)
-        add(64 to byteArrayOf(0, 100))                         // UPDATE_RUNENERGY  p2(100)
-        add(31 to byteArrayOf(0, 0))                           // UPDATE_RUNWEIGHT  p2(0)
-        add(92 to ByteArray(0))                                // RESET_ANIMS (empty)
-        add(43 to byteArrayOf(0))                              // MINIMAP_TOGGLE  p1(0)
-        if (toplevelId >= 0) {
-            // IF_OPENTOP  g2Alt2(id) = [id ushr 8, (id + 128) and 0xFF]. 165 = the real rev-239
-            // toplevel_display (was 548, a legacy id).
-            add(96 to byteArrayOf((toplevelId ushr 8).toByte(), ((toplevelId and 0xFF) + 128 and 0xFF).toByte()))
-        }
-    }
-    for ((opcode, body) in packets) {
-        write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())
-        if (body.isNotEmpty()) write.writeFully(body)
-    }
-    write.flush()
-    logger.info { "game stage: sent onLogin init batch (${packets.size} packets, toplevelId=$toplevelId)" }
-}
-
-private suspend fun sendInitialScene(session: OutboundSession) {
-    logger.info { "game stage: sending initial scene (RebuildNormal) for local player index $LOCAL_PLAYER_INDEX" }
-    session.send(RebuildNormal(plane = SPAWN_PLANE, x = SPAWN_X, y = SPAWN_Y, localPlayerIndex = LOCAL_PLAYER_INDEX))
 }
 
 /**

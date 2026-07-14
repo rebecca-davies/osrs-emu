@@ -49,14 +49,16 @@ class PlayerInfoEncoderTest {
         // Low-res section unchanged: skip all 2045 other slots -> 0x7F 0xF4.
         assertEquals(0x7F, body[1].toInt() and 0xFF)
         assertEquals(0xF4, body[2].toInt() and 0xFF)
-        // Extended-info pass: APPEARANCE flag byte (0x20), then the block length as g1Alt3 (len+128).
+        // Extended-info pass: APPEARANCE flag byte (0x20), then the block length as p1Alt3
+        // (`128 - len`), inverse of the rev-239 decoder's `g1Alt3 = 128 - raw`.
         assertEquals(0x20, body[3].toInt() and 0xFF, "APPEARANCE extended-info flag")
-        val blockLen = ((body[4].toInt() and 0xFF) - 128) and 0xFF
+        val blockLen = (128 - (body[4].toInt() and 0xFF)) and 0xFF
         assertEquals(body.size - 5, blockLen, "g1Alt3 length must match the trailing appearance bytes")
 
         // Decode the appearance sub-buffer the way the client's decodeAppearance does and confirm
         // the identity fields survive the round-trip.
-        val appearance = body.copyOfRange(5, body.size)
+        // Rev 239 reads the block through gdataAlt2, subtracting 128 from every wire byte.
+        val appearance = body.copyOfRange(5, body.size).map { ((it.toInt() and 0xFF) - 128).toByte() }.toByteArray()
         var p = 0
         fun u8() = appearance[p++].toInt() and 0xFF
         assertEquals(0, u8(), "gender male")

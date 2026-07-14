@@ -15,7 +15,7 @@ import kotlin.test.assertEquals
 private data class OutboundWriterTestMessage(val n: Int) : OutgoingMessage
 
 private object OutboundWriterTestEncoder : MessageEncoder<OutboundWriterTestMessage> {
-    override val prot = Prot(200, 1)
+    override val prot = Prot(100, 1)
     override val messageType = OutboundWriterTestMessage::class.java
     override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage): ByteArray =
         byteArrayOf(message.n.toByte())
@@ -32,7 +32,7 @@ class OutboundWriterTest {
         val ch = ByteChannel(true)
         writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(42), NopStreamCipher, writeOpcode = true)
 
-        assertEquals(200, ch.readByte().toInt() and 0xFF) // opcode unchanged: +0
+        assertEquals(100, ch.readByte().toInt() and 0xFF) // opcode unchanged: +0
         assertEquals(42, ch.readByte().toInt() and 0xFF)  // body untouched
     }
 
@@ -41,16 +41,16 @@ class OutboundWriterTest {
         val cipher = ScriptedCipher(listOf(5))
         writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(42), cipher, writeOpcode = true)
 
-        assertEquals((200 + 5) and 0xFF, ch.readByte().toInt() and 0xFF)
+        assertEquals((100 + 5) and 0xFF, ch.readByte().toInt() and 0xFF)
         assertEquals(42, ch.readByte().toInt() and 0xFF) // body still plaintext (encoder ignored cipher)
     }
 
     @Test fun `opcode adjustment wraps modulo 256`() = runBlocking {
         val ch = ByteChannel(true)
-        val cipher = ScriptedCipher(listOf(200)) // 200 + 200 = 400 -> wraps to 144
+        val cipher = ScriptedCipher(listOf(200)) // 100 + 200 = 300 -> wraps to 44
         writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(1), cipher, writeOpcode = true)
 
-        assertEquals(144, ch.readByte().toInt() and 0xFF)
+        assertEquals(44, ch.readByte().toInt() and 0xFF)
     }
 
     @Test fun `writeOpcode false never consumes a keystream int for the opcode (JS5 behavior)`() = runBlocking {
@@ -101,12 +101,30 @@ class OutboundWriterTest {
     }
 
     @Test fun `a fixed-size prot emits opcode then the body with no length prefix`() = runBlocking {
-        // OutboundWriterTestEncoder has a fixed size (Prot(200, 1)); no length must appear.
+        // OutboundWriterTestEncoder has a fixed size (Prot(100, 1)); no length must appear.
         val ch = ByteChannel(true)
         writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(42), NopStreamCipher, writeOpcode = true)
 
-        assertEquals(200, ch.readByte().toInt() and 0xFF) // opcode
+        assertEquals(100, ch.readByte().toInt() and 0xFF) // opcode
         assertEquals(42, ch.readByte().toInt() and 0xFF) // body immediately follows, no length
+    }
+
+    @Test fun `opcode 128 or greater emits a two-byte ISAAC smart and consumes two values`() = runBlocking {
+        val encoder = object : MessageEncoder<OutboundWriterTestMessage> {
+            override val prot = Prot(138, 1)
+            override val messageType = OutboundWriterTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage): ByteArray =
+                byteArrayOf(message.n.toByte())
+        }
+        val ch = ByteChannel(true)
+        val cipher = ScriptedCipher(listOf(5, 9))
+
+        writePacket(ch, encoder, OutboundWriterTestMessage(42), cipher, writeOpcode = true)
+
+        // pSmart1or2(138) = [128, 138], with one ISAAC value added to each encoded byte.
+        assertEquals((128 + 5) and 0xFF, ch.readByte().toInt() and 0xFF)
+        assertEquals((138 + 9) and 0xFF, ch.readByte().toInt() and 0xFF)
+        assertEquals(42, ch.readByte().toInt() and 0xFF)
     }
 
     @Test fun `body is encoded with the same cipher instance, preserving encoders that XOR their own bytes`() = runBlocking {

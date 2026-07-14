@@ -32,12 +32,6 @@ import kotlin.test.fail
 /** Number of heartbeat ticks driven — enough packets to cross the ISAAC 256-value regeneration boundary twice. */
 private const val ORACLE_TICKS = 300
 
-/** The rsmod onLogin init batch as (opcode, body size) in send order — mirrors [sendLoginInitBatch]. */
-private val LOGIN_INIT_BATCH = listOf(
-    124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0, 3 to 0,
-    64 to 2, 31 to 2, 92 to 0, 43 to 1, 96 to 2,
-)
-
 /**
  * The rev-239 client's complete server-packet size table, extracted verbatim from the running
  * client's decompiled `jc.java` static initializer (`new jc(opcode, size)`): size >= 0 is a fixed
@@ -189,19 +183,29 @@ class GameStreamOracleTest {
 
         val expected = buildList {
             add(49 to 4614)
-            addAll(LOGIN_INIT_BATCH)
-            // Each tick: SET_ACTIVE_WORLD (op47, 3 bytes: root world index 0 + level 0), then
-            // PLAYER_INFO, then SERVER_TICK_END. Tick 0's PLAYER_INFO carries the local player's
-            // appearance extended-info (75 = 3 GPI + 2 flag/len + 70-byte appearance); later ticks
-            // are the minimal 3-byte appearance-less idle GPI.
+            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0))
+            add(93 to 2)
             add(47 to 3)
-            add(28 to 75)
             add(116 to 2)
+            add(122 to 1)
+            add(28 to 75)
+            add(85 to 1)
+            repeat(49) { add(54 to 3) }
+            add(87 to 5)
+            addAll(listOf(22 to 8, 22 to 8, 96 to 2))
+            repeat(25) { add(7 to 7) }
+            addAll(listOf(3 to 0, 138 to 1, 25 to 179))
+            repeat(25) { add(46 to 7) }
+            addAll(listOf(31 to 2, 64 to 2, 92 to 0, 43 to 1))
             add(83 to 0)
-            repeat(ORACLE_TICKS - 1) {
+            // Every steady-state cycle is also packet-grouped: active world, NPC origin, idle
+            // player info and empty NPC info, followed by the tick terminator.
+            repeat(ORACLE_TICKS) {
+                add(93 to 2)
                 add(47 to 3)
-                add(28 to 3)
                 add(116 to 2)
+                add(28 to 3)
+                add(85 to 1)
                 add(83 to 0)
             }
         }

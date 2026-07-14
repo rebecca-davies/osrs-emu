@@ -1,7 +1,7 @@
 package emu.gateway.login
 
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.game.message.PlayerAppearance
+import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
@@ -18,14 +18,6 @@ private val logger = KotlinLogging.logger {}
  * docs/superpowers/research/2026-07-14-tick-cycle-queue-architecture.md §1.1).
  */
 val TICK_INTERVAL: Duration = 600.milliseconds
-
-/**
- * The local player's tile within the 13x13 build area at the Lumbridge spawn — `spawn - baseX`,
- * where `baseX = (zoneX - 6) * 8`. For spawn (3222, 3218): zoneX = 3222 ushr 3 = 402, base = 3168,
- * so the scene-local origin is (54, 50). Used for SET_NPC_UPDATE_ORIGIN (op 116).
- */
-private const val LOCAL_SCENE_ORIGIN_X = 3222 - (402 - 6) * 8
-private const val LOCAL_SCENE_ORIGIN_Z = 3218 - (402 - 6) * 8
 
 /**
  * The per-connection game tick loop — the milestone-5 seed of the multi-player `World` tick.
@@ -48,35 +40,29 @@ private const val LOCAL_SCENE_ORIGIN_Z = 3218 - (402 - 6) * 8
 class GameLoop(
     private val session: OutboundSession,
     private val tickInterval: Duration = TICK_INTERVAL,
-    private val localAppearance: PlayerAppearance = PlayerAppearance(),
-    /** Local player's tile within the 13x13 build area (`spawn - baseX`), for SET_NPC_UPDATE_ORIGIN. */
+    /** Scene-local X tile (`spawnX - baseX`) used by SET_NPC_UPDATE_ORIGIN. */
     private val npcOriginX: Int = LOCAL_SCENE_ORIGIN_X,
+    /** Scene-local Z tile (`spawnZ - baseZ`) used by SET_NPC_UPDATE_ORIGIN. */
     private val npcOriginZ: Int = LOCAL_SCENE_ORIGIN_Z,
 ) {
     /**
-     * One game cycle for this connection: build and send the per-tick PLAYER_INFO heartbeat, plus a
-     * SERVER_TICK_END. The **first** cycle ([tickIndex] 0) carries the local player's appearance
-     * extended-info so the client can build the avatar and complete login — the real server
-     * establishes the local avatar in its first post-login cycle, and without it the client reaches
-     * LOGGED_IN then drops (see docs/.../2026-07-14-real-rev239-login-capture.md). Every later cycle
-     * sends the minimal appearance-less idle GPI (the local player is already established), which is
-     * the steady heartbeat the client's IN_GAME state machine needs. Sending consumes one outbound
-     * ISAAC int per packet (for the opcode, via [OutboundSession.send] → `writePacket`), keeping the
-     * client's decryptor in step.
+     * One steady-state game cycle: declare an atomic group containing active-world context, NPC
+     * origin, idle local-player GPI and empty NPC info, then terminate the cycle. The appearance was
+     * established by [sendInitialGameCycle], so repeating it here would be an incorrect second
+     * extended-info update. The group boundary matches every post-login cycle in the real capture.
      */
     suspend fun tick(tickIndex: Int) {
-        // DIAGNOSTIC toggle (milestone-5 bisection): EMU_NO_APPEARANCE=1 sends the minimal
-        // appearance-less GPI even on tick 0, to A/B whether the appearance extended-info block
-        // is implicated in the post-login drop.
-        val appearance = if (tickIndex == 0 && System.getenv("EMU_NO_APPEARANCE") != "1") localAppearance else null
-        // Match rsmod RspCycle.flush order: active world, then player info, then the npc-info origin
-        // (the base coord the — omitted-when-empty — npc info would be relative to), then the
-        // tick terminator. The rev-235+ info protocol expects this set each cycle.
-        session.send(SetActiveWorld())
-        session.send(PlayerInfo(appearance))
-        session.send(SetNpcUpdateOrigin(npcOriginX, npcOriginZ))
+        sendPacketGroup(
+            session,
+            listOf(
+                SetActiveWorld(),
+                SetNpcUpdateOrigin(npcOriginX, npcOriginZ),
+                PlayerInfo(appearance = null),
+                NpcInfo,
+            ),
+        )
         session.send(ServerTickEnd)
-        logger.debug { "game loop: sent tick $tickIndex (SET_ACTIVE_WORLD op47 + PLAYER_INFO op28${if (appearance != null) " +appearance" else ""} + SET_NPC_UPDATE_ORIGIN op116 + SERVER_TICK_END op83)" }
+        logger.debug { "game loop: sent atomic idle world group + SERVER_TICK_END for tick $tickIndex" }
     }
 
     /**

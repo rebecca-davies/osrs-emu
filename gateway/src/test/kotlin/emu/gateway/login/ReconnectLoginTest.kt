@@ -17,11 +17,11 @@ import kotlin.test.assertNotNull
 /**
  * Pins the response-2 wire contract for both login opcodes, from the decompiled rev-239 client's
  * response dispatch (`client.java`, the `n == 2` branch):
- *  - **op16 fresh login** (`cd.az` -> `cd.am`): the client reads one length byte + the 37-byte
- *    login-info block — so the server must send [LOGIN_SUCCESS_TRAILER] after the response code.
+ *  - **op16 fresh login** (`cd.az` -> `cd.am`): the client reads one span byte + the 34-byte
+ *    login-info payload — so the server must send [LOGIN_SUCCESS_TRAILER] after the response code.
  *  - **op18 reconnect** (`ol.cl` set -> state `cd.aj`): the client reads NOTHING after the response
  *    code — its `cd.aj` handler consumes no bytes and drops straight into the game-packet loop. A
- *    server that sends the trailer anyway desyncs the whole session by 38 bytes (observed live:
+ *    server that sends the trailer anyway desyncs the whole session by 35 bytes (observed live:
  *    the client mis-framed our REBUILD_NORMAL as opcode 28/71 and threw `dy.ae: 773 4614`).
  */
 class ReconnectLoginTest {
@@ -76,7 +76,7 @@ class ReconnectLoginTest {
         out.toByteArray()
     }
 
-    @Test fun `fresh op16 login gets response 2 plus the 38-byte login-info trailer`() {
+    @Test fun `fresh op16 login gets response 2 plus the 35-byte login-info trailer`() {
         val keyPair = loadRealOrSkip() ?: return
         assertContentEquals(byteArrayOf(2) + LOGIN_SUCCESS_TRAILER, loginResponseBytes(keyPair, reconnect = false))
     }

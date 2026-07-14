@@ -107,14 +107,15 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
 
         // Extended-info pass (byte-aligned, after all bit sections): one entry, for the local
         // player queued above. Flag word = APPEARANCE only (single byte); then the appearance block
-        // length as g1Alt3 (`value + 128`, matching the client's `g1Alt3` read and our other
-        // p1Alt3 packets); then the appearance sub-buffer itself.
+        // length as p1Alt3 (`128 - value`, the inverse of the client's `g1Alt3 = 128 - raw`);
+        // then the appearance sub-buffer with 128 added to every byte (`pdataAlt2`), inverse of
+        // the client's `gdataAlt2` copy into its temporary appearance buffer.
         val block = buildAppearanceBlock(appearance)
         val out = JagexBuffer.alloc(gpi.size + 2 + block.size)
         out.writeBytes(gpi)
         out.writeByte(APPEARANCE_FLAG)
-        out.writeByte((block.size + 128) and 0xFF)
-        out.writeBytes(block)
+        out.writeByte((128 - block.size) and 0xFF)
+        for (byte in block) out.writeByte(byte.toInt() + 128)
         return out.array
     }
 

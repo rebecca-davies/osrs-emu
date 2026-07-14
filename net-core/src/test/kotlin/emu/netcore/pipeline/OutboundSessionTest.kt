@@ -93,4 +93,24 @@ class OutboundSessionTest {
         assertEquals(102, ch.readByte().toInt() and 0xFF) // 100 + 2
         assertEquals(20, ch.readByte().toInt() and 0xFF)
     }
+
+    @Test fun `wireSize includes smart opcode and variable length framing without consuming session ISAAC`() = runBlocking {
+        val body = ByteArray(300)
+        val encoder = object : MessageEncoder<OutboundSessionTestMessage> {
+            override val prot = Prot(138, Prot.VAR_SHORT)
+            override val messageType = OutboundSessionTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundSessionTestMessage): ByteArray = body
+        }
+        val codecs = CodecRepositoryBuilder().bindEncoder(encoder).build()
+        val ch = ByteChannel(true)
+        val cipher = OutboundSessionScriptedCipher(listOf(5, 9))
+        val session = OutboundSession(codecs, cipher, ch)
+
+        assertEquals(2 + 2 + body.size, session.wireSize(OutboundSessionTestMessage(0)))
+        session.send(OutboundSessionTestMessage(0))
+
+        // The size probe used NOP, leaving the real session cipher untouched for both smart bytes.
+        assertEquals((128 + 5) and 0xFF, ch.readByte().toInt() and 0xFF)
+        assertEquals((138 + 9) and 0xFF, ch.readByte().toInt() and 0xFF)
+    }
 }

@@ -27,8 +27,15 @@ data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
  */
 val LOCAL_PLAYER_INDEX: Int = System.getenv("EMU_LOCAL_INDEX")?.toIntOrNull() ?: 1
 
-/** Fixed length (in bytes) of the login-info block that follows the length byte itself. */
-private const val LOGIN_INFO_BLOCK_LENGTH = 37
+/**
+ * Value the client requires in the byte after response code 2. This is not the number of account
+ * info bytes which follow: it is the 34-byte account-info payload plus the first game's
+ * `[opcode][u16 length]` header. The login state waits for all 37 bytes before it starts parsing.
+ */
+private const val LOGIN_INFO_SPAN = 37
+
+/** Bytes actually consumed as account info before the login state reads the first game header. */
+private const val LOGIN_INFO_PAYLOAD_LENGTH = 34
 
 /** Byte offset of the 2-byte `di` field within the login-info block (ingame-facts.md §2). */
 private const val DI_OFFSET = 7
@@ -37,23 +44,26 @@ private const val DI_OFFSET = 7
  * The bytes written right after the response-2 code byte.
  *
  * Task 7 (empirical, against the real rev-239 client, decompiled `client.java`): on response code 2
- * the client (non-BETA world => state `cd.az`) reads ONE length byte that must equal `jz.ax.av`
- * (opcode 21's fixed payload length = 37); a mismatch calls `xz.ai(byte)` and bounces to the login
- * screen. It then (state `cd.am`) waits until 37 bytes are available and parses a fixed login-info
- * block:
+ * the client (non-BETA world => state `cd.az`) reads ONE span byte that must equal `jz.ax.av`
+ * (37); a mismatch calls `xz.ai(byte)` and bounces to the login screen. It then (state `cd.am`)
+ * waits until 37 bytes are available, but consumes only this 34-byte login-info payload:
  * ```
  * [1] account-hash-present flag  [4] account hash (read regardless of the flag)
  * [1] jo  [1] member flag  [2] di (u16)  [1] ef
- * [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes; 3 trailing pad to 37)
+ * [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes)
  * ```
+ * The final three bytes in the advertised span are the immediately following first game packet's
+ * smart opcode (one byte for REBUILD_NORMAL) and u16 body length. Adding three account-info pad
+ * bytes here makes the login state parse those zeros as the first packet header and advances the
+ * inbound ISAAC stream before the real rebuild.
  * Every field zero-fills for milestone-3 (auto-accept, no persisted account) except `di`, which
  * carries [LOCAL_PLAYER_INDEX] — the client needs this to index its own player array and draw the
  * avatar the game stage's `PlayerInfo` packet describes.
  */
-val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(LOGIN_INFO_BLOCK_LENGTH.toByte()) + buildLoginInfoBlock()
+val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock()
 
 private fun buildLoginInfoBlock(): ByteArray {
-    val block = ByteArray(LOGIN_INFO_BLOCK_LENGTH)
+    val block = ByteArray(LOGIN_INFO_PAYLOAD_LENGTH)
     block[DI_OFFSET] = (LOCAL_PLAYER_INDEX ushr 8).toByte()
     block[DI_OFFSET + 1] = LOCAL_PLAYER_INDEX.toByte()
     return block
@@ -73,8 +83,8 @@ private fun buildLoginInfoBlock(): ByteArray {
  *
  * [reconnect] MUST be true for an op-18 block: the decompiled client's response-2 dispatch routes a
  * reconnecting client (`ol.cl` set) to state `cd.aj`, which consumes NO bytes after the response
- * code — only the fresh path (`cd.az` -> `cd.am`) reads the 37-byte login-info trailer. Sending
- * the trailer on reconnect shifts the whole game stream by 38 bytes (observed live as the client
+ * code — only the fresh path (`cd.az` -> `cd.am`) reads the advertised span and 34-byte login-info
+ * payload. Sending the trailer on reconnect shifts the whole game stream by 35 bytes (observed live as the client
  * mis-framing our REBUILD_NORMAL and throwing `dy.ae: 773 4614`). See [ReconnectLoginTest].
  *
  * Returns the [GameCiphers] for the ensuing game stage on success, or null on any failure — the

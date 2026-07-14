@@ -4,15 +4,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Pins the login-info trailer's shape against
- * docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §2: `[1 length=37][37-byte block]`,
+ * Pins the login-info trailer's shape against the decompiled rev-239 login state:
+ * `[1 advertised span=37][34-byte account-info payload]`,
  * with the 2-byte `di` (local player index) field at offset 7 within the block set to
- * [LOCAL_PLAYER_INDEX] and every other byte zero.
+ * [LOCAL_PLAYER_INDEX] and every other account-info byte zero. The first game's three-byte
+ * REBUILD_NORMAL header completes the advertised 37-byte span.
  */
 class LoginSuccessTrailerTest {
-    @Test fun `trailer is a length byte of 37 followed by a 37-byte block`() {
-        assertEquals(38, LOGIN_SUCCESS_TRAILER.size)
+    @Test fun `trailer advertises account info plus the first game header without padding it`() {
+        assertEquals(35, LOGIN_SUCCESS_TRAILER.size)
         assertEquals(37, LOGIN_SUCCESS_TRAILER[0].toInt() and 0xFF)
+        assertEquals(37, LOGIN_SUCCESS_TRAILER.size - 1 + 3)
     }
 
     @Test fun `di field (2 bytes at block offset 7) encodes LOCAL_PLAYER_INDEX big-endian`() {
