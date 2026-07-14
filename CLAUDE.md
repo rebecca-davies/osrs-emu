@@ -28,12 +28,19 @@ review.
 5a. **Packet composition (informed by rsmod/void — see the design doc).** One small file per
     packet: a decoder, an encoder, and (for inbound) a **handler** — never a giant packet file.
     Route decoded messages through a **type-keyed `HandlerRepository`** (message `Class` →
-    handler), NEVER a growing `when(message){...}` god-method. Register codecs+handlers via
-    **per-domain `install<Domain>()` modules** composed at one small top-level site — never a
-    single giant registration file, and never reflection/classpath/annotation auto-discovery
-    (both rsmod and void deliberately keep registration explicit and greppable). Handlers declare
-    their own dependencies via constructor args, wired in the `install*` module. Organize packets
-    by **domain package** (`js5`, `login`, `game/…`) so it scales to hundreds of packets.
+    handler), NEVER a growing `when(message){...}` god-method. Handlers declare their own
+    dependencies via constructor args.
+5b. **Packaging — concern sub-packages, never giga-folders.** Within a protocol domain, split by
+    concern: `<domain>/prot`, `<domain>/message`, `<domain>/codec`. Never a flat folder mixing
+    messages + encoders + prot + wiring. Inbound **handlers live a layer up** in the service
+    (gateway), not beside the protocol codecs. Organize by **domain** (`js5`, `login`, `game/…`)
+    so it scales to hundreds of packets.
+5c. **Registration via DI factories, not binding chains.** Codecs/handlers are collected via
+    **Koin** (each declared once in its domain's Koin module; the `CodecRepository`/
+    `HandlerRepository` built by `getAll<...>()`), so there is NO chained `bindEncoder(...)`
+    growing at one site. **Koin lives only in the service layer; `net-core` stays
+    framework-agnostic** (its registries are plain maps populated by the service). Registration
+    stays explicit-per-packet (a module declaration each), never reflection/classpath scanning.
 
 ## Code style
 
