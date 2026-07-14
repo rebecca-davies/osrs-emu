@@ -3,8 +3,8 @@ package emu.gateway.login
 import emu.crypto.IsaacCipher
 import emu.crypto.NopStreamCipher
 import emu.crypto.RsaKeyPair
-import emu.protocol.osrs239.login.LoginResponse
-import emu.protocol.osrs239.login.LoginResponseEncoder
+import emu.protocol.osrs239.login.codec.LoginResponseEncoder
+import emu.protocol.osrs239.login.message.LoginResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel

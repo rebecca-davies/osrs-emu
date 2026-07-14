@@ -4,9 +4,9 @@ import emu.buffer.JagexBuffer
 import emu.crypto.IsaacCipher
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
-import emu.netcore.codec.CodecRepositoryBuilder
-import emu.protocol.osrs239.game.GameServerProt
-import emu.protocol.osrs239.game.installGame
+import emu.protocol.osrs239.buildCodecRepository
+import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.prot.GameServerProt
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -21,6 +21,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -49,8 +50,8 @@ private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
 
 /**
  * Proves the milestone-5 game stage: after a real login exchange reaches response code 2, the
- * server proactively pushes the initial scene — [emu.protocol.osrs239.game.RebuildNormal] then
- * [emu.protocol.osrs239.game.PlayerInfo] — with opcodes ISAAC-adjusted by the outbound cipher
+ * server proactively pushes the initial scene — [emu.protocol.osrs239.game.message.RebuildNormal]
+ * then [emu.protocol.osrs239.game.message.PlayerInfo] — with opcodes ISAAC-adjusted by the outbound cipher
  * (seeds+50, per [performLoginBlock]'s doc), before holding the connection open. Mirrors
  * [LoginBlockFlowTest]'s harness, extended to drive [runGameStage] on the resulting [GameCiphers].
  */
@@ -91,7 +92,7 @@ class GameStageTest {
 
     @Test fun `after login, the server proactively sends RebuildNormal then PlayerInfo with ISAAC-adjusted opcodes`() = runBlocking {
         val keyPair = loadRealOrSkip() ?: return@runBlocking
-        val gameCodecs = CodecRepositoryBuilder().apply { installGame() }.build()
+        val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
 
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))

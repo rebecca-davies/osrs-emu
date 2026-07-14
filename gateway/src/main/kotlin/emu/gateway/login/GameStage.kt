@@ -3,9 +3,9 @@ package emu.gateway.login
 import emu.crypto.IsaacCipher
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.game.PlayerAppearance
-import emu.protocol.osrs239.game.PlayerInfo
-import emu.protocol.osrs239.game.RebuildNormal
+import emu.protocol.osrs239.game.message.PlayerAppearance
+import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.RebuildNormal
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel

@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.ktor.network)
     implementation(libs.kotlin.logging)
     implementation(libs.slf4j.api)
+    implementation(libs.koin.core)
     runtimeOnly(libs.logback.classic)
     testImplementation(libs.kotlin.test)
 }
