@@ -98,6 +98,16 @@ class JagexBuffer(val array: ByteArray, var pos: Int = 0) {
         pos += b.size
     }
 
+    /**
+     * Jagex `pSmart1or2`: writes `0..0x7FFF` as a single byte when it fits in 7 bits, otherwise as a
+     * big-endian u16 with the high bit set (`value + 0x8000`). The reader decides the width by
+     * peeking whether the first byte's top bit is set.
+     */
+    fun writeSmart1or2(v: Int) {
+        require(v in 0..0x7FFF) { "smart1or2 value out of range: $v" }
+        if (v < 0x80) writeByte(v) else writeShort(v + 0x8000)
+    }
+
     fun readUMedium(): Int = (readUByte() shl 16) or (readUByte() shl 8) or readUByte()
 
     fun writeMedium(v: Int) {

@@ -2,6 +2,7 @@ package emu.gateway.login
 
 import emu.protocol.osrs239.game.message.IfOpenSub
 import emu.protocol.osrs239.game.message.CamTargetPlayer
+import emu.protocol.osrs239.game.message.MessageGame
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
@@ -40,6 +41,13 @@ class InitialGameCycleTest {
         assertEquals(IfOpenSub(161, 96, 162), subs.first())
         assertTrue(subs.none { it.type == IfOpenSub.MODAL || it.interfaceId == 378 })
         assertTrue(subs.contains(IfOpenSub(707, 7, 7)))
+    }
+
+    @Test fun `login notice is the plain 'Welcome to RuneScape' game message`() {
+        assertEquals(
+            listOf(MessageGame(MessageGame.GAME_MESSAGE, "Welcome to RuneScape.")),
+            loginNoticeMessages(),
+        )
     }
 
     @Test fun `account neutral frame opens the captured post welcome game top level directly`() {

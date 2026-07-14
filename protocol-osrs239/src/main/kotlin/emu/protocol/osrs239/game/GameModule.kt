@@ -12,6 +12,7 @@ import emu.protocol.osrs239.game.codec.IfOpenSubEncoder
 import emu.protocol.osrs239.game.codec.IfOpenTopEncoder
 import emu.protocol.osrs239.game.codec.IfResyncEncoder
 import emu.protocol.osrs239.game.codec.IfSetHideEncoder
+import emu.protocol.osrs239.game.codec.MessageGameEncoder
 import emu.protocol.osrs239.game.codec.MinimapToggleEncoder
 import emu.protocol.osrs239.game.codec.NpcInfoEncoder
 import emu.protocol.osrs239.game.codec.PacketGroupStartEncoder
@@ -52,6 +53,7 @@ val gameModule = module {
     single(named("game.varpLarge")) { VarpLargeEncoder } bind MessageEncoder::class
     single(named("game.rebuildNormal")) { RebuildNormalEncoder } bind MessageEncoder::class
     single(named("game.packetGroupStart")) { PacketGroupStartEncoder } bind MessageEncoder::class
+    single(named("game.messageGame")) { MessageGameEncoder } bind MessageEncoder::class
     single(named("game.setActiveWorld")) { SetActiveWorldEncoder } bind MessageEncoder::class
     single(named("game.worldEntityInfo")) { WorldEntityInfoEncoder } bind MessageEncoder::class
     single(named("game.playerInfo")) { PlayerInfoEncoder } bind MessageEncoder::class

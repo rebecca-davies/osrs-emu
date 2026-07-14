@@ -12,6 +12,7 @@ import emu.protocol.osrs239.game.message.HideObjOps
 import emu.protocol.osrs239.game.message.IfOpenSub
 import emu.protocol.osrs239.game.message.IfOpenTop
 import emu.protocol.osrs239.game.message.IfResync
+import emu.protocol.osrs239.game.message.MessageGame
 import emu.protocol.osrs239.game.message.MinimapToggle
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.PacketGroupStart
@@ -37,6 +38,17 @@ private val logger = KotlinLogging.logger {}
 /** Local tile within the 13x13 Lumbridge build area. */
 internal const val LOCAL_SCENE_ORIGIN_X = 54
 internal const val LOCAL_SCENE_ORIGIN_Z = 50
+
+/** The chatbox notice the real server posts on every login. */
+internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
+
+/**
+ * The one-time chatbox notices shown after login, once the game frame (and its chatbox) is open.
+ * Just the plain welcome line for now; server MOTD/broadcast lines would join it here.
+ */
+internal fun loginNoticeMessages(): List<MessageGame> = listOf(
+    MessageGame(MessageGame.GAME_MESSAGE, WELCOME_MESSAGE),
+)
 
 /**
  * Builds the capture-shaped atomic initial world group: active-world context, NPC origin, empty
@@ -136,6 +148,7 @@ internal suspend fun sendInitialGameCycle(
         session.send(UpdateRunEnergy())
         session.send(ResetAnims)
         session.send(MinimapToggle())
+        for (message in loginNoticeMessages()) session.send(message)
     }
     session.send(ServerTickEnd)
     logger.info {

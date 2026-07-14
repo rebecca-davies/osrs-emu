@@ -23,6 +23,12 @@ object GameServerProt {
     /** Declares the byte length of the following atomic packet group (opcode 93, fixed 2). */
     val PACKET_GROUP_START = Prot(93, 2)
 
+    /**
+     * A chatbox game message (opcode 74, variable byte): a smart-1-or-2 `chattype`, a name-present
+     * flag, an optional NUL-terminated sender name, then the NUL-terminated message text.
+     */
+    val MESSAGE_GAME = Prot(74, Prot.VAR_BYTE)
+
     /** Root/dynamic world-entity update (opcode 122, variable short). */
     val WORLD_ENTITY_INFO = Prot(122, Prot.VAR_SHORT)
 

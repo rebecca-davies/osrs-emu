@@ -197,6 +197,7 @@ class GameStreamOracleTest {
             addAll(listOf(3 to 0, 138 to 1, 25 to 179))
             repeat(25) { add(46 to 7) }
             addAll(listOf(31 to 2, 64 to 2, 92 to 0, 43 to 1))
+            add(74 to 24) // MESSAGE_GAME "Welcome to RuneScape." (1 smart type + 1 flag + 21 + NUL)
             add(83 to 0)
             // Every steady-state cycle is also packet-grouped: active world, NPC origin, idle
             // player info and empty NPC info, followed by the tick terminator.
