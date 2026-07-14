@@ -1,126 +1,79 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.buffer.BitBuf
-import emu.buffer.JagexBuffer
 import emu.crypto.StreamCipher
 import emu.netcore.codec.MessageEncoder
 import emu.netcore.prot.Prot
-import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
- * Encodes [PlayerInfo] as the minimal single-local-player PLAYER_INFO body
- * (docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §4b/§4c): a bit-packed local-player
- * block (no movement, has extended info) plus empty other-player lists, byte-aligned, followed by
- * the byte-packed extended-info block carrying just the appearance sub-block.
+ * Encodes [PlayerInfo] (opcode 28) as the standard OSRS "GPI" bit stream for the minimal case:
+ * only the local player is present, nobody else is updated or added, and the local player is
+ * stationary. Reconstructed from the rev-239 decompile (`dy.ae`/`dy.uq`/`dy.ax`) 2026-07-14.
  *
- * **CONFIDENCE breakdown (this is the hardest structure in the ingame protocol — see §8 of the
- * recon doc):**
- * - **HIGH**: the overall shape — a bit-packed section, byte-align, then a byte-packed
- *   extended-info section (§4b, `dy.ae`'s four-call structure) — and that PLAYER_INFO must include
- *   an appearance block for the avatar to draw at all (§4c).
- * - **MEDIUM**: the exact bit widths chosen for the local-player block (`kg(1)` has-update,
- *   `kg(2)` movement type, `kg(1)` has-extended-info — directly per §4c's minimal-shape
- *   description) and that byte-alignment happens once, after both other-player lists.
- * - **LOW / placeholder**: the 8-bit width chosen for the "active list count" and "inactive list
- *   count" fields. The recon (§4c) only says these lists are empty ("count = 0") for the
- *   zero-other-players case; it does not derive a bit width from the decompile (`dy.fb`/`dy.yq`
- *   are CFR-mangled). 8 bits was chosen as a plausible, simple placeholder — a later task must
- *   confirm (or replace with) the real `dy.fb`/`dy.yq` structure against the running client. Real
- *   OSRS-family GPI typically loops per-slot with an end-of-list sentinel rather than a leading
- *   count; that refinement is deliberately deferred here.
- * - **LOW / placeholder**: the extended-info mask byte value ([APPEARANCE_MASK_PLACEHOLDER]) and
- *   the appearance-sub-block length-prefix convention (`dy.ax`'s mask bit assignment is
- *   unrecoverable from the CFR output). The length-prefix-before-payload technique itself is the
- *   standard, universally-documented RS2-family approach for extended-info sub-blocks.
- * - **MEDIUM/LOW**: [PlayerAppearance]'s field order/values — see its own KDoc.
+ * **Structure (`dy.ae` runs `uq` then, byte-aligned, the extended-info byte block via `yq`):**
+ * the bit stream has two byte-aligned sections — a high-definition (HD) section iterating the
+ * players already in-scene (`dy.aa`'s `ae[]` list; after GPI-init that is just the local player)
+ * and a low-definition (LD) section iterating everyone else (`aq[]`, the other 2046 slots). Each
+ * section is a per-player loop: read `kg(1)` "does this player have an update?"; if 0, read a
+ * **skip count** (`kg(2)` selector → `0`=skip 0 / `1`=`kg(5)` / `2`=`kg(8)` / `3`=`kg(11)`, all
+ * confirmed in `dy` at the `as()` helper) to fast-forward past a run of non-updated players; if 1,
+ * read that player's update via `dy.ax` = `kg(1)` has-extended-info (queues the player for the
+ * byte block) then `kg(2)` movement type (`0`=none). Each section is byte-aligned (the client's
+ * `xv.av()`) at its end.
+ *
+ * **Local player:** flagged with an update (`kg(1)=1`) and movement type 0 (stationary). Its
+ * has-extended-info bit is 1 iff [PlayerInfo.appearance] is non-null.
+ *
+ * **Extended-info / appearance:** the appearance block (extended-info mask bit `0x100`, read by
+ * `dy.ab`) is, in rev 239, a **serialized sub-buffer** — `xv.ea()` u16, `xv.ej()` id, then a
+ * length-prefixed blob deserialized by `kk.af`/`zo.al` into the avatar's kit/model data — not the
+ * classic 317-era flat appearance block. It is not yet reproduced here, so this encoder currently
+ * ignores a non-null [PlayerInfo.appearance] beyond setting the has-extended bit would require the
+ * matching bytes; to stay byte-exact it therefore only supports `appearance == null` (no extended
+ * info). Sending that keeps the client in-world with terrain rendered; the avatar has no model
+ * until the appearance sub-buffer format is implemented. See the research doc §4c.
  *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
- * adjustment is applied by the pipeline, not here — this method deliberately never touches
- * [cipher], so the body is byte-identical whichever cipher (real ISAAC or
- * [emu.crypto.NopStreamCipher]) drives the connection.
+ * adjustment is applied by the pipeline, not here — this method never touches [cipher].
  */
 object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     override val prot: Prot = GameServerProt.PLAYER_INFO
     override val messageType = PlayerInfo::class.java
 
-    /** Placeholder extended-info mask bit meaning "appearance sub-block follows" — see KDoc above. */
-    private const val APPEARANCE_MASK_PLACEHOLDER = 0x10
+    /** Number of low-definition (not-in-scene) player slots after GPI-init: 2047 slots minus the local index. */
+    private const val LOW_DEF_PLAYER_COUNT = 2046
 
-    /** Placeholder bit width for the (currently always-empty) other-player list counts — see KDoc. */
-    private const val OTHER_PLAYER_LIST_COUNT_BITS = 8
+    /** `kg(2)` skip selector meaning "an 11-bit count follows" (`dy` `as()` helper). */
+    private const val SKIP_SELECTOR_11_BITS = 3
 
     override fun encode(cipher: StreamCipher, message: PlayerInfo): ByteArray {
+        require(message.appearance == null) {
+            "PlayerInfoEncoder does not yet reproduce the rev-239 appearance sub-buffer; send PlayerInfo(null)"
+        }
+        val hasExtended = message.appearance != null
+
         val bits = BitBuf()
-        bits.writeBits(1, 1) // local player: has an update
-        bits.writeBits(2, 0) // update type = NOTHING (no movement this tick)
-        bits.writeBits(1, 1) // local player: has extended info (the appearance block below)
-        bits.writeBits(OTHER_PLAYER_LIST_COUNT_BITS, 0) // active/high-def other-player list: empty
-        bits.writeBits(OTHER_PLAYER_LIST_COUNT_BITS, 0) // inactive/low-def other-player list: empty
-        val bitSection = bits.toByteArray() // byte-aligns (zero-pads) the tail
 
-        val appearanceBytes = encodeAppearance(message.appearance)
-        val extendedInfo = JagexBuffer.alloc(2 + appearanceBytes.size)
-        extendedInfo.writeByte(APPEARANCE_MASK_PLACEHOLDER)
-        extendedInfo.writeByte(appearanceBytes.size)
-        extendedInfo.writeBytes(appearanceBytes)
+        // --- HD section: the local player (the only in-scene player after GPI-init) ---
+        bits.writeBits(1, 1) // local player has an update
+        bits.writeBits(1, if (hasExtended) 1 else 0) // dy.ax: has extended info?
+        bits.writeBits(2, 0) // dy.ax: movement type 0 = stationary
+        alignToByte(bits)
 
-        return bitSection + extendedInfo.array
+        // --- LD section: every other slot, none added. Skip the whole run in one step. ---
+        bits.writeBits(1, 0) // first LD player: no update/add
+        bits.writeBits(2, SKIP_SELECTOR_11_BITS) // an 11-bit skip count follows
+        bits.writeBits(11, LOW_DEF_PLAYER_COUNT - 1) // skip the remaining slots (this one + N-1 more)
+        alignToByte(bits)
+
+        return bits.toByteArray()
     }
 
-    /**
-     * Byte-packed appearance sub-block, per [PlayerAppearance]'s field-by-field confidence notes.
-     * Equipment slots use the classic RS2-family variable-width encoding: `0` writes as a single
-     * zero byte, any other value writes as a 2-byte big-endian short — the client is expected to
-     * peek the first byte and only consume a second byte when it is non-zero. This exact technique
-     * is stable across the whole RS2 lineage (MEDIUM confidence it applies unchanged to rev 239).
-     */
-    private fun encodeAppearance(appearance: PlayerAppearance): ByteArray {
-        var equipmentBytes = 0
-        for (item in appearance.equipment) equipmentBytes += if (item == 0) 1 else 2
-        val size = 1 + // gender
-            1 + // headIcon
-            equipmentBytes +
-            appearance.colors.size +
-            appearance.animations.size * 2 +
-            8 + // base37 name long
-            1 + // combat level
-            2 // skill level
-
-        val buf = JagexBuffer.alloc(size)
-        buf.writeByte(appearance.gender)
-        buf.writeByte(appearance.headIcon)
-        for (item in appearance.equipment) {
-            if (item == 0) buf.writeByte(0) else buf.writeShort(item)
-        }
-        for (color in appearance.colors) buf.writeByte(color)
-        for (anim in appearance.animations) buf.writeShort(anim)
-        buf.writeLong(encodeNameBase37(appearance.name))
-        buf.writeByte(appearance.combatLevel)
-        buf.writeShort(appearance.skillLevel)
-        return buf.array
-    }
-
-    /**
-     * The classic RS2-family base37 name encoding: base-37 digits `a-z` = 1-26, `0-9` = 27-36,
-     * anything else contributes `0`; only the first 12 characters count. This algorithm itself is
-     * HIGH confidence (unchanged across the whole RS2/OSRS lineage); whether rev 239's
-     * player-info actually uses a base37 long (vs. a raw c-string) for the name field is MEDIUM
-     * confidence (recon §4c: "name (long/base37 or cstring per rev)").
-     */
-    private fun encodeNameBase37(name: String): Long {
-        var result = 0L
-        for (index in 0 until minOf(name.length, 12)) {
-            val c = name[index]
-            result *= 37L
-            result += when {
-                c in 'a'..'z' -> 1 + (c - 'a')
-                c in 'A'..'Z' -> 1 + (c - 'A')
-                c in '0'..'9' -> 27 + (c - '0')
-                else -> 0
-            }
-        }
-        return result
+    /** Pads the bit stream with zero bits up to the next byte boundary (the client's `xv.av()`). */
+    private fun alignToByte(bits: BitBuf) {
+        val remainder = bits.bitPosition and 7
+        if (remainder != 0) bits.writeBits(8 - remainder, 0)
     }
 }

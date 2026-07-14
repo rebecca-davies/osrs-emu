@@ -8,11 +8,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
-private const val OTHER_PLAYER_SLOTS = 2047
+// The GPI-init reference loop covers slots 1..2047 but skips the local index (default di=1), so it
+// emits 2046 (not 2047) 18-bit entries. Matching this exactly is what keeps the trailing zone bytes
+// byte-aligned with the client's reader.
+private const val OTHER_PLAYER_SLOTS = 2046
 private const val GPI_INIT_BITS = 30 + OTHER_PLAYER_SLOTS * 18
-private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4610
+private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4608
 private const val ZONE_BYTES = 6
-private const val EXPECTED_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4616
+private const val EXPECTED_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4614
 
 /** Throws on any use, to prove the encoder never touches the cipher (KDoc contract). */
 private object ExplodingCipher : StreamCipher {
@@ -73,27 +76,27 @@ class RebuildNormalEncoderTest {
         }
     }
 
-    @Test fun `base-zone bytes are the 6-byte tail, computed as (coord div 8) minus 6`() {
+    @Test fun `zone bytes are the 6-byte tail - centre zone (coord shr 3) in ea format`() {
         val body = RebuildNormalEncoder.encode(NopStreamCipher, RebuildNormal(plane = 0, x = 3222, y = 3218))
 
         val zone = body.copyOfRange(GPI_INIT_BYTES, GPI_INIT_BYTES + ZONE_BYTES)
-        // [hint u16 = 0][baseZoneX u16][baseZoneY u16], big-endian.
-        val baseZoneX = (3222 / 8) - 6 // 396
-        val baseZoneY = (3218 / 8) - 6 // 396
+        // [hint u16 = 0][centreZoneX ea][centreZoneY ea]; ea = big-endian u16 with the low byte +128.
+        val centreZoneX = 3222 shr 3 // 402
+        val centreZoneY = 3218 shr 3 // 402
         assertEquals(
-            listOf(0, 0, (baseZoneX ushr 8) and 0xFF, baseZoneX and 0xFF, (baseZoneY ushr 8) and 0xFF, baseZoneY and 0xFF),
+            listOf(0, 0, centreZoneX shr 8, (centreZoneX + 128) and 0xFF, centreZoneY shr 8, (centreZoneY + 128) and 0xFF),
             zone.map { it.toInt() and 0xFF },
         )
     }
 
-    @Test fun `different coordinates produce different base-zone bytes`() {
+    @Test fun `different coordinates produce different zone bytes`() {
         val body = RebuildNormalEncoder.encode(NopStreamCipher, RebuildNormal(plane = 0, x = 3200, y = 3100))
 
         val zone = body.copyOfRange(GPI_INIT_BYTES, GPI_INIT_BYTES + ZONE_BYTES)
-        val baseZoneX = (3200 / 8) - 6 // 394
-        val baseZoneY = (3100 / 8) - 6 // 381
+        val centreZoneX = 3200 shr 3 // 400
+        val centreZoneY = 3100 shr 3 // 387
         assertEquals(
-            listOf(0, 0, (baseZoneX ushr 8) and 0xFF, baseZoneX and 0xFF, (baseZoneY ushr 8) and 0xFF, baseZoneY and 0xFF),
+            listOf(0, 0, centreZoneX shr 8, (centreZoneX + 128) and 0xFF, centreZoneY shr 8, (centreZoneY + 128) and 0xFF),
             zone.map { it.toInt() and 0xFF },
         )
     }

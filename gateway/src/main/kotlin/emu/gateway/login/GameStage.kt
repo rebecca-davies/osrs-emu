@@ -3,7 +3,6 @@ package emu.gateway.login
 import emu.crypto.IsaacCipher
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.RebuildNormal
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -86,6 +85,8 @@ suspend fun runGameStage(
 private suspend fun sendInitialScene(write: ByteWriteChannel, outboundCipher: IsaacCipher, gameCodecs: CodecRepository) {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
     logger.info { "game stage: sending initial scene (RebuildNormal + PlayerInfo) for local player index $LOCAL_PLAYER_INDEX" }
-    session.send(RebuildNormal(plane = SPAWN_PLANE, x = SPAWN_X, y = SPAWN_Y))
-    session.send(PlayerInfo(PlayerAppearance()))
+    session.send(RebuildNormal(plane = SPAWN_PLANE, x = SPAWN_X, y = SPAWN_Y, localPlayerIndex = LOCAL_PLAYER_INDEX))
+    // Appearance-less GPI update (no extended info): keeps the client in-world with terrain rendered.
+    // The rev-239 appearance sub-buffer is not yet reproduced (see PlayerInfoEncoder), so no avatar model.
+    session.send(PlayerInfo(appearance = null))
 }

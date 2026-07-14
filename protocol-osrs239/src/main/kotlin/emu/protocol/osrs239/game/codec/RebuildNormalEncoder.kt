@@ -14,18 +14,24 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  *
  * 1. **GPI-init** — bit-packed (MSB-first, via [BitBuf]): 30 bits packing the local player's
  *    absolute coordinate as `(plane shl 28) or (x shl 14) or y` (§3d, `kt.av`/`kt.ag`), followed
- *    by 2047 x 18-bit reference coords, one per other player slot — all zero, since this emulator
- *    does not yet track other players. [BitBuf.toByteArray] byte-aligns (zero-pads) the tail.
- * 2. **Base-zone bytes** (`uk.df`, §3b) — the 13x13 zone grid is centred on the player's zone (a
- *    zone = 8 tiles), so the base (top-left) zone is `(x shr 3) - 6, (y shr 3) - 6`. The
- *    decompiled body reads three u16 fields in this order: a leading value CFR could not resolve
- *    a use for ("result unused by CFR view" — written as `0` here), then base-zone X, then
- *    base-zone Y. **CONFIDENCE MEDIUM** on this exact 3-field layout and on endianness: the doc
- *    (§3b, §8) flags the decompiled reads (`xv.ef`/`xv.ea`) as little-endian with an extra
- *    low-byte "type modifier" that CFR mangled beyond reconstruction. Implemented here as three
- *    plain big-endian u16s (matching this codebase's existing wire convention elsewhere) — verify
- *    byte-for-byte against the real client before relying on this end-to-end; a later task
- *    iterates on it.
+ *    by one 18-bit reference coord (all zero, since this emulator does not yet track other players)
+ *    for every player slot in `1..2047` **except** [RebuildNormal.localPlayerIndex] — the client's
+ *    `dy.af` loop reads 30 bits for the local slot then `for (n=1; n<2048; n++) if (n!=di) read18`,
+ *    i.e. exactly one slot fewer than 2047. Emitting 2047 (as the first cut did) leaves the bit
+ *    stream 18 bits too long, which byte-aligns two bytes past where the client reads the zone
+ *    fields → the scene loads at a garbage base and the game thread throws
+ *    `ArrayIndexOutOfBounds` indexing the local player's absolute X into the (too-small) scene
+ *    arrays. [BitBuf.toByteArray] byte-aligns (zero-pads) the tail, matching the client's
+ *    `xv.av()` byte-align.
+ * 2. **Zone bytes** (`uk.df`, §3b — VERIFIED against the rev-239 decompile 2026-07-14) — six bytes,
+ *    three u16 fields in order: a leading `ef` u16 (little-endian; value unused by the client —
+ *    written `0`), then **centre**-zone X, then **centre**-zone Y, each read by `xv.ea`. `wn.ni`
+ *    takes these as the *centre* zone of the 13x13 grid (it spans `centre-6 .. centre+6`), so the
+ *    value is `x shr 3` (NOT the base/top-left zone `-6`). `xv.ea` decodes a u16 as
+ *    `(hi shl 8) or ((lo - 128) and 0xFF)` — big-endian, but the **low byte carries a +128 offset**
+ *    (the classic RS "type-A" transform). So each field is written as `[value shr 8, (value + 128)
+ *    and 0xFF]`. **CONFIDENCE HIGH** — decode primitives `xm.ea`/`xm.ef` and `wn.ni`/`kt.ax`
+ *    (`zone = kt.ax = n shr 3`) were read directly from the decompiled client.
  *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
  * adjustment is applied by the pipeline, not here — this method deliberately never touches
@@ -36,24 +42,37 @@ object RebuildNormalEncoder : MessageEncoder<RebuildNormal> {
     override val prot: Prot = GameServerProt.REBUILD_NORMAL
     override val messageType = RebuildNormal::class.java
 
-    private const val OTHER_PLAYER_SLOTS = 2047
-    private const val ZONE_SIZE_TILES = 8
-    private const val ZONE_GRID_RADIUS = 6
+    /** Highest player slot index; the GPI-init reference loop runs `1..PLAYER_SLOTS_MAX`. */
+    private const val PLAYER_SLOTS_MAX = 2047
 
     override fun encode(cipher: StreamCipher, message: RebuildNormal): ByteArray {
         val bits = BitBuf()
         val packedCoord = (message.plane shl 28) or (message.x shl 14) or message.y
         bits.writeBits(30, packedCoord)
-        repeat(OTHER_PLAYER_SLOTS) { bits.writeBits(18, 0) }
+        // One 18-bit reference coord per other-player slot: 1..2047 except the local index, which
+        // the client's dy.af loop skips (its position came from the 30-bit read above).
+        for (slot in 1..PLAYER_SLOTS_MAX) {
+            if (slot == message.localPlayerIndex) continue
+            bits.writeBits(18, 0)
+        }
         val gpiInit = bits.toByteArray()
 
-        val baseZoneX = (message.x / ZONE_SIZE_TILES) - ZONE_GRID_RADIUS
-        val baseZoneY = (message.y / ZONE_SIZE_TILES) - ZONE_GRID_RADIUS
+        val centreZoneX = message.x shr 3
+        val centreZoneY = message.y shr 3
         val zone = JagexBuffer.alloc(6)
-        zone.writeShort(0) // leading field, purpose unresolved from CFR output (§3b) — written as 0
-        zone.writeShort(baseZoneX)
-        zone.writeShort(baseZoneY)
+        zone.writeShort(0) // leading ef u16, value unused by the client (§3b)
+        writeZoneCoord(zone, centreZoneX)
+        writeZoneCoord(zone, centreZoneY)
 
         return gpiInit + zone.array
+    }
+
+    /**
+     * Writes a zone coordinate in the client's `xv.ea` format: big-endian u16 whose low byte is
+     * offset by +128 (`ea` decodes `(hi shl 8) or ((lo - 128) and 0xFF)`).
+     */
+    private fun writeZoneCoord(buf: JagexBuffer, value: Int) {
+        buf.writeByte(value shr 8)
+        buf.writeByte(value + 128)
     }
 }
