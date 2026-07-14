@@ -88,6 +88,12 @@ review.
 18. Non-trivial changes get a review pass (spec compliance + code quality) before merge.
 19. Git: feature branch → `staging` (validated there) → `main`. Don't push without explicit
     go-ahead.
+20. **Every concurrent subagent works in its OWN git worktree on its OWN branch — never two
+    editing agents in one working tree.** Two agents sharing a checkout compile each other's
+    half-written code (false build failures) and tangle commits. Create a worktree per workstream
+    (`git worktree add <path> -b <branch>`), point each agent at its worktree path, and merge the
+    branch back when the agent's task is validated. Only READ-ONLY agents (research/review) may
+    run alongside an editor on the same tree.
 
 ## Ground-truth docs
 
