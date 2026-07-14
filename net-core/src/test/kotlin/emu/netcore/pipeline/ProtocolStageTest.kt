@@ -59,4 +59,33 @@ class ProtocolStageTest {
 
         job.cancel()
     }
+
+    @Test fun `stage can frame and discard a known protocol packet without a decoder`() = runBlocking {
+        val codecs = CodecRepositoryBuilder().bindDecoder(AskDecoder).bindEncoder(ReplyEncoder).build()
+        val handlers = HandlerRepositoryBuilder()
+            .bind(Ask::class.java) { ask, ctx -> ctx.write(Reply(ask.n * 2)) }
+            .build()
+        val protocol = mapOf(1 to AskDecoder.prot, 2 to Prot(2, 2))
+        val stage = ProtocolStage(
+            codecs, handlers, NopStreamCipher,
+            readOpcode = { it.readByte().toInt() and 0xFF },
+            readPayload = { ch, prot -> ByteArray(prot.size).also { ch.readFully(it) } },
+            findProt = protocol::get,
+        )
+        val toStage = ByteChannel(true)
+        val fromStage = ByteChannel(true)
+        val job = launch { stage.run(toStage, fromStage) }
+
+        toStage.writeByte(2)
+        toStage.writeByte(0xAA.toByte())
+        toStage.writeByte(0xBB.toByte())
+        toStage.writeByte(1)
+        toStage.writeByte(21)
+        toStage.flush()
+
+        assertEquals(1, fromStage.readByte().toInt() and 0xFF)
+        assertEquals(42, fromStage.readByte().toInt() and 0xFF)
+
+        job.cancel()
+    }
 }

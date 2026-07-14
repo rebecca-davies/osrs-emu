@@ -11,6 +11,7 @@ tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
 }
 dependencies {
+    implementation(project(":game"))
     implementation(project(":net-core"))
     implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))
@@ -19,6 +20,7 @@ dependencies {
     implementation(libs.ktor.network)
     implementation(libs.kotlin.logging)
     implementation(libs.slf4j.api)
+    implementation(libs.koin.core)
     runtimeOnly(libs.logback.classic)
     testImplementation(libs.kotlin.test)
 }

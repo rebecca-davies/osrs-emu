@@ -1,8 +1,8 @@
 package emu.gateway.login
 
 import emu.crypto.NopStreamCipher
-import emu.protocol.osrs239.login.ServerSessionKey
-import emu.protocol.osrs239.login.ServerSessionKeyEncoder
+import emu.protocol.osrs239.login.codec.ServerSessionKeyEncoder
+import emu.protocol.osrs239.login.message.ServerSessionKey
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeFully
 import java.security.SecureRandom

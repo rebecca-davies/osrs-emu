@@ -28,12 +28,19 @@ review.
 5a. **Packet composition (informed by rsmod/void — see the design doc).** One small file per
     packet: a decoder, an encoder, and (for inbound) a **handler** — never a giant packet file.
     Route decoded messages through a **type-keyed `HandlerRepository`** (message `Class` →
-    handler), NEVER a growing `when(message){...}` god-method. Register codecs+handlers via
-    **per-domain `install<Domain>()` modules** composed at one small top-level site — never a
-    single giant registration file, and never reflection/classpath/annotation auto-discovery
-    (both rsmod and void deliberately keep registration explicit and greppable). Handlers declare
-    their own dependencies via constructor args, wired in the `install*` module. Organize packets
-    by **domain package** (`js5`, `login`, `game/…`) so it scales to hundreds of packets.
+    handler), NEVER a growing `when(message){...}` god-method. Handlers declare their own
+    dependencies via constructor args.
+5b. **Packaging — concern sub-packages, never giga-folders.** Within a protocol domain, split by
+    concern: `<domain>/prot`, `<domain>/message`, `<domain>/codec`. Never a flat folder mixing
+    messages + encoders + prot + wiring. Inbound **handlers live a layer up** in the service
+    (gateway), not beside the protocol codecs. Organize by **domain** (`js5`, `login`, `game/…`)
+    so it scales to hundreds of packets.
+5c. **Registration via DI factories, not binding chains.** Codecs/handlers are collected via
+    **Koin** (each declared once in its domain's Koin module; the `CodecRepository`/
+    `HandlerRepository` built by `getAll<...>()`), so there is NO chained `bindEncoder(...)`
+    growing at one site. **Koin lives only in the service layer; `net-core` stays
+    framework-agnostic** (its registries are plain maps populated by the service). Registration
+    stays explicit-per-packet (a module declaration each), never reflection/classpath scanning.
 
 ## Code style
 
@@ -60,6 +67,14 @@ review.
 12. **NEVER use the user's real RuneScape/RuneLite account.** Launch the client only with an
     **isolated `user.home`** (throwaway dir) so it cannot read `~/.runelite`; only DUMMY
     credentials. Never read or modify the user's credentials files.
+12a. **The client MUST NOT reach Jagex's network.** RuneLite fetches Jagex's world list and pings
+    every world on launch, independent of `jav_config` — repeatedly launching it hammers Jagex
+    from the user's IP and trips a "login limit exceeded" rate limit that hits their REAL account.
+    So: (1) **iterate HEADLESS** — verify protocol changes with a Kotlin test-client speaking our
+    wire, never the GUI client (the client is acceptance, not the dev loop). (2) When a real-client
+    screenshot is genuinely needed, launch it inside a **rootless network namespace**
+    (`unshare -rn`) containing the gateway + local http + client on loopback only, so it physically
+    cannot reach Jagex. (3) Launch the real client RARELY and never in a relaunch loop.
 13. **NEVER log credentials** (password/username) or retain them. Auto-accept logins for now
     without storing the plaintext.
 14. RSA private key stays server-side (gitignored `server-rsa.properties`); never commit keys,
@@ -81,6 +96,12 @@ review.
 18. Non-trivial changes get a review pass (spec compliance + code quality) before merge.
 19. Git: feature branch → `staging` (validated there) → `main`. Don't push without explicit
     go-ahead.
+20. **Every concurrent subagent works in its OWN git worktree on its OWN branch — never two
+    editing agents in one working tree.** Two agents sharing a checkout compile each other's
+    half-written code (false build failures) and tangle commits. Create a worktree per workstream
+    (`git worktree add <path> -b <branch>`), point each agent at its worktree path, and merge the
+    branch back when the agent's task is validated. Only READ-ONLY agents (research/review) may
+    run alongside an editor on the same tree.
 
 ## Ground-truth docs
 

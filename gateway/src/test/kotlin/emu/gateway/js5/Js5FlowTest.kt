@@ -3,13 +3,14 @@ package emu.gateway.js5
 import emu.cache.store.FlatFileStore
 import emu.crypto.NopStreamCipher
 import emu.crypto.XorStreamCipher
-import emu.netcore.codec.CodecRepositoryBuilder
+import emu.gateway.gatewayModule
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.js5.Js5GroupResponse
-import emu.protocol.osrs239.js5.Js5Prot
-import emu.protocol.osrs239.js5.Js5ResponseEncoder
-import emu.protocol.osrs239.js5.installJs5
+import emu.protocol.osrs239.buildCodecRepository
+import emu.protocol.osrs239.js5.js5Module
+import emu.protocol.osrs239.js5.message.Js5GroupResponse
+import emu.protocol.osrs239.js5.prot.Js5Prot
+import emu.protocol.osrs239.js5.codec.Js5ResponseEncoder
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -23,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.koin.dsl.koinApplication
 import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
@@ -50,13 +52,14 @@ class Js5FlowTest {
 
     @Test fun `handshake then pipeline serves the group`() = runBlocking {
         val store = store()
-        val codecs = CodecRepositoryBuilder().installJs5().build()
+        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
         // Production (Main.kt) shares ONE cipher instance per connection between the control handler
         // (which sets the key from control opcode 4) and ProtocolStage (which hands it to the
         // encoder). Mirror that here rather than giving the handlers and the stage different
         // instances.
         val cipher = XorStreamCipher()
-        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, cipher).build()
+        val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, cipher).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -104,9 +107,10 @@ class Js5FlowTest {
         File(root, "cache/5/1.dat").also { it.parentFile.mkdirs() }.writeBytes(big)
         val store = FlatFileStore(root)
 
-        val codecs = CodecRepositoryBuilder().installJs5().build()
+        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
         val cipher = XorStreamCipher()
-        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, cipher).build()
+        val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, cipher).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
@@ -156,8 +160,9 @@ class Js5FlowTest {
 
     @Test fun `revision mismatch replies 6 and closes the connection`() = runBlocking {
         val store = store()
-        val codecs = CodecRepositoryBuilder().installJs5().build()
-        val handlers = HandlerRepositoryBuilder().installJs5Handlers(store, XorStreamCipher()).build()
+        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
+        val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
+        val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, XorStreamCipher()).build()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
