@@ -10,3 +10,4 @@ client/
 
 # Generated server RSA keypair (tools:client-patch) — the gateway's private key. Never commit.
 /server-rsa.properties
+.kotlin/
