@@ -1,6 +1,7 @@
 package emu.gateway.login
 
 import emu.netcore.pipeline.OutboundSession
+import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -37,18 +38,24 @@ val TICK_INTERVAL: Duration = 600.milliseconds
 class GameLoop(
     private val session: OutboundSession,
     private val tickInterval: Duration = TICK_INTERVAL,
+    private val localAppearance: PlayerAppearance = PlayerAppearance(),
 ) {
     /**
-     * One game cycle for this connection: build and send the per-tick PLAYER_INFO heartbeat. An
-     * idle local player still gets a (near-empty, appearance-less) GPI update every tick — that
-     * steady heartbeat is exactly what the client's IN_GAME state machine requires. Sending
-     * consumes one outbound ISAAC int (for the opcode, via [OutboundSession.send] → `writePacket`),
-     * keeping the client's decryptor in step.
+     * One game cycle for this connection: build and send the per-tick PLAYER_INFO heartbeat, plus a
+     * SERVER_TICK_END. The **first** cycle ([tickIndex] 0) carries the local player's appearance
+     * extended-info so the client can build the avatar and complete login — the real server
+     * establishes the local avatar in its first post-login cycle, and without it the client reaches
+     * LOGGED_IN then drops (see docs/.../2026-07-14-real-rev239-login-capture.md). Every later cycle
+     * sends the minimal appearance-less idle GPI (the local player is already established), which is
+     * the steady heartbeat the client's IN_GAME state machine needs. Sending consumes one outbound
+     * ISAAC int per packet (for the opcode, via [OutboundSession.send] → `writePacket`), keeping the
+     * client's decryptor in step.
      */
-    suspend fun tick() {
-        session.send(PlayerInfo(appearance = null))
+    suspend fun tick(tickIndex: Int) {
+        val appearance = if (tickIndex == 0) localAppearance else null
+        session.send(PlayerInfo(appearance))
         session.send(ServerTickEnd)
-        logger.debug { "game loop: sent tick (PLAYER_INFO op28 + SERVER_TICK_END op83)" }
+        logger.debug { "game loop: sent tick $tickIndex (PLAYER_INFO op28${if (appearance != null) " +appearance" else ""} + SERVER_TICK_END op83)" }
     }
 
     /**
@@ -69,7 +76,7 @@ class GameLoop(
         while (ticks < maxTicks) {
             val start = System.currentTimeMillis()
             try {
-                tick()
+                tick(ticks)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {

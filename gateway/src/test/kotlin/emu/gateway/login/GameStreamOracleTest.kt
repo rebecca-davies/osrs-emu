@@ -190,7 +190,12 @@ class GameStreamOracleTest {
         val expected = buildList {
             add(49 to 4614)
             addAll(LOGIN_INIT_BATCH)
-            repeat(ORACLE_TICKS) {
+            // Tick 0 carries the local player's appearance extended-info (a larger PLAYER_INFO);
+            // every later tick is the minimal 3-byte appearance-less idle GPI. 75 = 3 GPI bytes +
+            // 2 (APPEARANCE flag + g1Alt3 length) + 70-byte default appearance sub-buffer.
+            add(28 to 75)
+            add(83 to 0)
+            repeat(ORACLE_TICKS - 1) {
                 add(28 to 3)
                 add(83 to 0)
             }

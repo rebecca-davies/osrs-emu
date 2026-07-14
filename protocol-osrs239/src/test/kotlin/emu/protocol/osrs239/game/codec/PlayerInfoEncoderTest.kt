@@ -40,10 +40,39 @@ class PlayerInfoEncoderTest {
         assertEquals(3, body.size)
     }
 
-    @Test fun `a non-null appearance is rejected until the rev-239 appearance sub-buffer is implemented`() {
-        assertFailsWith<IllegalArgumentException> {
-            PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(PlayerAppearance()))
+    @Test fun `an appearance update encodes the local player active with an appearance extended-info block`() {
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(PlayerAppearance(name = "player", combatLevel = 3)))
+
+        // High-res section: active=1, has-extended-info=1, movement opcode 0 -> bits 1 1 00,
+        // byte-aligned -> 0b11000000 = 0xC0 (vs 0x00 for the appearance-less stationary case).
+        assertEquals(0xC0, body[0].toInt() and 0xFF, "high-res: active+extInfo+idle")
+        // Low-res section unchanged: skip all 2045 other slots -> 0x7F 0xF4.
+        assertEquals(0x7F, body[1].toInt() and 0xFF)
+        assertEquals(0xF4, body[2].toInt() and 0xFF)
+        // Extended-info pass: APPEARANCE flag byte (0x20), then the block length as g1Alt3 (len+128).
+        assertEquals(0x20, body[3].toInt() and 0xFF, "APPEARANCE extended-info flag")
+        val blockLen = ((body[4].toInt() and 0xFF) - 128) and 0xFF
+        assertEquals(body.size - 5, blockLen, "g1Alt3 length must match the trailing appearance bytes")
+
+        // Decode the appearance sub-buffer the way the client's decodeAppearance does and confirm
+        // the identity fields survive the round-trip.
+        val appearance = body.copyOfRange(5, body.size)
+        var p = 0
+        fun u8() = appearance[p++].toInt() and 0xFF
+        assertEquals(0, u8(), "gender male")
+        assertEquals(0xFF, u8(), "skull icon none")
+        assertEquals(0xFF, u8(), "overhead icon none")
+        repeat(PlayerAppearance.EQUIPMENT_SLOT_COUNT) { // equipment identikit slots
+            val flag = u8()
+            if (flag != 0) u8() // non-empty slot has a second (model-id) byte
         }
+        repeat(PlayerAppearance.EQUIPMENT_SLOT_COUNT) { assertEquals(0, u8(), "interface identikit slot empty") }
+        repeat(PlayerAppearance.COLOR_COUNT) { u8() }
+        repeat(PlayerAppearance.ANIMATION_COUNT) { p += 2 } // 7 anim shorts
+        val nameBytes = StringBuilder()
+        while (true) { val b = u8(); if (b == 0) break; nameBytes.append(b.toChar()) }
+        assertEquals("player", nameBytes.toString())
+        assertEquals(3, u8(), "combat level")
     }
 
     @Test fun `encode never consumes the cipher`() {

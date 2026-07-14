@@ -80,30 +80,39 @@ data class PlayerAppearance(
         private const val KIT_MODEL_BASE = 0x100
 
         /**
-         * Placeholder nude-male body parts for slots `[torso, arms, legs, hair, hands, feet]`
-         * (indices 4, 6, 7, 8, 9, 10); every other slot (hat, cape, amulet, weapon, shield, jaw)
-         * defaults to `0` = nothing equipped. Model ids `1..6` are arbitrary — **not** real OSRS
-         * cache model ids (LOW confidence / placeholder, see class doc).
+         * The classic RS2-family **default male identikit** for the six body slots
+         * `[torso, arms, legs, hair, hands, feet, jaw]` (indices 4, 6, 7, 8, 9, 10, 11), each
+         * `0x100 + kitId` so the client reads it as an identikit model rather than a worn item;
+         * every wearable slot (hat, cape, amulet, weapon, shield) defaults to `0` = empty. The kit
+         * ids (torso 18, arms 26, legs 36, hair 0, hands 33, feet 42, jaw 10) are the long-standing
+         * default-avatar values across the RS2 lineage — real, load-bearing model ids (so the
+         * client builds a valid avatar model rather than faulting on a missing kit), used here as
+         * the milestone-5 placeholder character until real per-account appearance data exists.
          */
         val DEFAULT_EQUIPMENT: List<Int> = listOf(
             0, // hat
             0, // cape
             0, // amulet
             0, // weapon
-            KIT_MODEL_BASE + 1, // torso
+            KIT_MODEL_BASE + 18, // torso
             0, // shield
-            KIT_MODEL_BASE + 2, // arms
-            KIT_MODEL_BASE + 3, // legs
-            KIT_MODEL_BASE + 4, // hair
-            KIT_MODEL_BASE + 5, // hands
-            KIT_MODEL_BASE + 6, // feet
-            0, // jaw
+            KIT_MODEL_BASE + 26, // arms
+            KIT_MODEL_BASE + 36, // legs
+            KIT_MODEL_BASE + 0, // hair
+            KIT_MODEL_BASE + 33, // hands
+            KIT_MODEL_BASE + 42, // feet
+            KIT_MODEL_BASE + 10, // jaw
         )
 
-        /** All palette index `0` — an arbitrary, inert default (LOW confidence, see class doc). */
+        /** All palette index `0` — an inert but valid default colour set (first palette entry). */
         val DEFAULT_COLORS: List<Int> = List(COLOR_COUNT) { 0 }
 
-        /** All `-1` = "use client default animation" sentinel (see class doc). */
-        val DEFAULT_ANIMATIONS: List<Int> = List(ANIMATION_COUNT) { -1 }
+        /**
+         * The classic RS2-family default player render animations, order
+         * `[stand, standTurn, walk, turnAround180, turnRight90, turnLeft90, run]` = 808, 823, 819,
+         * 820, 821, 822, 824 — real animation ids (so the avatar has a valid idle/walk pose rather
+         * than faulting on a missing sequence), the milestone-5 placeholder set.
+         */
+        val DEFAULT_ANIMATIONS: List<Int> = listOf(808, 823, 819, 820, 821, 822, 824)
     }
 }

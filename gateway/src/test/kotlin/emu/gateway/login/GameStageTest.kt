@@ -38,6 +38,12 @@ private const val REBUILD_NORMAL_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4614
 /** Appearance-less PlayerInfo body: HD byte + two LD bytes (see [PlayerInfoEncoder]). */
 private const val PLAYER_INFO_BODY_SIZE = 3
 
+/**
+ * Appearance-bearing PlayerInfo body (tick 0): 3 GPI bytes + 2 (APPEARANCE flag + g1Alt3 length) +
+ * the 70-byte default appearance sub-buffer. See [emu.protocol.osrs239.game.codec.PlayerInfoEncoder].
+ */
+private const val APPEARANCE_PLAYER_INFO_BODY_SIZE = 75
+
 /** Reads a big-endian u16 length prefix from [ch] (the plaintext frame length for a VAR_SHORT prot). */
 private suspend fun readU16(ch: ByteReadChannel): Int {
     val hi = ch.readByte().toInt() and 0xFF
@@ -187,9 +193,12 @@ class GameStageTest {
             val piOpcode = cr.readByte().toInt() and 0xFF
             val expectedPiOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
             assertEquals(expectedPiOpcode, piOpcode, "PLAYER_INFO opcode for heartbeat tick $tick")
-            assertEquals(PLAYER_INFO_BODY_SIZE, readU16(cr), "PLAYER_INFO body size for heartbeat tick $tick")
+            // Tick 0 carries the local player's appearance extended-info (larger body); later ticks
+            // are the minimal appearance-less idle GPI (see GameLoop.tick).
+            val expectedBodySize = if (tick == 0) APPEARANCE_PLAYER_INFO_BODY_SIZE else PLAYER_INFO_BODY_SIZE
+            assertEquals(expectedBodySize, readU16(cr), "PLAYER_INFO body size for heartbeat tick $tick")
 
-            val playerInfoBody = ByteArray(PLAYER_INFO_BODY_SIZE)
+            val playerInfoBody = ByteArray(expectedBodySize)
             cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
 
             // SERVER_TICK_END is FIXED size 0: [opcode+K] alone — no length prefix, no body.

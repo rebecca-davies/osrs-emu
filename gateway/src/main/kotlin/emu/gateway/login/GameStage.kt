@@ -135,7 +135,7 @@ private suspend fun sendLoginInitBatch(write: ByteWriteChannel, cipher: IsaacCip
         31 to byteArrayOf(0, 0),                           // UPDATE_RUNWEIGHT  p2(0)
         92 to ByteArray(0),                                // RESET_ANIMS (empty)
         43 to byteArrayOf(0),                              // MINIMAP_TOGGLE  p1(0)
-        96 to byteArrayOf(0x02, 0xA4.toByte()),            // IF_OPENTOP  p2Alt2(548 = fixed gameframe)
+        96 to byteArrayOf(0x00, 0x25),                     // IF_OPENTOP  g2Alt2(165 = toplevel_display) — the REAL rev-239 frame (was 548, a legacy id absent from the rev-239 cache; see docs/.../2026-07-14-real-rev239-login-capture.md)
     )
     for ((opcode, body) in packets) {
         write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())

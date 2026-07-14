@@ -1,9 +1,11 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.buffer.BitBuf
+import emu.buffer.JagexBuffer
 import emu.crypto.StreamCipher
 import emu.netcore.codec.MessageEncoder
 import emu.netcore.prot.Prot
+import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.prot.GameServerProt
 
@@ -57,17 +59,40 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     /** Stationary-run selector meaning "an 11-bit count follows" (client `readStationary`). */
     private const val STATIONARY_SELECTOR_11_BITS = 3
 
+    /**
+     * Extended-info flag bit for the **appearance** block (rev-239 `PlayerInfoClient`: `APPEARANCE
+     * = 0x20`). It sits in the low byte of the flag word and carries neither the `0x8`
+     * (EXTENDED_SHORT) nor `0x800` (EXTENDED_MEDIUM) widening bit, so an appearance-only update
+     * writes the flag word as a single byte.
+     */
+    private const val APPEARANCE_FLAG = 0x20
+
+    /** Signed-byte sentinel `-1` (`0xFF`) for the appearance's skull/overhead icon "none" fields. */
+    private const val ICON_NONE = 0xFF
+
     override fun encode(cipher: StreamCipher, message: PlayerInfo): ByteArray {
-        require(message.appearance == null) {
-            "PlayerInfoEncoder does not yet reproduce the rev-239 appearance sub-buffer; send PlayerInfo(null)"
-        }
-
         val bits = BitBuf()
+        val appearance = message.appearance
 
-        // High-resolution section: the local player, stationary. active=0 opens a stationary run,
-        // selector 0 => skip 0 further players (the local avatar is the only high-res player).
-        bits.writeBits(1, 0) // active? no -> stationary run
-        bits.writeBits(2, 0) // stationary selector 0 => 0 further players skipped
+        // High-resolution section: the sole high-res player is the local avatar. Its byte layout is
+        // identical whether the client reads it in the "active-last-cycle" (cycle 0) or
+        // "inactive-last-cycle" (cycle 1+) high-res section, because both sections run the same
+        // active/getHighResolutionPlayerPosition/readStationary logic and byte-align identically
+        // (rev-239 PlayerInfoClient.decodeBitCodes) — so this encoding is cycle-independent.
+        if (appearance == null) {
+            // No extended info: a zero-length stationary run (selector 0 => skip 0). Sets the local
+            // player IDLE with no avatar model — the minimal per-tick heartbeat.
+            bits.writeBits(1, 0) // active? no -> stationary run
+            bits.writeBits(2, 0) // stationary selector 0 => 0 further players skipped
+        } else {
+            // Active update carrying extended info: active=1, has-extended-info=1, movement
+            // opcode 0 (idle). getHighResolutionPlayerPosition treats opcode 0 + extended-info as a
+            // clean IDLE (NOT the `localIndex == idx` throw that active-with-no-extended-info hits),
+            // and queues this index for the extended-info pass below.
+            bits.writeBits(1, 1) // active? yes
+            bits.writeBits(1, 1) // has extended info? yes
+            bits.writeBits(2, 0) // movement opcode 0 => idle (no walk/run)
+        }
         alignToByte(bits)
 
         // Low-resolution section: every other slot, all stationary, none added. One stationary run
@@ -77,7 +102,59 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
         bits.writeBits(11, LOW_RES_PLAYER_COUNT - 1) // 2045 further slots skipped
         alignToByte(bits)
 
-        return bits.toByteArray()
+        val gpi = bits.toByteArray()
+        if (appearance == null) return gpi
+
+        // Extended-info pass (byte-aligned, after all bit sections): one entry, for the local
+        // player queued above. Flag word = APPEARANCE only (single byte); then the appearance block
+        // length as g1Alt3 (`value + 128`, matching the client's `g1Alt3` read and our other
+        // p1Alt3 packets); then the appearance sub-buffer itself.
+        val block = buildAppearanceBlock(appearance)
+        val out = JagexBuffer.alloc(gpi.size + 2 + block.size)
+        out.writeBytes(gpi)
+        out.writeByte(APPEARANCE_FLAG)
+        out.writeByte((block.size + 128) and 0xFF)
+        out.writeBytes(block)
+        return out.array
+    }
+
+    /**
+     * Serializes the rev-239 appearance sub-buffer exactly as the client's `decodeAppearance`
+     * reads it: gender, skull icon, overhead icon, 12 equipment/identikit slots, 12 interface
+     * identikit slots, 5 body colours, 7 render animations, the display name (cp1252 C-string),
+     * combat level, skill level, hidden flag, customisation flag (0 = none), three name-extra
+     * C-strings, and the text gender. Values come from [PlayerAppearance]; the fields it does not
+     * model (icons, interface kit, hidden, customisation, name extras) are the inert defaults a
+     * plain avatar uses.
+     */
+    private fun buildAppearanceBlock(a: PlayerAppearance): ByteArray {
+        // 3 header + 12 equip (<=2B each) + 12 interface + 5 colours + 14 anim + name + 6 fixed +
+        // 3 empty C-strings — comfortably within this bound.
+        val buf = JagexBuffer.alloc(64 + a.name.toByteArray(Charsets.ISO_8859_1).size)
+        buf.writeByte(a.gender)
+        buf.writeByte(ICON_NONE) // skull icon: none
+        buf.writeByte(ICON_NONE) // overhead prayer icon: none
+        for (slot in a.equipment) {
+            if (slot == 0) {
+                buf.writeByte(0) // empty slot
+            } else {
+                buf.writeByte(slot ushr 8) // flag byte (1 = identikit, 2 = worn item)
+                buf.writeByte(slot and 0xFF) // model/kit id low byte
+            }
+        }
+        repeat(PlayerAppearance.EQUIPMENT_SLOT_COUNT) { buf.writeByte(0) } // interface identikit: none
+        for (colour in a.colors) buf.writeByte(colour)
+        for (anim in a.animations) buf.writeShort(anim)
+        buf.writeCString(a.name)
+        buf.writeByte(a.combatLevel)
+        buf.writeShort(a.skillLevel)
+        buf.writeByte(0) // hidden = false
+        buf.writeShort(0) // customisation flag = none
+        buf.writeCString("") // name prefix
+        buf.writeCString("") // name suffix
+        buf.writeCString("") // after-combat-level text
+        buf.writeByte(a.gender) // text gender
+        return buf.array.copyOf(buf.pos)
     }
 
     /** Pads the bit stream with zero bits up to the next byte boundary (the client byte-aligns each section). */
