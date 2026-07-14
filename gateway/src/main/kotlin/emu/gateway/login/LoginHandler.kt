@@ -18,6 +18,22 @@ private val logger = KotlinLogging.logger {}
 data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
 
 /**
+ * The local player's index into the client's 2048-slot player array (`client.di`,
+ * docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §2/§4a). This is the one
+ * load-bearing field in the login-info trailer ([LOGIN_SUCCESS_TRAILER]) — the game stage's
+ * initial `RebuildNormal`/`PlayerInfo` packets describe this same local player. Milestone-3 has no
+ * persisted account/slot table, so every connection is simply assigned index 1 (a valid non-zero
+ * slot; index 0 is conventionally reserved).
+ */
+const val LOCAL_PLAYER_INDEX: Int = 1
+
+/** Fixed length (in bytes) of the login-info block that follows the length byte itself. */
+private const val LOGIN_INFO_BLOCK_LENGTH = 37
+
+/** Byte offset of the 2-byte `di` field within the login-info block (ingame-facts.md §2). */
+private const val DI_OFFSET = 7
+
+/**
  * The bytes written right after the response-2 code byte.
  *
  * Task 7 (empirical, against the real rev-239 client, decompiled `client.java`): on response code 2
@@ -30,10 +46,18 @@ data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
  * [1] jo  [1] member flag  [2] di (u16)  [1] ef
  * [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes; 3 trailing pad to 37)
  * ```
- * All fields zero-fill for milestone-3 (auto-accept, no persisted account), so the trailer is the
- * 37-length byte followed by 37 zero bytes.
+ * Every field zero-fills for milestone-3 (auto-accept, no persisted account) except `di`, which
+ * carries [LOCAL_PLAYER_INDEX] — the client needs this to index its own player array and draw the
+ * avatar the game stage's `PlayerInfo` packet describes.
  */
-val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(37) + ByteArray(37)
+val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(LOGIN_INFO_BLOCK_LENGTH.toByte()) + buildLoginInfoBlock()
+
+private fun buildLoginInfoBlock(): ByteArray {
+    val block = ByteArray(LOGIN_INFO_BLOCK_LENGTH)
+    block[DI_OFFSET] = (LOCAL_PLAYER_INDEX ushr 8).toByte()
+    block[DI_OFFSET + 1] = LOCAL_PLAYER_INDEX.toByte()
+    return block
+}
 
 /**
  * Handles an op-16/18 login block once the opcode byte itself has already been consumed by the

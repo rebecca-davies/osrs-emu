@@ -35,7 +35,7 @@ class ConnectionTimeoutTest {
 
         val serverJob = launch {
             val conn = server.accept()
-            handleConnection(conn, store, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
+            handleConnection(conn, store, codecs, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
         }
 
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
@@ -62,7 +62,7 @@ class ConnectionTimeoutTest {
 
         val serverJob = launch {
             val conn = server.accept()
-            handleConnection(conn, store, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
+            handleConnection(conn, store, codecs, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
         }
 
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))

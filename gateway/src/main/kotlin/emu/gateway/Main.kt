@@ -16,6 +16,7 @@ import emu.netcore.codec.CodecRepository
 import emu.netcore.codec.CodecRepositoryBuilder
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
+import emu.protocol.osrs239.game.installGame
 import emu.protocol.osrs239.js5.Js5Prot
 import emu.protocol.osrs239.js5.installJs5
 import emu.protocol.osrs239.login.LoginProt
@@ -62,13 +63,14 @@ fun main() = runBlocking {
     val store = FlatFileStore(cacheDir())
     val rsaKeyPair = loadServerRsaKeyPair()
     val codecs = buildJs5CodecRepository()
+    val gameCodecs = buildGameCodecRepository()
 
     val selector = SelectorManager(Dispatchers.IO)
     val server = aSocket(selector).tcp().bind(InetSocketAddress("0.0.0.0", 43594))
     logger.info { "gateway listening on 43594" }
     while (true) {
         val conn = server.accept()
-        launch { handleConnection(conn, store, codecs, rsaKeyPair) }
+        launch { handleConnection(conn, store, codecs, gameCodecs, rsaKeyPair) }
     }
 }
 
@@ -101,6 +103,7 @@ internal suspend fun handleConnection(
     conn: Socket,
     store: Store,
     codecs: CodecRepository,
+    gameCodecs: CodecRepository,
     rsaKeyPair: RsaKeyPair?,
     handshakeTimeout: Duration = HANDSHAKE_TIMEOUT,
     gameIdleTimeout: Duration = GAME_IDLE_TIMEOUT,
@@ -117,7 +120,8 @@ internal suspend fun handleConnection(
         }
         when (next) {
             is PostHandshake.Js5Pipeline -> runJs5Pipeline(r, w, store, codecs, next.cipher)
-            is PostHandshake.GameStage -> runGameStage(r, next.ciphers.inbound, gameIdleTimeout)
+            is PostHandshake.GameStage ->
+                runGameStage(r, w, next.ciphers.inbound, next.ciphers.outbound, gameCodecs, gameIdleTimeout)
             null -> {}
         }
     } catch (e: TimeoutCancellationException) {
@@ -224,3 +228,12 @@ private fun loadServerRsaKeyPair(): RsaKeyPair? = try {
  * `error_game_js5io`.
  */
 private fun buildJs5CodecRepository(): CodecRepository = CodecRepositoryBuilder().installJs5().build()
+
+/**
+ * The immutable game-domain encoder registry, built once and shared by every connection — the
+ * same hoist-at-startup convention as [buildJs5CodecRepository]. [emu.gateway.login.runGameStage]
+ * uses it (via [emu.netcore.pipeline.OutboundSession]) to encode the initial-scene packets; it
+ * holds no per-connection state, unlike the outbound ISAAC cipher each connection gets from its own
+ * [emu.gateway.login.GameCiphers].
+ */
+private fun buildGameCodecRepository(): CodecRepository = CodecRepositoryBuilder().installGame().build()
