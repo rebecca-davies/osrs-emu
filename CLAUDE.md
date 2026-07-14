@@ -67,6 +67,14 @@ review.
 12. **NEVER use the user's real RuneScape/RuneLite account.** Launch the client only with an
     **isolated `user.home`** (throwaway dir) so it cannot read `~/.runelite`; only DUMMY
     credentials. Never read or modify the user's credentials files.
+12a. **The client MUST NOT reach Jagex's network.** RuneLite fetches Jagex's world list and pings
+    every world on launch, independent of `jav_config` — repeatedly launching it hammers Jagex
+    from the user's IP and trips a "login limit exceeded" rate limit that hits their REAL account.
+    So: (1) **iterate HEADLESS** — verify protocol changes with a Kotlin test-client speaking our
+    wire, never the GUI client (the client is acceptance, not the dev loop). (2) When a real-client
+    screenshot is genuinely needed, launch it inside a **rootless network namespace**
+    (`unshare -rn`) containing the gateway + local http + client on loopback only, so it physically
+    cannot reach Jagex. (3) Launch the real client RARELY and never in a relaunch loop.
 13. **NEVER log credentials** (password/username) or retain them. Auto-accept logins for now
     without storing the plaintext.
 14. RSA private key stays server-side (gitignored `server-rsa.properties`); never commit keys,
