@@ -1,6 +1,7 @@
 package emu.gateway.login
 
 import emu.crypto.IsaacCipher
+import emu.game.pathfinding.CollisionMap
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
@@ -75,9 +76,10 @@ suspend fun runGameStage(
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
+    collisionMap: CollisionMap = OpenCollisionMap,
 ): Unit = coroutineScope {
     val session = OutboundSession(gameCodecs, outboundCipher, write)
-    val movement = PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap)
+    val movement = PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), collisionMap)
     val routeRequests = PlayerRouteRequestQueue()
     val gameLoop = GameLoop(session, tickInterval, playerMovement = movement, routeRequests = routeRequests)
     val appearance = if (System.getenv("EMU_NO_APPEARANCE") == "1") null else PlayerAppearance()

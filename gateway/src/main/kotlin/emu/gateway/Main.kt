@@ -1,17 +1,24 @@
 package emu.gateway
 
+import emu.cache.map.CacheMapRepository
+import emu.cache.map.CacheObjectDefinitionRepository
 import emu.cache.store.FlatFileStore
 import emu.cache.store.Store
 import emu.crypto.RsaKeyPair
 import emu.crypto.XorStreamCipher
+import emu.game.pathfinding.CollisionMap
+import emu.game.pathfinding.OpenCollisionMap
 import emu.gateway.js5.installJs5Handlers
 import emu.gateway.js5.performHandshake
 import emu.gateway.login.GAME_IDLE_TIMEOUT
 import emu.gateway.login.GameCiphers
+import emu.gateway.login.SPAWN_X
+import emu.gateway.login.SPAWN_Y
 import emu.gateway.login.ServerRsaKeyFile
 import emu.gateway.login.performLoginBlock
 import emu.gateway.login.performLoginInit
 import emu.gateway.login.runGameStage
+import emu.gateway.map.CacheCollisionLoader
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
@@ -71,6 +78,7 @@ internal val HANDSHAKE_TIMEOUT: Duration = 15.seconds
  */
 fun main() = runBlocking {
     val store = FlatFileStore(cacheDir())
+    val collisionMap = loadCollisionMap(store)
     val rsaKeyPair = loadServerRsaKeyPair()
     val koin = startKoin { modules(js5Module, loginModule, gameModule, gatewayModule(store, rsaKeyPair)) }.koin
     val codecs = buildJs5CodecRepository()
@@ -81,7 +89,17 @@ fun main() = runBlocking {
     logger.info { "gateway listening on 43594" }
     while (true) {
         val conn = server.accept()
-        launch { handleConnection(conn, store, codecs, gameCodecs, rsaKeyPair, koin = koin) }
+        launch {
+            handleConnection(
+                conn,
+                store,
+                codecs,
+                gameCodecs,
+                rsaKeyPair,
+                koin = koin,
+                collisionMap = collisionMap,
+            )
+        }
     }
 }
 
@@ -122,6 +140,7 @@ internal suspend fun handleConnection(
     handshakeTimeout: Duration = HANDSHAKE_TIMEOUT,
     gameIdleTimeout: Duration = GAME_IDLE_TIMEOUT,
     koin: Koin = koinApplication { modules(gatewayModule(store, rsaKeyPair)) }.koin,
+    collisionMap: CollisionMap = OpenCollisionMap,
 ) {
     try {
         val r = conn.openReadChannel()
@@ -136,7 +155,15 @@ internal suspend fun handleConnection(
         when (next) {
             is PostHandshake.Js5Pipeline -> runJs5Pipeline(r, w, codecs, koin, next.cipher)
             is PostHandshake.GameStage ->
-                runGameStage(r, w, next.ciphers.inbound, next.ciphers.outbound, gameCodecs, gameIdleTimeout)
+                runGameStage(
+                    r,
+                    w,
+                    next.ciphers.inbound,
+                    next.ciphers.outbound,
+                    gameCodecs,
+                    gameIdleTimeout,
+                    collisionMap = collisionMap,
+                )
             null -> {}
         }
     } catch (e: TimeoutCancellationException) {
@@ -211,6 +238,23 @@ private suspend fun runJs5Pipeline(r: ByteReadChannel, w: ByteWriteChannel, code
  * pointed at a cache without relying on its working directory.
  */
 private fun cacheDir(): File = File(System.getenv("OSRS_CACHE_DIR") ?: "cache-data")
+
+/** Loads the nine cache map squares present in the fixed Lumbridge rebuild scene. */
+private fun loadCollisionMap(store: Store): CollisionMap {
+    val centerSquareX = SPAWN_X shr 6
+    val centerSquareY = SPAWN_Y shr 6
+    val collision = CacheCollisionLoader(
+        CacheMapRepository(store),
+        CacheObjectDefinitionRepository(store),
+    ).load(
+        squareXs = centerSquareX - MAP_SQUARE_RADIUS..centerSquareX + MAP_SQUARE_RADIUS,
+        squareYs = centerSquareY - MAP_SQUARE_RADIUS..centerSquareY + MAP_SQUARE_RADIUS,
+    )
+    logger.info { "loaded cache collision for the active 3x3 map-square scene" }
+    return collision
+}
+
+private const val MAP_SQUARE_RADIUS = 1
 
 /**
  * `server-rsa.properties` is generated (and gitignored) by `tools:client-patch`;
