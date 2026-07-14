@@ -2,6 +2,7 @@ package emu.gateway.login
 
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
+import emu.game.cycle.CycleProfiler
 import emu.game.cycle.FixedRateTickSchedule
 import emu.game.cycle.GAME_TICK_MILLIS
 import emu.game.cycle.GameCycle
@@ -51,6 +52,7 @@ class GameLoop(
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
+    private val profileLabel: String = "connection",
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
     private val cycle =
@@ -96,10 +98,12 @@ class GameLoop(
         val initialMs = System.getenv("EMU_TICK_INITIAL_MS")?.toLongOrNull() ?: 0L
         require(maxTicks >= 0) { "maxTicks must be non-negative" }
         val schedule = FixedRateTickSchedule(intervalMs)
+        val profiler = CycleProfiler()
         if (initialMs > 0) delay(initialMs)
         var ticks = 0
         while (ticks < maxTicks) {
             val start = System.currentTimeMillis()
+            val profileStart = System.nanoTime()
             try {
                 cycle.tick()
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -108,12 +112,29 @@ class GameLoop(
                 logger.warn(e) { "game loop: tick #$ticks send FAILED (server-side write error) — this closes the connection" }
                 throw e
             }
+            val profileFinished = System.nanoTime()
+            val profile = profiler.record(profileFinished - profileStart, profileFinished)
+            if (profile.lagSpike) {
+                logger.warn {
+                    "game loop: $profileLabel tick #$ticks exceeded ${GAME_TICK_MILLIS}ms budget " +
+                        "(${millis(profileFinished - profileStart)}ms)"
+                }
+            }
+            profile.snapshot?.let { snapshot ->
+                logger.info {
+                    "game loop: $profileLabel ${millis(snapshot.windowNanos)}ms profile: " +
+                        "cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
+                        "max=${millis(snapshot.maxNanos)}ms, lagSpikes=${snapshot.lagSpikes}"
+                }
+            }
             ticks++
             delay(schedule.delayAfterTick(start, System.currentTimeMillis()))
         }
         logger.debug { "game loop: reached tick cap $maxTicks; stopping" }
     }
 }
+
+private fun millis(nanos: Long): Double = nanos / 1_000_000.0
 
 /** Keeps protocol-specific direction encoding outside the game simulation module. */
 private fun MovementUpdate.toProtocolMovement(): ProtocolPlayerMovement? =

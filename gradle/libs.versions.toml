@@ -7,6 +7,8 @@ slf4j = "2.0.16"
 logback = "1.5.12"
 kotlin-logging = "7.0.3"
 koin = "3.5.6"
+postgresql = "42.7.11"
+bcrypt = "0.10.2"
 
 [libraries]
 ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
@@ -17,6 +19,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+bcrypt = { module = "at.favre.lib:bcrypt", version.ref = "bcrypt" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

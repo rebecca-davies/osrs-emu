@@ -46,11 +46,12 @@ class ReconnectLoginTest {
             writeCString(password)
         }.array
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
-        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + 8).apply {
+        val tail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + tail.size).apply {
             writeBytes(ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE))
             writeShort(cipherBytes.size)
             writeBytes(cipherBytes)
-            writeBytes(ByteArray(8))
+            writeBytes(tail)
         }.array
     }
 
@@ -63,7 +64,14 @@ class ReconnectLoginTest {
         read.writeFully(payload)
         read.flush()
         val write = ByteChannel()
-        val ciphers = performLoginBlock(read, write, serverKey, keyPair, reconnect = reconnect)
+        val ciphers = performLoginBlock(
+            read,
+            write,
+            serverKey,
+            keyPair,
+            reconnect = reconnect,
+            authenticate = ::acceptTestLogin,
+        )
         assertNotNull(ciphers, "login block should be accepted")
         write.close()
         val out = ByteArrayOutputStream()

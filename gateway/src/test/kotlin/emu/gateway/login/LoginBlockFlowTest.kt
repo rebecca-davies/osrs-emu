@@ -55,12 +55,12 @@ class LoginBlockFlowTest {
         val plaintext = rsaPlaintext(seeds, serverKey, password)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE) // contents irrelevant to the parser
-        val xteaTailFiller = ByteArray(8) // dummy stand-in for the (currently unparsed) XTEA tail
-        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + xteaTailFiller.size)
+        val usernameTail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + usernameTail.size)
         out.writeBytes(header)
         out.writeShort(cipherBytes.size)
         out.writeBytes(cipherBytes)
-        out.writeBytes(xteaTailFiller)
+        out.writeBytes(usernameTail)
         return out.array
     }
 
@@ -79,7 +79,13 @@ class LoginBlockFlowTest {
                 14 -> {
                     val serverKey = performLoginInit(w)
                     when (r.readByte().toInt() and 0xFF) {
-                        16, 18 -> performLoginBlock(r, w, serverKey, keyPair)
+                        16, 18 -> performLoginBlock(
+                            r,
+                            w,
+                            serverKey,
+                            keyPair,
+                            authenticate = ::acceptTestLogin,
+                        )
                         else -> {}
                     }
                 }

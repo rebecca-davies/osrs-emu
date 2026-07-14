@@ -50,6 +50,16 @@ internal fun loginNoticeMessages(): List<MessageGame> = listOf(
     MessageGame(MessageGame.GAME_MESSAGE, WELCOME_MESSAGE),
 )
 
+/** Builds the appearance block that establishes the authenticated name used by chat and overlays. */
+internal fun playerAppearance(displayName: String): PlayerAppearance = PlayerAppearance(name = displayName)
+
+/** Authentic fresh-account stats: 10 Hitpoints (1,154 XP), all other rev-239 skills at level 1. */
+internal fun initialStatMessages(): List<UpdateStat> =
+    List(OSRS_SKILL_COUNT) { stat ->
+        if (stat == HITPOINTS_STAT) UpdateStat(stat, 10, 10, 1_154)
+        else UpdateStat(stat, 1, 1, 0)
+    }
+
 /**
  * Builds the capture-shaped atomic initial world group: active-world context, NPC origin, empty
  * world-entity state, the local player's appearance-bearing GPI, empty NPC state, then the 49
@@ -139,7 +149,7 @@ internal suspend fun sendInitialGameCycle(
 
     for (message in initialFrameMessages()) session.send(message)
 
-    repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
+    for (stat in initialStatMessages()) session.send(stat)
     session.send(UpdateRunWeight())
     session.send(UpdateRunEnergy())
     session.send(ResetAnims)
@@ -168,3 +178,6 @@ private val INITIAL_ZONE_SPIRAL: List<Pair<Int, Int>> = listOf(
     32 to 72, 24 to 72, 24 to 64, 24 to 56, 24 to 48, 24 to 40, 24 to 32,
     24 to 24, 32 to 24, 40 to 24, 48 to 24, 56 to 24, 64 to 24, 72 to 24,
 )
+
+private const val OSRS_SKILL_COUNT = 23
+private const val HITPOINTS_STAT = 3

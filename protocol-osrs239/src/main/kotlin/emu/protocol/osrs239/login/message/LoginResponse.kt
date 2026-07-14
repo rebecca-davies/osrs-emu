@@ -7,4 +7,9 @@ import emu.netcore.message.OutgoingMessage
  * success (rev239-login-facts.md §6); sent by `LoginHandler`. Other explicitly handled codes are
  * 15/21/23/29/61/64/69 — anything else falls through to the client's error table.
  */
-data class LoginResponse(val code: Int) : OutgoingMessage
+data class LoginResponse(val code: Int) : OutgoingMessage {
+    companion object {
+        const val SUCCESS = 2
+        const val INVALID_CREDENTIALS = 3
+    }
+}

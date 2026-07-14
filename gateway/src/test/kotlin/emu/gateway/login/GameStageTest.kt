@@ -89,12 +89,12 @@ class GameStageTest {
         val plaintext = rsaPlaintext(seeds, serverKey, password)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE)
-        val xteaTailFiller = ByteArray(8)
-        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + xteaTailFiller.size)
+        val usernameTail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + usernameTail.size)
         out.writeBytes(header)
         out.writeShort(cipherBytes.size)
         out.writeBytes(cipherBytes)
-        out.writeBytes(xteaTailFiller)
+        out.writeBytes(usernameTail)
         return out.array
     }
 
@@ -114,10 +114,18 @@ class GameStageTest {
                     val serverKey = performLoginInit(w)
                     when (r.readByte().toInt() and 0xFF) {
                         16, 18 -> {
-                            val ciphers = performLoginBlock(r, w, serverKey, keyPair)
+                            val ciphers = performLoginBlock(
+                                r,
+                                w,
+                                serverKey,
+                                keyPair,
+                                authenticate = ::acceptTestLogin,
+                            )
                             if (ciphers != null) {
                                 runGameStage(
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
+                                    player = ciphers.player,
+                                    saveSession = { _, _, _ -> },
                                     idleTimeout = 2.seconds,
                                     tickInterval = 20.milliseconds,
                                     maxTicks = 1,

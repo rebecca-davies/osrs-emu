@@ -3,6 +3,7 @@ package emu.gateway.login
 import emu.buffer.JagexBuffer
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
+import emu.crypto.Xtea
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -12,8 +13,8 @@ import kotlin.test.assertTrue
 // Pure test of the op-16/18 login block parser: no sockets. Builds a plaintext RSA payload
 // matching rev239-login-facts.md §2 ([1][seed0..3][serverKey][auth-method byte][marker
 // byte][password C-string]), public-encrypts it, wraps it in a cleartext header + u16 rsaLength +
-// a dummy XTEA-tail filler (unused this milestone), and asserts the parser recovers the seeds,
-// server key, and password — or reports the right failure shape when the header offset is wrong.
+// an encrypted username tail, and asserts the parser recovers disposable credentials — or reports
+// the right failure shape when the header offset is wrong.
 class LoginBlockParserTest {
     private fun keyPair(): RsaKeyPair = Rsa.generateKeyPair(1024)
 
@@ -33,24 +34,26 @@ class LoginBlockParserTest {
         seeds: IntArray,
         serverKey: Long,
         password: String,
+        username: String = "Rebecca_Bird",
         headerSize: Int = LoginBlockParser.CLEARTEXT_HEADER_SIZE,
     ): ByteArray {
         val plaintext = rsaPlaintext(seeds, serverKey, password)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(headerSize) // cleartext header contents are irrelevant to the parser
-        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + 8)
+        val usernameBytes = username.toByteArray(Charsets.ISO_8859_1) + 0
+        val tail = usernameBytes.copyOf((usernameBytes.size + 7) / 8 * 8)
+        val encryptedTail = Xtea.encrypt(tail, seeds)
+        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + encryptedTail.size)
         out.writeBytes(header)
         out.writeShort(cipherBytes.size)
         out.writeBytes(cipherBytes)
-        out.writeBytes(ByteArray(8)) // dummy XTEA-tail filler, unused this milestone
+        out.writeBytes(encryptedTail)
         return out.array
     }
 
-    @Test fun `parses seeds and server key from a well-formed login block, discarding the password`() {
+    @Test fun `parses username and disposable password from a well-formed login block`() {
         val kp = keyPair()
         val seeds = intArrayOf(1, 2, 3, 4)
-        // The block carries a password; the parser must read past it correctly but NOT retain it
-        // (Parsed has no password field — credentials are never stored or logged).
         val payload = loginBlockPayload(kp, seeds, serverKey = 0x0102030405060708L, password = "dummy-pw")
 
         val result = LoginBlockParser.parse(payload, kp.modulus, kp.privateExp)
@@ -58,9 +61,14 @@ class LoginBlockParserTest {
         val ok = assertIs<LoginBlockParser.Result.Ok>(result)
         assertContentEquals(seeds, ok.parsed.seeds)
         assertEquals(0x0102030405060708L, ok.parsed.serverKey)
+        assertEquals("Rebecca_Bird", ok.parsed.username)
+        assertContentEquals("dummy-pw".toCharArray(), ok.parsed.password)
+
+        ok.parsed.clearPassword()
+        assertTrue(ok.parsed.password.all { it == '\u0000' })
     }
 
-    @Test fun `wrong header offset yields BadMagic with the raw payload logged`() {
+    @Test fun `wrong header offset yields a structural failure without retaining payload bytes`() {
         val kp = keyPair()
         val payload = loginBlockPayload(
             kp,

@@ -9,6 +9,7 @@ import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
+import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,6 +17,20 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class InitialGameCycleTest {
+    @Test fun `authenticated display name is used by local-player appearance and chat identity`() {
+        assertEquals("Rebecca_Bird", playerAppearance("Rebecca_Bird").name)
+    }
+
+    @Test fun `new character starts with authentic hitpoints and otherwise level one stats`() {
+        val stats = initialStatMessages()
+
+        assertEquals(23, stats.size)
+        assertEquals(UpdateStat(stat = 3, currentLevel = 10, invisibleBoostedLevel = 10, experience = 1_154), stats[3])
+        assertTrue(stats.withIndex().all { (index, stat) ->
+            index == 3 || stat == UpdateStat(index, 1, 1, 0)
+        })
+    }
+
     @Test fun `initial world group matches capture order and clears the captured 7 by 7 zone window`() {
         val group = initialWorldGroup(PlayerAppearance(), localPlayerIndex = 1736)
 

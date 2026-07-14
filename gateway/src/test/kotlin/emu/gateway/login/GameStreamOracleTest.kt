@@ -142,9 +142,17 @@ class GameStreamOracleTest {
                 check(r.readByte().toInt() and 0xFF == 14) { "expected op14" }
                 val serverKey = performLoginInit(w)
                 check(r.readByte().toInt() and 0xFF == 16) { "expected op16" }
-                val ciphers = performLoginBlock(r, w, serverKey, keyPair) ?: error("login block rejected")
+                val ciphers = performLoginBlock(
+                    r,
+                    w,
+                    serverKey,
+                    keyPair,
+                    authenticate = ::acceptTestLogin,
+                ) ?: error("login block rejected")
                 runGameStage(
                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
+                    player = ciphers.player,
+                    saveSession = { _, _, _ -> },
                     idleTimeout = 10.seconds,
                     tickInterval = 1.milliseconds,
                     maxTicks = ORACLE_TICKS,
@@ -192,7 +200,7 @@ class GameStreamOracleTest {
             repeat(49) { add(54 to 3) }
             add(87 to 5)
             addAll(listOf(22 to 8, 22 to 8, 96 to 2))
-            repeat(25) { add(7 to 7) }
+            repeat(23) { add(7 to 7) }
             addAll(listOf(3 to 0, 138 to 1, 25 to 179))
             repeat(25) { add(46 to 7) }
             addAll(listOf(31 to 2, 64 to 2, 92 to 0, 43 to 1))
@@ -236,11 +244,12 @@ class GameStreamOracleTest {
             writeCString(password)
         }.array
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
-        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + 8).apply {
+        val tail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + tail.size).apply {
             writeBytes(ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE))
             writeShort(cipherBytes.size)
             writeBytes(cipherBytes)
-            writeBytes(ByteArray(8))
+            writeBytes(tail)
         }.array
     }
 }
