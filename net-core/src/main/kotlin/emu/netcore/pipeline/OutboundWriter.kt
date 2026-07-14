@@ -3,6 +3,7 @@ package emu.netcore.pipeline
 import emu.crypto.StreamCipher
 import emu.netcore.codec.MessageEncoder
 import emu.netcore.message.OutgoingMessage
+import emu.netcore.prot.Prot
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
@@ -26,6 +27,12 @@ import io.ktor.utils.io.writeFully
  *    written in the clear, opcode is ISAAC-scrambled by the one `nextInt()` this function draws.
  *  - Everything under [emu.crypto.NopStreamCipher] (`nextInt() == 0`): opcode arithmetic is a
  *    no-op, so wire output is byte-identical to the pre-ISAAC `encoder.prot.opcode.toByte()`.
+ *
+ * Length framing (rev-239): only when [writeOpcode] is set does a variable-size prot emit a
+ * **plaintext** length between the (ISAAC-adjusted) opcode byte and the body — one u8 for
+ * [Prot.VAR_BYTE], one big-endian u16 for [Prot.VAR_SHORT]; a fixed-size prot emits no length. The
+ * length is never touched by the cipher (the client reads it in the clear to know how many body
+ * bytes follow). JS5 (`writeOpcode = false`) skips this entirely, so its wire output is unchanged.
  */
 suspend fun <T : OutgoingMessage> writePacket(
     write: ByteWriteChannel,
@@ -35,7 +42,16 @@ suspend fun <T : OutgoingMessage> writePacket(
     writeOpcode: Boolean,
 ) {
     val body = encoder.encode(cipher, message)
-    if (writeOpcode) write.writeByte(((encoder.prot.opcode + cipher.nextInt()) and 0xFF).toByte())
+    if (writeOpcode) {
+        write.writeByte(((encoder.prot.opcode + cipher.nextInt()) and 0xFF).toByte())
+        when (encoder.prot.size) {
+            Prot.VAR_BYTE -> write.writeByte((body.size and 0xFF).toByte())
+            Prot.VAR_SHORT -> {
+                write.writeByte((body.size ushr 8).toByte())
+                write.writeByte((body.size and 0xFF).toByte())
+            }
+        }
+    }
     write.writeFully(body)
     write.flush()
 }

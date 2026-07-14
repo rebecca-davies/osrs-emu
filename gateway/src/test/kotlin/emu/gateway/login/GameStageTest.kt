@@ -12,6 +12,7 @@ import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
 import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
+import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
@@ -25,17 +26,23 @@ import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-private const val OTHER_PLAYER_SLOTS = 2047
+// The GPI-init reference loop covers slots 1..2047 but skips the local index, so it emits 2046
+// (not 2047) 18-bit entries — matching [RebuildNormalEncoder].
+private const val OTHER_PLAYER_SLOTS = 2046
 private const val GPI_INIT_BITS = 30 + OTHER_PLAYER_SLOTS * 18
-private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4610
+private const val GPI_INIT_BYTES = (GPI_INIT_BITS + 7) / 8 // 4608
 private const val ZONE_BYTES = 6
-private const val REBUILD_NORMAL_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4616
+private const val REBUILD_NORMAL_BODY_SIZE = GPI_INIT_BYTES + ZONE_BYTES // 4614
 
-private const val PLAYER_INFO_BIT_SECTION_BYTES = 3
-private const val PLAYER_INFO_APPEARANCE_HEADER_BYTES = 2
-private const val PLAYER_INFO_DEFAULT_APPEARANCE_BYTES = 50
-private const val PLAYER_INFO_BODY_SIZE =
-    PLAYER_INFO_BIT_SECTION_BYTES + PLAYER_INFO_APPEARANCE_HEADER_BYTES + PLAYER_INFO_DEFAULT_APPEARANCE_BYTES
+/** Appearance-less PlayerInfo body: HD byte + two LD bytes (see [PlayerInfoEncoder]). */
+private const val PLAYER_INFO_BODY_SIZE = 3
+
+/** Reads a big-endian u16 length prefix from [ch] (the plaintext frame length for a VAR_SHORT prot). */
+private suspend fun readU16(ch: ByteReadChannel): Int {
+    val hi = ch.readByte().toInt() and 0xFF
+    val lo = ch.readByte().toInt() and 0xFF
+    return (hi shl 8) or lo
+}
 
 /** Unpacks the leading 30 MSB-first bits of a RebuildNormal body back into (plane, x, y). */
 private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
@@ -150,9 +157,11 @@ class GameStageTest {
         // performLoginBlock's doc), to compute the expected ISAAC-adjusted opcode bytes.
         val expectedOutboundCipher = IsaacCipher(IntArray(seeds.size) { seeds[it] + 50 })
 
+        // REBUILD_NORMAL is VAR_SHORT: [opcode+K][u16 plaintext length][body].
         val opcode1 = cr.readByte().toInt() and 0xFF
         val expectedOpcode1 = (GameServerProt.REBUILD_NORMAL.opcode + expectedOutboundCipher.nextInt()) and 0xFF
         assertEquals(expectedOpcode1, opcode1)
+        assertEquals(REBUILD_NORMAL_BODY_SIZE, readU16(cr))
 
         val rebuildBody = ByteArray(REBUILD_NORMAL_BODY_SIZE)
         cr.readFully(rebuildBody)
@@ -161,9 +170,11 @@ class GameStageTest {
         assertEquals(3222, x)
         assertEquals(3218, y)
 
+        // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
         val opcode2 = cr.readByte().toInt() and 0xFF
         val expectedOpcode2 = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
         assertEquals(expectedOpcode2, opcode2)
+        assertEquals(PLAYER_INFO_BODY_SIZE, readU16(cr))
 
         val playerInfoBody = ByteArray(PLAYER_INFO_BODY_SIZE)
         cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)

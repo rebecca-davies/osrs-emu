@@ -63,6 +63,52 @@ class OutboundWriterTest {
         assertEquals(7, ch.readByte().toInt() and 0xFF) // just the body, no opcode byte at all
     }
 
+    @Test fun `a VAR_SHORT prot emits opcode then a plaintext u16 big-endian length then the body`() = runBlocking {
+        // A 300-byte body forces a two-byte length (0x012C) so both length bytes are exercised.
+        val bodyBytes = ByteArray(300) { (it and 0xFF).toByte() }
+        val encoder = object : MessageEncoder<OutboundWriterTestMessage> {
+            override val prot = Prot(49, Prot.VAR_SHORT)
+            override val messageType = OutboundWriterTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage): ByteArray = bodyBytes
+        }
+        val ch = ByteChannel(true)
+        val cipher = ScriptedCipher(listOf(5)) // one draw for the opcode; length is never ISAAC'd
+        writePacket(ch, encoder, OutboundWriterTestMessage(0), cipher, writeOpcode = true)
+
+        assertEquals((49 + 5) and 0xFF, ch.readByte().toInt() and 0xFF) // ISAAC-adjusted opcode
+        assertEquals(0x01, ch.readByte().toInt() and 0xFF) // length hi (300 ushr 8)
+        assertEquals(0x2C, ch.readByte().toInt() and 0xFF) // length lo (300 and 0xFF)
+        val readBody = ByteArray(300)
+        ch.readFully(readBody)
+        assertEquals(bodyBytes.toList(), readBody.toList())
+    }
+
+    @Test fun `a VAR_BYTE prot emits opcode then a plaintext u8 length then the body`() = runBlocking {
+        val bodyBytes = ByteArray(7) { (it + 1).toByte() }
+        val encoder = object : MessageEncoder<OutboundWriterTestMessage> {
+            override val prot = Prot(30, Prot.VAR_BYTE)
+            override val messageType = OutboundWriterTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage): ByteArray = bodyBytes
+        }
+        val ch = ByteChannel(true)
+        writePacket(ch, encoder, OutboundWriterTestMessage(0), NopStreamCipher, writeOpcode = true)
+
+        assertEquals(30, ch.readByte().toInt() and 0xFF) // opcode (+0 under Nop)
+        assertEquals(7, ch.readByte().toInt() and 0xFF) // single-byte length
+        val readBody = ByteArray(7)
+        ch.readFully(readBody)
+        assertEquals(bodyBytes.toList(), readBody.toList())
+    }
+
+    @Test fun `a fixed-size prot emits opcode then the body with no length prefix`() = runBlocking {
+        // OutboundWriterTestEncoder has a fixed size (Prot(200, 1)); no length must appear.
+        val ch = ByteChannel(true)
+        writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(42), NopStreamCipher, writeOpcode = true)
+
+        assertEquals(200, ch.readByte().toInt() and 0xFF) // opcode
+        assertEquals(42, ch.readByte().toInt() and 0xFF) // body immediately follows, no length
+    }
+
     @Test fun `body is encoded with the same cipher instance, preserving encoders that XOR their own bytes`() = runBlocking {
         // Mirrors Js5ResponseEncoder: the body encoder consumes the cipher itself (one nextInt() per
         // byte). writePacket must hand the real cipher to encode(), and — because writeOpcode is
