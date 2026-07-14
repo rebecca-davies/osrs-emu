@@ -33,6 +33,15 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  *    and 0xFF]`. **CONFIDENCE HIGH** — decode primitives `xm.ea`/`xm.ef` and `wn.ni`/`kt.ax`
  *    (`zone = kt.ax = n shr 3`) were read directly from the decompiled client.
  *
+ * **No XTEA key section (verified from the rev-239 decompile 2026-07-14).** The client's
+ * REBUILD_NORMAL body reader `uk.df` (`clean-239/uk.java:527`) reads exactly the three `u16`s above
+ * and nothing else — `wn.ni`/`qu.da` are not passed the buffer, so no per-mapsquare XTEA keys are
+ * read here. (Only the *instanced* REBUILD_REGION, op 125 `lp.dm`→`wn.hg`, carries inline keys.)
+ * rev-239 delivers loc keys via the JS5 cache layer (`uf.ez` decrypts only when a group's stored
+ * key is non-zero), NOT this packet — so this encoder must NOT append a key loop (doing so would
+ * desync the client, which would read those bytes as GPI/zone data). See
+ * docs/superpowers/research/2026-07-14-map-xtea-keys.md and [emu.cache.container.MapXteaKeys].
+ *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
  * adjustment is applied by the pipeline, not here — this method deliberately never touches
  * [cipher], so the body is byte-identical whichever cipher (real ISAAC or

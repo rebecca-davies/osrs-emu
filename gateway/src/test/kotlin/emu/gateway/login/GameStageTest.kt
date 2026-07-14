@@ -177,19 +177,25 @@ class GameStageTest {
         assertEquals(3222, x)
         assertEquals(3218, y)
 
-        // The heartbeat: PLAYER_INFO is sent EVERY tick, so a healthy in-game client receives a
-        // steady stream of them. Assert the first [HEARTBEAT_TICKS] each arrive with the next
-        // ISAAC-adjusted opcode (proving the outbound keystream advances exactly once per packet and
-        // stays in lockstep with the client) and the byte-exact appearance-less body length.
+        // The heartbeat: EACH tick the loop sends PLAYER_INFO (GPI) then SERVER_TICK_END (the
+        // per-cycle terminator), so a healthy in-game client receives a steady stream of both. Assert
+        // the first [HEARTBEAT_TICKS] each arrive, in that order, with the next ISAAC-adjusted opcode
+        // (proving the outbound keystream advances exactly once per packet — PLAYER_INFO then
+        // SERVER_TICK_END — and stays in lockstep with the client) and the byte-exact body framing.
         repeat(HEARTBEAT_TICKS) { tick ->
             // PLAYER_INFO is VAR_SHORT: [opcode+K][u16 plaintext length][body].
-            val opcode = cr.readByte().toInt() and 0xFF
-            val expectedOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
-            assertEquals(expectedOpcode, opcode, "PLAYER_INFO opcode for heartbeat tick $tick")
+            val piOpcode = cr.readByte().toInt() and 0xFF
+            val expectedPiOpcode = (GameServerProt.PLAYER_INFO.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedPiOpcode, piOpcode, "PLAYER_INFO opcode for heartbeat tick $tick")
             assertEquals(PLAYER_INFO_BODY_SIZE, readU16(cr), "PLAYER_INFO body size for heartbeat tick $tick")
 
             val playerInfoBody = ByteArray(PLAYER_INFO_BODY_SIZE)
             cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
+
+            // SERVER_TICK_END is FIXED size 0: [opcode+K] alone — no length prefix, no body.
+            val steOpcode = cr.readByte().toInt() and 0xFF
+            val expectedSteOpcode = (GameServerProt.SERVER_TICK_END.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedSteOpcode, steOpcode, "SERVER_TICK_END opcode for heartbeat tick $tick")
         }
 
         serverJob.cancel()

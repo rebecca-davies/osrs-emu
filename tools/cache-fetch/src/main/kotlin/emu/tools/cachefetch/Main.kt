@@ -62,6 +62,76 @@ fun main() {
     }
 
     fetchMasterIndex(base, id, outDir)
+    fetchMapKeys(base, caches, outDir)
+}
+
+/**
+ * Map-region XTEA keys for loc (`l`) groups. Live build-$TARGET_BUILD OSRS caches ship **zero**
+ * map keys (the community corpus lags a few builds), so scenery loc groups in the served cache stay
+ * encrypted. This fetches `keys.json` from the newest live oldschool cache with build `<=
+ * TARGET_BUILD` that actually has keys (build 236, id 2499 at time of writing — keys are
+ * revision-stable for old content like Lumbridge; see
+ * docs/superpowers/research/2026-07-14-map-xtea-keys.md), plus the Lumbridge `l50_50` container so
+ * the key can be validated by trial-decrypt ([emu.cache.container.MapXteaKeys]). These are **not**
+ * injected into any rev-239 game packet — the decompiled client's REBUILD_NORMAL carries no keys;
+ * they exist for server-side loc validation/decode.
+ */
+private fun fetchMapKeys(base: String, cachesJson: String, outDir: File) {
+    val candidates = keyedCacheCandidates(cachesJson)
+    for (candidateId in candidates) {
+        val keysUrl = URI("$base/caches/runescape/$candidateId/keys.json").toURL()
+        val keysText = try {
+            keysUrl.openStream().use { it.readBytes() }.decodeToString()
+        } catch (e: Exception) {
+            logger.warn { "failed to fetch keys.json for cache id=$candidateId: ${e.message}" }
+            continue
+        }
+        val entries = Json.parseToJsonElement(keysText).jsonArray
+        if (entries.isEmpty()) continue // this cache has no map keys; try the next-oldest
+
+        val xteaDir = File(outDir, "xtea").apply { mkdirs() }
+        File(xteaDir, "keys.json").writeText(keysText)
+        logger.info { "fetched map XTEA keys.json (${entries.size} entries) from cache id=$candidateId" }
+
+        // Vendor the Lumbridge l50_50 (mapsquare 12850) loc container for trial-decrypt validation.
+        val lumbridge = entries.map { it.jsonObject }.firstOrNull {
+            it["mapsquare"]?.jsonPrimitive?.intOrNull == LUMBRIDGE_MAPSQUARE
+        }
+        val group = lumbridge?.get("group")?.jsonPrimitive?.intOrNull
+        if (group != null) {
+            val locUrl = URI("$base/caches/runescape/$candidateId/archives/5/groups/$group.dat").toURL()
+            try {
+                val bytes = locUrl.openStream().use { it.readBytes() }
+                File(xteaDir, "l50_50.dat").writeBytes(bytes)
+                logger.info { "fetched Lumbridge l50_50 loc container (group $group): ${bytes.size} bytes" }
+            } catch (e: Exception) {
+                logger.warn { "failed to fetch l50_50 container (group $group): ${e.message}" }
+            }
+        }
+        return
+    }
+    logger.warn { "no live oldschool cache <= build $TARGET_BUILD had non-empty map keys; scenery will stay encrypted" }
+}
+
+/** Lumbridge mapsquare id = `(50 shl 8) or 50` — the milestone spawn region. */
+private const val LUMBRIDGE_MAPSQUARE = 12850
+
+/**
+ * Ids of live oldschool caches with build major `<= TARGET_BUILD`, newest timestamp first — the
+ * search order for a cache that actually carries map keys (§3 of the map-xtea research).
+ */
+private fun keyedCacheCandidates(cachesJson: String): List<Int> {
+    val arr = Json.parseToJsonElement(cachesJson).jsonArray
+    return arr.mapNotNull { el ->
+        val o = el.jsonObject
+        if (o["game"]?.jsonPrimitive?.contentOrNull != "oldschool") return@mapNotNull null
+        if (o["environment"]?.jsonPrimitive?.contentOrNull != "live") return@mapNotNull null
+        val majors = o["builds"]?.jsonArray?.mapNotNull { it.jsonObject["major"]?.jsonPrimitive?.intOrNull } ?: return@mapNotNull null
+        if (majors.none { it <= TARGET_BUILD }) return@mapNotNull null
+        val id = o["id"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+        val ts = o["timestamp"]?.jsonPrimitive?.contentOrNull ?: ""
+        Triple(id, ts, majors.filter { it <= TARGET_BUILD }.max())
+    }.sortedByDescending { it.second }.map { it.first }
 }
 
 /**
