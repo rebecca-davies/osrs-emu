@@ -66,6 +66,8 @@ internal class GameLoop(
     private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) {
+    private val playerInfoState = LocalPlayerInfoState()
+
     private val cycle =
         GameCycle(
             buttonClicks.cycleProcesses(buttonActions) +
@@ -89,12 +91,13 @@ internal class GameLoop(
             logger.info { "game loop: sent clean logout response on tick $tickIndex" }
             return
         }
+        val playerInfo = playerInfoState.next(playerMovement.update, playerMovement.runEnabled)
         sendPacketGroup(
             session,
             listOf(
                 SetActiveWorld(),
                 SetNpcUpdateOrigin(npcOriginX, npcOriginZ),
-                PlayerInfo(appearance = null, movement = playerMovement.update.toProtocolMovement()),
+                playerInfo,
                 NpcInfo,
             ),
         )
@@ -166,3 +169,38 @@ private fun MovementUpdate.toProtocolMovement(): ProtocolPlayerMovement? =
         is MovementUpdate.Walk -> ProtocolPlayerMovement.Walk(deltaX, deltaY)
         is MovementUpdate.Run -> ProtocolPlayerMovement.Run(deltaX, deltaY)
     }
+
+/**
+ * Tracks the movement speed cached by the rev-239 client independently from each tick's positional
+ * GPI update. The two-tile run opcode moves the player's true tile; MOVE_SPEED and
+ * TEMP_MOVE_SPEED select the avatar's visual walk/run animation.
+ */
+internal class LocalPlayerInfoState {
+    private var knownMoveSpeed = STATIONARY_SPEED
+
+    fun next(update: MovementUpdate, runEnabled: Boolean): PlayerInfo {
+        val selectedSpeed = if (runEnabled) RUN_SPEED else WALK_SPEED
+        val moveSpeed = selectedSpeed.takeIf { it != knownMoveSpeed }
+        knownMoveSpeed = selectedSpeed
+
+        val actualSpeed =
+            when (update) {
+                MovementUpdate.Idle -> selectedSpeed
+                is MovementUpdate.Walk -> WALK_SPEED
+                is MovementUpdate.Run -> RUN_SPEED
+            }
+        val temporaryMoveSpeed = actualSpeed.takeIf { update != MovementUpdate.Idle && it != selectedSpeed }
+
+        return PlayerInfo(
+            movement = update.toProtocolMovement(),
+            moveSpeed = moveSpeed,
+            temporaryMoveSpeed = temporaryMoveSpeed,
+        )
+    }
+
+    private companion object {
+        const val WALK_SPEED = 1
+        const val RUN_SPEED = 2
+        const val STATIONARY_SPEED = 127
+    }
+}

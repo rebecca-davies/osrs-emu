@@ -94,6 +94,45 @@ class PlayerInfoEncoderTest {
         assertEquals(3, body.size)
     }
 
+    @Test fun `cached run speed uses rev239 move-speed flag and signed alt2 byte`() {
+        val body = PlayerInfoEncoder.encode(
+            NopStreamCipher,
+            PlayerInfo(movement = PlayerMovement.Run(2, 0), moveSpeed = 2),
+        )
+
+        // active=1, extended=1, opcode=10, east-two=1000
+        assertEquals(0xE8, body[0].toInt() and 0xFF)
+        assertEquals(listOf(0x08, 0x04), body.slice(3..4).map { it.toInt() and 0xFF })
+        // MOVE_SPEED (0x400) widens flags through 0x8; g1sAlt2 is inverted by p1Alt2 (-2).
+        assertEquals(0xFE, body[5].toInt() and 0xFF)
+        assertEquals(6, body.size)
+    }
+
+    @Test fun `temporary movement speed is independent from cached movement speed`() {
+        val body = PlayerInfoEncoder.encode(
+            NopStreamCipher,
+            PlayerInfo(movement = PlayerMovement.Walk(1, 0), moveSpeed = 2, temporaryMoveSpeed = 1),
+        )
+
+        assertEquals(0xD8, body[0].toInt() and 0xFF, "active+extended walk east")
+        assertEquals(listOf(0x08, 0x14), body.slice(3..4).map { it.toInt() and 0xFF })
+        assertEquals(0xFE, body[5].toInt() and 0xFF, "cached run via p1Alt2")
+        assertEquals(1, body[6].toInt() and 0xFF, "temporary walk as signed plain byte")
+    }
+
+    @Test fun `move speed precedes appearance in rev239 extended-info order`() {
+        val body = PlayerInfoEncoder.encode(
+            NopStreamCipher,
+            PlayerInfo(appearance = PlayerAppearance(name = "player"), moveSpeed = 1),
+        )
+
+        assertEquals(0xC0, body[0].toInt() and 0xFF)
+        assertEquals(listOf(0x28, 0x04), body.slice(3..4).map { it.toInt() and 0xFF })
+        assertEquals(0xFF, body[5].toInt() and 0xFF, "cached walk via p1Alt2")
+        val appearanceLength = (128 - (body[6].toInt() and 0xFF)) and 0xFF
+        assertEquals(body.size - 7, appearanceLength)
+    }
+
     @Test fun `encode never consumes the cipher`() {
         val body = PlayerInfoEncoder.encode(PlayerInfoExplodingCipher, PlayerInfo(appearance = null))
 
