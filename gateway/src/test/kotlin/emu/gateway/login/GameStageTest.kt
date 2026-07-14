@@ -208,6 +208,12 @@ class GameStageTest {
             val playerInfoBody = ByteArray(expectedBodySize)
             cr.readFully(playerInfoBody) // presence/length only — full body bytes are MEDIUM confidence (see PlayerInfoEncoder)
 
+            // SET_NPC_UPDATE_ORIGIN (op116, fixed 2-byte body) follows PLAYER_INFO each tick.
+            val originOpcode = cr.readByte().toInt() and 0xFF
+            val expectedOriginOpcode = (GameServerProt.SET_NPC_UPDATE_ORIGIN.opcode + expectedOutboundCipher.nextInt()) and 0xFF
+            assertEquals(expectedOriginOpcode, originOpcode, "SET_NPC_UPDATE_ORIGIN opcode for heartbeat tick $tick")
+            cr.readFully(ByteArray(2))
+
             // SERVER_TICK_END is FIXED size 0: [opcode+K] alone — no length prefix, no body.
             val steOpcode = cr.readByte().toInt() and 0xFF
             val expectedSteOpcode = (GameServerProt.SERVER_TICK_END.opcode + expectedOutboundCipher.nextInt()) and 0xFF

@@ -25,7 +25,7 @@ data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
  * persisted account/slot table, so every connection is simply assigned index 1 (a valid non-zero
  * slot; index 0 is conventionally reserved).
  */
-const val LOCAL_PLAYER_INDEX: Int = 1
+val LOCAL_PLAYER_INDEX: Int = System.getenv("EMU_LOCAL_INDEX")?.toIntOrNull() ?: 1
 
 /** Fixed length (in bytes) of the login-info block that follows the length byte itself. */
 private const val LOGIN_INFO_BLOCK_LENGTH = 37

@@ -5,6 +5,7 @@ import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
+import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.delay
 import kotlin.time.Duration
@@ -17,6 +18,14 @@ private val logger = KotlinLogging.logger {}
  * docs/superpowers/research/2026-07-14-tick-cycle-queue-architecture.md §1.1).
  */
 val TICK_INTERVAL: Duration = 600.milliseconds
+
+/**
+ * The local player's tile within the 13x13 build area at the Lumbridge spawn — `spawn - baseX`,
+ * where `baseX = (zoneX - 6) * 8`. For spawn (3222, 3218): zoneX = 3222 ushr 3 = 402, base = 3168,
+ * so the scene-local origin is (54, 50). Used for SET_NPC_UPDATE_ORIGIN (op 116).
+ */
+private const val LOCAL_SCENE_ORIGIN_X = 3222 - (402 - 6) * 8
+private const val LOCAL_SCENE_ORIGIN_Z = 3218 - (402 - 6) * 8
 
 /**
  * The per-connection game tick loop — the milestone-5 seed of the multi-player `World` tick.
@@ -40,6 +49,9 @@ class GameLoop(
     private val session: OutboundSession,
     private val tickInterval: Duration = TICK_INTERVAL,
     private val localAppearance: PlayerAppearance = PlayerAppearance(),
+    /** Local player's tile within the 13x13 build area (`spawn - baseX`), for SET_NPC_UPDATE_ORIGIN. */
+    private val npcOriginX: Int = LOCAL_SCENE_ORIGIN_X,
+    private val npcOriginZ: Int = LOCAL_SCENE_ORIGIN_Z,
 ) {
     /**
      * One game cycle for this connection: build and send the per-tick PLAYER_INFO heartbeat, plus a
@@ -57,12 +69,14 @@ class GameLoop(
         // appearance-less GPI even on tick 0, to A/B whether the appearance extended-info block
         // is implicated in the post-login drop.
         val appearance = if (tickIndex == 0 && System.getenv("EMU_NO_APPEARANCE") != "1") localAppearance else null
-        // Set the root world active FIRST, before player/npc info — the rev-235+ world-entity
-        // system processes those relative to the active world (rsmod RspCycle.flush order).
+        // Match rsmod RspCycle.flush order: active world, then player info, then the npc-info origin
+        // (the base coord the — omitted-when-empty — npc info would be relative to), then the
+        // tick terminator. The rev-235+ info protocol expects this set each cycle.
         session.send(SetActiveWorld())
         session.send(PlayerInfo(appearance))
+        session.send(SetNpcUpdateOrigin(npcOriginX, npcOriginZ))
         session.send(ServerTickEnd)
-        logger.debug { "game loop: sent tick $tickIndex (SET_ACTIVE_WORLD op47 + PLAYER_INFO op28${if (appearance != null) " +appearance" else ""} + SERVER_TICK_END op83)" }
+        logger.debug { "game loop: sent tick $tickIndex (SET_ACTIVE_WORLD op47 + PLAYER_INFO op28${if (appearance != null) " +appearance" else ""} + SET_NPC_UPDATE_ORIGIN op116 + SERVER_TICK_END op83)" }
     }
 
     /**

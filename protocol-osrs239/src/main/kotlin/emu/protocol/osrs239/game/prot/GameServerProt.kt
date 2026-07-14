@@ -29,6 +29,16 @@ object GameServerProt {
     val SET_ACTIVE_WORLD = Prot(47, 3)
 
     /**
+     * Sets the base coordinate the following NPC-info bit stream is encoded relative to. Opcode 116
+     * (rsprot `SET_NPC_UPDATE_ORIGIN`), fixed size 2: `[originX, originZ]` (each u8), where the
+     * origin is the local player's tile minus the 13x13 build-area base
+     * (`baseX = (zoneX - 6) * 8`). rsmod (`RspCycle.flush`) sends this **every** cycle, right after
+     * PLAYER_INFO and before NPC_INFO — the rev-235+ npc-info protocol reads coordinates relative
+     * to this origin, so a cycle that never sets it leaves the client's npc-info state uninitialized.
+     */
+    val SET_NPC_UPDATE_ORIGIN = Prot(116, 2)
+
+    /**
      * Per-tick player info: local + other players' movement bits, and extended info (appearance,
      * chat, animation, ...). Opcode 28 (`jc.bv`), size -2 (var-short). See [PlayerInfoEncoder] for
      * the current minimal (single-local-player, appearance-only) encoding and its confidence

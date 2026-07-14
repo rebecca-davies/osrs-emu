@@ -196,10 +196,12 @@ class GameStreamOracleTest {
             // are the minimal 3-byte appearance-less idle GPI.
             add(47 to 3)
             add(28 to 75)
+            add(116 to 2)
             add(83 to 0)
             repeat(ORACLE_TICKS - 1) {
                 add(47 to 3)
                 add(28 to 3)
+                add(116 to 2)
                 add(83 to 0)
             }
         }
