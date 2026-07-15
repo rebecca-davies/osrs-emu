@@ -2,8 +2,8 @@ package emu.server.world.network.handler
 
 import emu.game.ui.ButtonClick
 import emu.game.ui.PlayerButtonSink
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.pipeline.PacketHandler
+import emu.transport.pipeline.HandlerContext
+import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.game.message.IfButtonX
 import io.github.oshai.kotlinlogging.KotlinLogging
 

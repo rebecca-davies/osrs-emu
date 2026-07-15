@@ -1,9 +1,9 @@
 package emu.protocol.osrs239.game
 
-import emu.netcore.codec.CodecRepository
-import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.codec.MessageDecoder
-import emu.netcore.codec.MessageEncoder
+import emu.transport.codec.CodecRepository
+import emu.transport.codec.CodecRepositoryBuilder
+import emu.transport.codec.MessageDecoder
+import emu.transport.codec.MessageEncoder
 import emu.protocol.osrs239.game.codec.AmbienceStopEncoder
 import emu.protocol.osrs239.game.codec.CamResetEncoder
 import emu.protocol.osrs239.game.codec.CamTargetPlayerEncoder

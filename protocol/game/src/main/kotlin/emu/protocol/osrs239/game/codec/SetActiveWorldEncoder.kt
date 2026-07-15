@@ -1,8 +1,8 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.crypto.StreamCipher
-import emu.netcore.codec.MessageEncoder
-import emu.netcore.prot.Prot
+import emu.transport.codec.MessageEncoder
+import emu.transport.prot.Prot
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.prot.GameServerProt
 
@@ -11,7 +11,7 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  * (`0` = root world) followed by a u8 active level — exactly what the rev-239 client's
  * `SetActiveWorldV2` reader consumes (`index = g2s`, `activeLevel = g1`; no byte transforms).
  *
- * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract the opcode's ISAAC
+ * Per [emu.transport.pipeline.writePacket]'s keystream-ordering contract the opcode's ISAAC
  * adjustment is applied by the pipeline, so this never touches [cipher].
  */
 object SetActiveWorldEncoder : MessageEncoder<SetActiveWorld> {

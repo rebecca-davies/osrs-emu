@@ -2,8 +2,8 @@ package emu.server.world.network.handler
 
 import emu.game.chat.ChatFilterInput
 import emu.game.chat.PlayerChatSink
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.pipeline.PacketHandler
+import emu.transport.pipeline.HandlerContext
+import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.game.message.SetChatFilterSettings
 import io.github.oshai.kotlinlogging.KotlinLogging
 

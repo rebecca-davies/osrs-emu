@@ -39,7 +39,7 @@ class CompositionBoundaryTest {
                 "server-js5",
                 "server-login",
                 "server-world",
-                "net-core",
+                "transport",
                 "persistence-api",
                 "persistence-postgres",
                 "protocol-login",

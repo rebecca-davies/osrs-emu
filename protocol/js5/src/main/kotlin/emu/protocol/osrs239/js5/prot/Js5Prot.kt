@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.js5.prot
 
-import emu.netcore.prot.Prot
+import emu.transport.prot.Prot
 
 /**
  * JS5 opcode/size table for OSRS rev 235.

@@ -1,7 +1,7 @@
 dependencies {
     implementation(project(":cache"))
     implementation(project(":crypto"))
-    implementation(project(":net-core"))
+    implementation(project(":transport"))
     implementation(project(":protocol-js5"))
     implementation(libs.ktor.network)
     implementation(libs.kotlin.logging)

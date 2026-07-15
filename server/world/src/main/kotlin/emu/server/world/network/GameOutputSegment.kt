@@ -1,6 +1,6 @@
 package emu.server.world.network
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** A plain packet run or a rev-239 atomic packet group within a batch. */
 internal sealed interface GameOutputSegment {

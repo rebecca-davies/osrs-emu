@@ -1,8 +1,8 @@
 package emu.server.js5.handler
 
 import emu.cache.store.Store
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.pipeline.PacketHandler
+import emu.transport.pipeline.HandlerContext
+import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
 import emu.protocol.osrs239.js5.message.Js5Request
 import io.github.oshai.kotlinlogging.KotlinLogging

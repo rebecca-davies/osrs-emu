@@ -21,11 +21,11 @@ import emu.server.world.player.playerButtonActions
 import emu.server.world.player.playerChatActions
 import emu.server.world.runtime.WorldSessionRegistry
 import emu.server.session.GameSessionToken
-import emu.netcore.codec.CodecRepository
-import emu.netcore.pipeline.HandlerRepositoryBuilder
-import emu.netcore.pipeline.OutboundSession
-import emu.netcore.pipeline.ProtocolStage
-import emu.netcore.prot.Prot
+import emu.transport.codec.CodecRepository
+import emu.transport.pipeline.HandlerRepositoryBuilder
+import emu.transport.pipeline.OutboundSession
+import emu.transport.pipeline.ProtocolStage
+import emu.transport.prot.Prot
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerRecord
 import emu.persistence.character.PlayerSessionSave

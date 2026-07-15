@@ -7,12 +7,13 @@ review.
 ## Architecture — composable, never monolithic
 
 1. **No god-objects.** A connection "session" is a *composition* — a decoder + a pure handler +
-   an encoder driven by `net-core`'s `ProtocolStage`. Never a `Session.serve()` method that reads,
+   an encoder driven by `transport`'s `ProtocolStage`. Never a `Session.serve()` method that reads,
    loops, dispatches, and writes all at once.
 2. **Small single-purpose units** with well-defined interfaces. If a file does two things, split it.
 3. **Module boundaries are law:**
-   - `buffer`, `crypto` — leaf libraries with **zero** protocol knowledge (no opcodes, no revision).
-   - `net-core` — **revision-agnostic**: `Prot(opcode,size)`, `Message` hierarchy, codec
+   - `libraries/{buffer,compression,crypto}` — leaf libraries with **zero** protocol knowledge
+     (no opcodes, no revision).
+   - `libraries/transport` — **revision-agnostic**: `Prot(opcode,size)`, `Message` hierarchy, codec
      interfaces + registry, `ProtocolStage`, `Session`. **No opcode literals, ever.**
    - `cache` — layered: `Store` leaf → `Container`(decompress/XTEA) → `Js5Index` → `Definition`.
      Each layer a small pure/testable unit, not one god-class. Build upper layers as needed (YAGNI).
@@ -41,12 +42,13 @@ review.
     so it scales to hundreds of packets.
 5c. **Registration is explicit and framework-free.** Protocols expose named repository factories;
     services constructor-inject handlers and connection-local state. Koin and environment reads
-    live only in `server/host`; peer services and `net-core` use ordinary Kotlin constructors.
+    live only in `server/host`; peer services and `transport` use ordinary Kotlin constructors.
 5d. **Cohesion is enforced.** One primary responsibility per file. Reusable or independently
     changing logic gets a named subpackage and its own file. Never create `Util`, `Common`, or
     unrelated config companion-object dumps. Keep wire, handler, domain, persistence and
     orchestration packages separate. Gradle modules live under capability folders such as
-    `protocol/`, `server/`, and `tools/`; executable architecture checks protect these boundaries.
+    `libraries/`, `protocol/`, `server/`, and `tools/`; executable architecture checks protect
+    these boundaries.
 5e. **One independently meaningful production declaration per file.** `internal` is visibility,
     not permission to hide another class in a convenient file. Secondary declarations are allowed
     only when private, small, stateless and inseparable, or nested in one closed sealed family.

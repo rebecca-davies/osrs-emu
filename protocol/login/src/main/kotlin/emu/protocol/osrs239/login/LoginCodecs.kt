@@ -1,8 +1,8 @@
 package emu.protocol.osrs239.login
 
-import emu.netcore.codec.CodecRepository
-import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.codec.MessageEncoder
+import emu.transport.codec.CodecRepository
+import emu.transport.codec.CodecRepositoryBuilder
+import emu.transport.codec.MessageEncoder
 import emu.protocol.osrs239.login.codec.LoginResponseEncoder
 import emu.protocol.osrs239.login.codec.ServerSessionKeyEncoder
 

@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.prot
 
-import emu.netcore.prot.Prot
+import emu.transport.prot.Prot
 
 /**
  * Game (post-login) server->client opcode/size table for OSRS rev 239 — the implemented subset of

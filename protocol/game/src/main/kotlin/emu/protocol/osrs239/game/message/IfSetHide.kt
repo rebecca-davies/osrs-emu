@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Sets whether one interface component and its descendants are hidden. */
 data class IfSetHide(

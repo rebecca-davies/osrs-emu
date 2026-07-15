@@ -1,8 +1,8 @@
 package emu.server.js5.handler
 
 import emu.crypto.XorStreamCipher
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.pipeline.PacketHandler
+import emu.transport.pipeline.HandlerContext
+import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.js5.message.Js5Control
 import emu.protocol.osrs239.js5.prot.Js5Prot
 

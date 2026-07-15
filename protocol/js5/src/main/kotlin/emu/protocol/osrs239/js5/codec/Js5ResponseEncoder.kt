@@ -1,8 +1,8 @@
 package emu.protocol.osrs239.js5.codec
 
 import emu.crypto.StreamCipher
-import emu.netcore.codec.MessageEncoder
-import emu.netcore.prot.Prot
+import emu.transport.codec.MessageEncoder
+import emu.transport.prot.Prot
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
 import emu.protocol.osrs239.js5.prot.Js5Prot
 

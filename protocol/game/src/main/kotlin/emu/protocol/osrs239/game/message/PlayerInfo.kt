@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * Rev-239 PLAYER_INFO for a single local player, including movement and extended information.

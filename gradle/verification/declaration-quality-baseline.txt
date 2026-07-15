@@ -1,6 +1,6 @@
 # Existing production declaration-layout debt. This file may only shrink as focused cleanup slices
 # land; new entries fail declarationQualityCheck and require architectural review.
-filename|net-core/src/main/kotlin/emu/netcore/pipeline/OutboundWriter.kt|WritePacket|function:writePacket
+filename|libraries/transport/src/main/kotlin/emu/transport/pipeline/OutboundWriter.kt|WritePacket|function:writePacket
 filename|server/host/src/main/kotlin/emu/server/host/PersistenceWiring.kt|PersistenceModule|function:persistenceModule
 filename|server/host/src/main/kotlin/emu/server/host/ServerApplication.kt|RunServer|function:runServer
 filename|server/host/src/main/kotlin/emu/server/host/ServerEnvironment.kt|LoadServerConfig|function:loadServerConfig
@@ -18,8 +18,8 @@ multiple|cache/src/main/kotlin/emu/cache/def/codec/ObjectDefCodec.kt|type:Object
 multiple|cache/src/main/kotlin/emu/cache/index/BigSmart.kt|type:BigSmart,function:readIndexField,function:writeIndexField,function:indexFieldSize
 multiple|cache/src/main/kotlin/emu/cache/index/Crc32.kt|function:crc32,function:withRecomputedCrc
 multiple|cache/src/main/kotlin/emu/cache/index/Js5Index.kt|type:Js5IndexFlags,type:FileEntry,type:GroupEntry,type:Js5Index
-multiple|crypto/src/main/kotlin/emu/crypto/Rsa.kt|type:RsaKeyPair,type:Rsa
-multiple|crypto/src/main/kotlin/emu/crypto/StreamCipher.kt|type:StreamCipher,type:NopStreamCipher
+multiple|libraries/crypto/src/main/kotlin/emu/crypto/Rsa.kt|type:RsaKeyPair,type:Rsa
+multiple|libraries/crypto/src/main/kotlin/emu/crypto/StreamCipher.kt|type:StreamCipher,type:NopStreamCipher
 multiple|game/src/main/kotlin/emu/game/chat/ChatActionRegistry.kt|type:ChatAction,type:ChatActionRegistry,function:chatActions,type:ChatActionRegistryBuilder
 multiple|game/src/main/kotlin/emu/game/chat/ChatInput.kt|type:ChatInput,type:PublicChatInput,type:ChatFilterInput
 multiple|game/src/main/kotlin/emu/game/chat/PlayerChatQueue.kt|type:PlayerChatSink,type:PlayerChatQueue
@@ -33,10 +33,10 @@ multiple|game/src/main/kotlin/emu/game/pathfinding/Tile.kt|type:Tile,type:PathRo
 multiple|game/src/main/kotlin/emu/game/ui/ButtonActionRegistry.kt|type:ButtonAction,type:ButtonActionRegistry,function:buttonActions,type:ButtonActionRegistryBuilder
 multiple|game/src/main/kotlin/emu/game/ui/PlayerButtonQueue.kt|type:PlayerButtonSink,type:PlayerButtonQueue
 multiple|game/src/main/kotlin/emu/game/varp/VarpType.kt|type:VarpScope,type:VarpTransmit,type:VarpType,type:VarbitType,type:VarpValue,type:VarpCatalog
-multiple|net-core/src/main/kotlin/emu/netcore/codec/Codec.kt|type:MessageDecoder,type:MessageEncoder
-multiple|net-core/src/main/kotlin/emu/netcore/codec/CodecRepository.kt|type:CodecRepository,type:CodecRepositoryBuilder
-multiple|net-core/src/main/kotlin/emu/netcore/message/Message.kt|type:Message,type:IncomingMessage,type:OutgoingMessage
-multiple|net-core/src/main/kotlin/emu/netcore/pipeline/HandlerRepository.kt|type:HandlerRepository,type:HandlerRepositoryBuilder
+multiple|libraries/transport/src/main/kotlin/emu/transport/codec/Codec.kt|type:MessageDecoder,type:MessageEncoder
+multiple|libraries/transport/src/main/kotlin/emu/transport/codec/CodecRepository.kt|type:CodecRepository,type:CodecRepositoryBuilder
+multiple|libraries/transport/src/main/kotlin/emu/transport/message/Message.kt|type:Message,type:IncomingMessage,type:OutgoingMessage
+multiple|libraries/transport/src/main/kotlin/emu/transport/pipeline/HandlerRepository.kt|type:HandlerRepository,type:HandlerRepositoryBuilder
 multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/GameCodecs.kt|type:GameCodecs,function:buildGameCodecRepository
 multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerInfo.kt|type:PlayerInfo,type:PlayerMovement
 multiple|protocol/js5/src/main/kotlin/emu/protocol/osrs239/js5/Js5Codecs.kt|type:Js5Codecs,function:buildJs5CodecRepository

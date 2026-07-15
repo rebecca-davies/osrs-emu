@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.js5.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 data class Js5GroupResponse(
     val archive: Int,

@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * Recentres the normal 13x13-zone scene after login.

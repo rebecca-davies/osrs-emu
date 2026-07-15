@@ -10,7 +10,7 @@ tasks.register("verifyProtocolBoundaries") {
     description = "Verifies that revision protocol domains remain compile-isolated and framework-free."
 
     doLast {
-        val allowedProjectDependencies = setOf(":net-core", ":buffer", ":crypto")
+        val allowedProjectDependencies = setOf(":transport", ":buffer", ":crypto")
         val forbiddenImports =
             Regex(
                 "^import (org\\.koin|emu\\.protocol\\.osrs239\\.(login|js5|game))",

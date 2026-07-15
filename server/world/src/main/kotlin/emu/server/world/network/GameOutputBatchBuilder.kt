@@ -1,6 +1,6 @@
 package emu.server.world.network
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Builds one immutable output batch while preserving packet and packet-group order. */
 internal class GameOutputBatchBuilder {

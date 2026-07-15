@@ -1,9 +1,9 @@
 package emu.protocol.osrs239.js5
 
-import emu.netcore.codec.CodecRepository
-import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.codec.MessageDecoder
-import emu.netcore.codec.MessageEncoder
+import emu.transport.codec.CodecRepository
+import emu.transport.codec.CodecRepositoryBuilder
+import emu.transport.codec.MessageDecoder
+import emu.transport.codec.MessageEncoder
 import emu.protocol.osrs239.js5.codec.Js5ControlDecoder
 import emu.protocol.osrs239.js5.codec.Js5RequestDecoder
 import emu.protocol.osrs239.js5.codec.Js5ResponseEncoder

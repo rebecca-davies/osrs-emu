@@ -2,7 +2,7 @@ dependencies {
     implementation(project(":server-session"))
     implementation(project(":persistence-api"))
     implementation(project(":crypto"))
-    implementation(project(":net-core"))
+    implementation(project(":transport"))
     implementation(project(":protocol-login"))
     implementation(libs.bcrypt)
     implementation(libs.ktor.network)

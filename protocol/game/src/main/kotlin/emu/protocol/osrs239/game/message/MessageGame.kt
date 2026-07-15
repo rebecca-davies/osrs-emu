@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * A chatbox game message. [type] selects the rev-239 `chattype` (0 = `chattype_gamemessage`, the

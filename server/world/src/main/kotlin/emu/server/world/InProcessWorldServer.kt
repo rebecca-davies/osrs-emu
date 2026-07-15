@@ -3,7 +3,7 @@ package emu.server.world
 import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
 import emu.game.pathfinding.CollisionMap
-import emu.netcore.codec.CodecRepository
+import emu.transport.codec.CodecRepository
 import emu.persistence.character.CharacterStore
 import emu.persistence.chat.ChatAuditSink
 import emu.server.world.admission.GameAdmission

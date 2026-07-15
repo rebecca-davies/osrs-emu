@@ -2,8 +2,8 @@ package emu.server.world.network.handler
 
 import emu.game.ui.ButtonClick
 import emu.game.ui.PlayerButtonSink
-import emu.netcore.message.OutgoingMessage
-import emu.netcore.pipeline.HandlerContext
+import emu.transport.message.OutgoingMessage
+import emu.transport.pipeline.HandlerContext
 import emu.protocol.osrs239.game.message.IfButtonX
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test

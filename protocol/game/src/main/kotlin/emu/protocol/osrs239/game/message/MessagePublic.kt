@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.IncomingMessage
+import emu.transport.message.IncomingMessage
 
 /** Rev-239 public-chat envelope. [encodedText] remains cache-Huffman encoded at this wire layer. */
 data class MessagePublic(

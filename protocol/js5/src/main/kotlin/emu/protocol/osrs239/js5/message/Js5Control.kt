@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.js5.message
 
-import emu.netcore.message.IncomingMessage
+import emu.transport.message.IncomingMessage
 
 /**
  * A JS5 client->server control message. After the handshake the client interleaves 4-byte control

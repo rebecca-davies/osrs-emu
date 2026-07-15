@@ -8,7 +8,7 @@ import emu.server.world.network.handler.IfButtonXHandler
 import emu.server.world.network.handler.MoveGameClickHandler
 import emu.server.world.network.handler.MessagePublicHandler
 import emu.server.world.network.handler.SetChatFilterSettingsHandler
-import emu.netcore.pipeline.HandlerRepositoryBuilder
+import emu.transport.pipeline.HandlerRepositoryBuilder
 import emu.protocol.osrs239.game.message.MoveGameClick
 import emu.protocol.osrs239.game.message.IfButtonX
 import emu.protocol.osrs239.game.message.MessagePublic

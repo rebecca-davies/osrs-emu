@@ -6,8 +6,8 @@ import emu.cache.store.FlatFileStore
 import emu.crypto.NopStreamCipher
 import emu.crypto.XorStreamCipher
 import emu.server.js5.handler.Js5RequestHandler
-import emu.netcore.pipeline.HandlerRepositoryBuilder
-import emu.netcore.pipeline.ProtocolStage
+import emu.transport.pipeline.HandlerRepositoryBuilder
+import emu.transport.pipeline.ProtocolStage
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
 import emu.protocol.osrs239.js5.prot.Js5Prot

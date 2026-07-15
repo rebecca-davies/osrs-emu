@@ -1,8 +1,37 @@
 tasks.register("architectureCheck") {
     group = "verification"
-    description = "Verifies service dependencies, package ownership, and composition boundaries."
+    description = "Verifies library and service dependencies, package ownership, and composition boundaries."
 
     doLast {
+        val libraryDependencies =
+            mapOf(
+                ":buffer" to emptySet(),
+                ":compression" to emptySet(),
+                ":crypto" to emptySet(),
+                ":transport" to setOf(":buffer", ":crypto"),
+            )
+        val libraryForbiddenImports =
+            Regex("^import emu\\.(cache|game|persistence|protocol|server)", RegexOption.MULTILINE)
+        for ((path, permitted) in libraryDependencies) {
+            val library = requireNotNull(findProject(path)) { "missing library project $path" }
+            val actual =
+                library.configurations
+                    .flatMap { it.dependencies.withType<org.gradle.api.artifacts.ProjectDependency>() }
+                    .map { it.path }
+                    .toSet()
+            check(actual == permitted) {
+                "$path library dependencies differ: missing=${permitted - actual}, " +
+                    "forbidden=${actual - permitted}"
+            }
+            library.projectDir.resolve("src/main").walkTopDown()
+                .filter { it.isFile && it.extension == "kt" }
+                .forEach { source ->
+                    check(!libraryForbiddenImports.containsMatchIn(source.readText())) {
+                        "$path imports a higher-level capability: $source"
+                    }
+                }
+        }
+
         val allowed =
             mapOf(
                 ":server-gateway" to emptySet(),
@@ -13,16 +42,16 @@ tasks.register("architectureCheck") {
                         ":persistence-api",
                         ":buffer",
                         ":crypto",
-                        ":net-core",
+                        ":transport",
                         ":protocol-login",
                     ),
-                ":server-js5" to setOf(":cache", ":crypto", ":net-core", ":protocol-js5"),
+                ":server-js5" to setOf(":cache", ":crypto", ":transport", ":protocol-js5"),
                 ":server-world" to
                     setOf(
                         ":server-session",
                         ":game",
                         ":persistence-api",
-                        ":net-core",
+                        ":transport",
                         ":protocol-game",
                         ":cache",
                         ":compression",

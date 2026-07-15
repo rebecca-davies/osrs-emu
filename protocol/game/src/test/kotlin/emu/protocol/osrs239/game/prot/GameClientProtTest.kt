@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.prot
 
-import emu.netcore.prot.Prot
+import emu.transport.prot.Prot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

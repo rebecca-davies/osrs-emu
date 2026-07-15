@@ -1,7 +1,7 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.crypto.StreamCipher
-import emu.netcore.codec.MessageEncoder
+import emu.transport.codec.MessageEncoder
 import emu.protocol.osrs239.game.message.ChatFilterPrivate
 import emu.protocol.osrs239.game.prot.GameServerProt
 

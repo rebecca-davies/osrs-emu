@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Invokes a cache client script with integer and CP-1252 string arguments. */
 data class RunClientScript(
