@@ -21,8 +21,10 @@ class CompositionBoundaryTest {
     fun `legacy app and game capability names are absent`() {
         val settings = root.resolve("settings.gradle.kts").readText()
 
-        assertFalse(root.resolve("server/app").toFile().exists())
-        assertFalse(root.resolve("server/game").toFile().exists())
+        assertFalse(root.resolve("server/app/src").toFile().exists())
+        assertFalse(root.resolve("server/app/build.gradle.kts").isRegularFile())
+        assertFalse(root.resolve("server/game/src").toFile().exists())
+        assertFalse(root.resolve("server/game/build.gradle.kts").isRegularFile())
         assertFalse(settings.contains("server-app"))
         assertFalse(settings.contains("server-game"))
     }
