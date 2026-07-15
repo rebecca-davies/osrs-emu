@@ -8,7 +8,7 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 
 /** Character admission, connection handoff, and lifecycle operations owned by the world service. */
-interface WorldServer : AutoCloseable {
+interface WorldServer {
     fun start()
 
     /** Suspends for the server lifetime and propagates an unexpected world failure. */

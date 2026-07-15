@@ -10,7 +10,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 
 /** Owns execution and termination reporting for the authoritative world coroutine. */
-internal class WorldLifecycle(
+class WorldLifecycle(
     dispatcher: CoroutineDispatcher,
     private val runWorld: suspend () -> Unit,
 ) {

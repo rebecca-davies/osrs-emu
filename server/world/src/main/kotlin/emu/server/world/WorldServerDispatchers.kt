@@ -6,7 +6,7 @@ import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 
 /** Owns the isolated tick and connection executors for an in-process world service. */
-internal class WorldServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
+class WorldServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
     private val closed = AtomicBoolean(false)
 
     init {

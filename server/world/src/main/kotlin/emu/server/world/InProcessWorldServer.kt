@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 private val logger = KotlinLogging.logger {}
 
 /** In-process world service for prepared character sessions. */
-internal class InProcessWorldServer(
+class InProcessWorldServer(
     private val codecs: CodecRepository,
     private val characters: CharacterStore,
     private val chatAudit: ChatAuditSink,
@@ -98,9 +98,5 @@ internal class InProcessWorldServer(
 
     override suspend fun stop() {
         worldLifecycle.stop()
-    }
-
-    override fun close() {
-        dispatchers.close()
     }
 }

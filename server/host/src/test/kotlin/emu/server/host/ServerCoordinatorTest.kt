@@ -121,8 +121,6 @@ class ServerCoordinatorTest {
         }
 
         override suspend fun stop() = Unit
-
-        override fun close() = Unit
     }
 
     private object FakeJs5 : Js5Server {

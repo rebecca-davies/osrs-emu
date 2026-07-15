@@ -46,6 +46,7 @@ class CompositionBoundaryTest {
                 "protocol-js5",
                 "protocol-game",
                 "cache",
+                "compression",
                 "crypto",
             ),
             projectDependencies,
@@ -129,12 +130,14 @@ class CompositionBoundaryTest {
     }
 
     @Test
-    fun `host composes the world capability without importing its implementation`() {
+    fun `host owns the world object graph`() {
         val application = root.resolve("server/host/src/main/kotlin/emu/server/host/ServerApplication.kt").readText()
+        val wiring = root.resolve("server/host/src/main/kotlin/emu/server/host/WorldModule.kt").readText()
 
-        assertTrue(application.contains("createWorldServer("))
-        assertFalse(application.contains("BoundedWorldServer"))
-        assertFalse(application.contains("InProcessWorldServer"))
+        assertTrue(application.contains("worldModule("))
+        assertTrue(wiring.contains("single<WorldServer>"))
+        assertFalse(application.contains("createWorldServer("))
+        assertFalse(root.resolve("server/world/src/main/kotlin/emu/server/world/CreateWorldServer.kt").toFile().exists())
     }
 
     private fun serverSources(module: String): List<Path> = root.resolve("server/$module/src").kotlinSources()

@@ -3,7 +3,7 @@ package emu.server.world.runtime
 import emu.server.session.GameSessionToken
 
 /** Registers, activates and removes player sessions at world command boundaries. */
-internal interface WorldSessionRegistry {
+interface WorldSessionRegistry {
     fun register(participant: WorldParticipant, startActive: Boolean = true): WorldRegistration
 
     fun attach(

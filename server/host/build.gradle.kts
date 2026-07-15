@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":protocol-js5"))
     implementation(project(":protocol-game"))
     implementation(project(":cache"))
+    implementation(project(":compression"))
     implementation(project(":crypto"))
     implementation(libs.ktor.network)
     implementation(libs.kotlin.logging)

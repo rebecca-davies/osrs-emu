@@ -30,7 +30,7 @@ private const val DEFAULT_COMMAND_CAPACITY = 1_024
  * so two players can never advance on independent schedules or race the same world state.
  * Participant failures are isolated to that participant; cancellation still tears down the world.
  */
-internal class WorldRuntime(
+class WorldRuntime(
     tickInterval: Duration = GAME_TICK_MILLIS.milliseconds,
     commandCapacity: Int = DEFAULT_COMMAND_CAPACITY,
     private val maxPlayerIndex: Int = DEFAULT_MAX_PLAYER_INDEX,

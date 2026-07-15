@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 
 /** Preloads characters and owns reservation permits until their game sessions finish. */
-internal class GameAdmission(
+class GameAdmission(
     private val worldReservations: WorldReservationService,
     capacity: Int,
     private val loadCharacter: suspend (Long) -> PlayerRecord?,

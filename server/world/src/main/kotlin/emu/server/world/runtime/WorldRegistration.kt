@@ -8,7 +8,7 @@ import kotlinx.coroutines.Deferred
  * [playerIndex] resolves to the reserved index, or null when admission is rejected. [removed]
  * resolves after an admitted index is released, or immediately for a rejected registration.
  */
-internal class WorldRegistration internal constructor(
+class WorldRegistration internal constructor(
     internal val playerIndex: Deferred<Int?>,
     internal val removed: Deferred<Unit>,
 )
