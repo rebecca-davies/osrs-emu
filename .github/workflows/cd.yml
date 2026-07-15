@@ -1,0 +1,60 @@
+name: CD
+
+# Continuous deployment, gated to `main`. First re-runs the full build + test (the deploy
+# gate), then deploys the gateway to the LOCAL single host.
+#
+# What "deploy" means here (see scripts/deploy.sh + CI.md):
+#   - Build the gateway Docker image and (re)start ONLY the `osrsemu-gateway` container.
+#   - It is the SERVER only. It NEVER launches the RuneLite client and never reaches
+#     Jagex's network (CLAUDE.md §12a). There is deliberately no client step.
+#   - The cache dump + RSA key are bind-mounted read-only from the host (CLAUDE.md §14);
+#     nothing secret or gitignored is baked into the image (.dockerignore enforces this).
+#
+# How the deploy job reaches the host Docker daemon:
+#   act runs each job inside a container. This job uses docker-out-of-docker: act mounts
+#   the host's /var/run/docker.sock into the runner by default, so `docker`/`docker compose`
+#   here drive the HOST daemon and the gateway container is created as a sibling on the host.
+#   Because the host daemon resolves bind-mount sources, the runtime asset paths must be
+#   absolute HOST paths, supplied via the environment (OSRS_CACHE_DIR /
+#   OSRS_SERVER_RSA_PROPERTIES / OSRS_ASSETS_ON_HOST=1). See CI.md for the exact
+#   `act` command. On a real self-hosted runner on this box the same job runs unchanged.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never cancel an in-flight deploy; serialize deploys to main.
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build and test (deploy gate)
+        run: ./gradlew build --no-daemon --stacktrace
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads OSRS_CACHE_DIR / OSRS_SERVER_RSA_PROPERTIES / OSRS_ASSETS_ON_HOST from the
+      # ambient environment (act `--env`, or the self-hosted runner's env). Not hardcoded
+      # here so an unset repo variable can't blank them out.
+      - name: Deploy gateway (build image + restart local container)
+        run: ./scripts/deploy.sh

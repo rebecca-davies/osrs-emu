@@ -11,3 +11,9 @@ client/
 # Generated server RSA keypair (tools:client-patch) — the gateway's private key. Never commit.
 /server-rsa.properties
 .kotlin/
+
+# AI tooling / assistant-generated folders — not part of the shippable project.
+# (Committed CI/CD docs live at the repo root, e.g. CI.md, not under docs/.)
+.claude/
+.superpowers/
+docs/
