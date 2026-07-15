@@ -16,7 +16,7 @@ review.
      interfaces + registry, `ProtocolStage`, `Session`. **No opcode literals, ever.**
    - `cache` — layered: `Store` leaf → `Container`(decompress/XTEA) → `Js5Index` → `Definition`.
      Each layer a small pure/testable unit, not one god-class. Build upper layers as needed (YAGNI).
-   - `protocol-osrs239` — owns the rev-239 opcode/size table and per-packet codecs.
+   - `protocol/{login,js5,game}` — owns the rev-239 opcode/size tables and per-packet codecs.
    - services (`gateway`, later `login`/`world`/`social`) — thin: wire codecs + handlers onto
      `ProtocolStage`; never hand-roll wire parsing.
    - Dependencies point *down* the stack; leaves never depend on services.

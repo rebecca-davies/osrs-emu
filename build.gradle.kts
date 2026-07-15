@@ -3,9 +3,9 @@ plugins {
 }
 
 val protocolDomainProjects = listOf(
-    ":protocol-osrs239-login",
-    ":protocol-osrs239-js5",
-    ":protocol-osrs239-game",
+    ":protocol-login",
+    ":protocol-js5",
+    ":protocol-game",
 )
 
 val verifyProtocolBoundaries by tasks.registering {
