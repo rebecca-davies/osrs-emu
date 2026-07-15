@@ -35,7 +35,6 @@ multiple|game/src/main/kotlin/emu/game/ui/PlayerButtonQueue.kt|type:PlayerButton
 multiple|game/src/main/kotlin/emu/game/varp/VarpType.kt|type:VarpScope,type:VarpTransmit,type:VarpType,type:VarbitType,type:VarpValue,type:VarpCatalog
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/Codec.kt|type:MessageDecoder,type:MessageEncoder
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/CodecRepository.kt|type:CodecRepository,type:CodecRepositoryBuilder
-multiple|libraries/transport/src/main/kotlin/emu/transport/message/Message.kt|type:Message,type:IncomingMessage,type:OutgoingMessage
 multiple|libraries/transport/src/main/kotlin/emu/transport/pipeline/HandlerRepository.kt|type:HandlerRepository,type:HandlerRepositoryBuilder
 multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/GameCodecs.kt|type:GameCodecs,function:buildGameCodecRepository
 multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerInfo.kt|type:PlayerInfo,type:PlayerMovement
