@@ -9,7 +9,11 @@ data class RsaKeyPair(
     val modulus: BigInteger,
     val publicExp: BigInteger,
     val privateExp: BigInteger,
-)
+) {
+    /** Describes the public key while excluding private key material. */
+    override fun toString(): String =
+        "RsaKeyPair(modulusBits=${modulus.bitLength()}, publicExp=$publicExp, privateExp=<redacted>)"
+}
 
 object Rsa {
     fun crypt(data: ByteArray, mod: BigInteger, exp: BigInteger): ByteArray =
