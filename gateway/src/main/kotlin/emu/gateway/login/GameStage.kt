@@ -34,6 +34,7 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -83,6 +84,9 @@ internal const val SPAWN_Y = 3218
  * sole owner of [OutboundSession], outbound ISAAC and the socket, so a slow client cannot suspend
  * the authoritative world cycle and each opcode still advances the keystream exactly once.
  *
+ * A fresh login sets [sendLoginInfo] so its rank and admitted player index are written before that
+ * writer starts. Reconnects omit the trailer, matching the rev-239 login-state contract.
+ *
  * [maxTicks] is a per-session test seam; production leaves it unbounded.
  */
 internal suspend fun runGameStage(
@@ -99,6 +103,7 @@ internal suspend fun runGameStage(
     collisionMap: CollisionMap = OpenCollisionMap,
     huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
     chatAudit: ChatAuditSink = ChatAuditSink { true },
+    sendLoginInfo: Boolean = false,
 ): Unit {
     val sessionStarted = System.nanoTime()
     val outboundMailbox = GameOutboundMailbox(OUTBOUND_BATCH_CAPACITY)
@@ -140,19 +145,24 @@ internal suspend fun runGameStage(
     )
     try {
         coroutineScope {
-            val writerJob = launch(Dispatchers.IO) { outboundMailbox.run(outboundWriter::write) }
+            val registration = worldRuntime.register(gameLoop, startActive = false)
+            val localPlayerIndex = registration.playerIndex.await()
+            if (localPlayerIndex == null) {
+                logger.warn { "game stage: rejected duplicate, overloaded, or full session for player ${player.id}" }
+                return@coroutineScope
+            }
             try {
-                val registration = worldRuntime.register(gameLoop, startActive = false)
-                if (!registration.admitted.await()) {
-                    logger.warn { "game stage: rejected duplicate or overloaded session for player ${player.id}" }
-                    return@coroutineScope
+                if (sendLoginInfo) {
+                    write.writeFully(loginSuccessTrailer(player.rank, localPlayerIndex))
+                    write.flush()
                 }
+                val writerJob = launch(Dispatchers.IO) { outboundMailbox.run(outboundWriter::write) }
                 try {
                     val initialBatch = initialGameCycle(
                         spawnPlane = player.position.plane,
                         spawnX = player.position.x,
                         spawnY = player.position.y,
-                        localPlayerIndex = LOCAL_PLAYER_INDEX,
+                        localPlayerIndex = localPlayerIndex,
                         appearance = playerAppearance(player.displayName),
                         accountVarps = initialAccountVarps(playerVarps),
                         chatFilters = initialChatFilters(playerVarps),
@@ -190,19 +200,19 @@ internal suspend fun runGameStage(
                     registration.removed.await()
                     readJob.cancelAndJoin()
                 } finally {
-                    if (!registration.removed.isCompleted) {
-                        withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                    outboundMailbox.close()
+                    withContext(NonCancellable) {
+                        try {
+                            withTimeout(OUTBOUND_DRAIN_TIMEOUT) { writerJob.join() }
+                        } catch (_: TimeoutCancellationException) {
+                            logger.warn { "game stage: timed out draining outbound batches for player ${player.id}" }
+                            writerJob.cancelAndJoin()
+                        }
                     }
                 }
             } finally {
-                outboundMailbox.close()
-                withContext(NonCancellable) {
-                    try {
-                        withTimeout(OUTBOUND_DRAIN_TIMEOUT) { writerJob.join() }
-                    } catch (_: TimeoutCancellationException) {
-                        logger.warn { "game stage: timed out draining outbound batches for player ${player.id}" }
-                        writerJob.cancelAndJoin()
-                    }
+                if (!registration.removed.isCompleted) {
+                    withContext(NonCancellable) { worldRuntime.remove(player.id) }
                 }
             }
         }

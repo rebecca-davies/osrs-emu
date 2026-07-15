@@ -8,7 +8,6 @@ import emu.persistence.AuthenticationResult
 import emu.persistence.PlayerRank
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readByte
-import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.runBlocking
@@ -44,8 +43,7 @@ class LoginAuthenticationTest {
 
         assertEquals(PlayerRank.ADMINISTRATOR, requireNotNull(login).player.rank)
         assertEquals(2, write.readByte().toInt() and 0xFF)
-        val trailer = ByteArray(LOGIN_SUCCESS_TRAILER.size)
-        write.readFully(trailer)
+        val trailer = loginSuccessTrailer(requireNotNull(login).player.rank, playerIndex = 1)
         assertEquals(2, trailer[LOGIN_RIGHTS_TRAILER_OFFSET].toInt() and 0xFF)
         assertEquals(1, trailer[LOGIN_PLAYER_MOD_TRAILER_OFFSET].toInt() and 0xFF)
     }

@@ -224,6 +224,7 @@ internal suspend fun handleConnection(
                     chatAudit = chatAudit,
                     idleTimeout = gameIdleTimeout,
                     collisionMap = collisionMap,
+                    sendLoginInfo = !next.login.reconnect,
                 )
             null -> {}
         }

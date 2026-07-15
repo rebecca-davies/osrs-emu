@@ -16,6 +16,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = KotlinLogging.logger {}
+private const val REV_239_MAX_PLAYER_INDEX = 2_047
 
 /** One logged-in player that is advanced by the server-owned [WorldRuntime]. */
 internal interface WorldParticipant {
@@ -33,9 +34,15 @@ internal enum class WorldParticipantResult {
     REMOVE,
 }
 
-/** Admission and removal signals for one submitted world participant. */
+/**
+ * Admission and removal signals for one submitted world participant.
+ *
+ * [playerIndex] completes with the atomically reserved index once the world owns the participant,
+ * or null when admission is rejected. [removed] completes after an admitted index is released, or
+ * immediately for a rejected registration.
+ */
 internal class WorldRegistration internal constructor(
-    internal val admitted: Deferred<Boolean>,
+    internal val playerIndex: Deferred<Int?>,
     internal val removed: Deferred<Unit>,
 )
 
@@ -70,15 +77,15 @@ internal class WorldRuntime(
         participant: WorldParticipant,
         startActive: Boolean = true,
     ): WorldRegistration {
-        val admission = CompletableDeferred<Boolean>()
+        val playerIndex = CompletableDeferred<Int?>()
         val removal = CompletableDeferred<Unit>()
-        val command = Command.Add(participant, startActive, admission, removal)
+        val command = Command.Add(participant, startActive, playerIndex, removal)
         if (commands.trySend(command).isFailure) {
-            admission.complete(false)
+            playerIndex.complete(null)
             removal.complete(Unit)
             logger.warn { "world: rejected player ${participant.playerId}; command mailbox is unavailable" }
         }
-        return WorldRegistration(admission, removal)
+        return WorldRegistration(playerIndex, removal)
     }
 
     /** Requests removal at the next world command boundary. */
@@ -107,18 +114,20 @@ internal class WorldRuntime(
         require(maxTicks >= 0) { "maxTicks must be non-negative" }
         check(started.compareAndSet(false, true)) { "world runtime can only be started once" }
         val active = linkedMapOf<Long, ActiveParticipant>()
+        val playerIndexes = PlayerIndexAllocator()
         val schedule = FixedRateTickSchedule(intervalMillis)
         var worldTick = 0L
         try {
             while (worldTick < maxTicks) {
                 val startedAtMillis = System.currentTimeMillis()
                 val profileStartedAt = System.nanoTime()
-                drainCommands(active)
-                runParticipantCycles(active, worldTick)
+                drainCommands(active, playerIndexes)
+                runParticipantCycles(active, playerIndexes, worldTick)
                 val profileFinishedAt = System.nanoTime()
                 val cycleDurationNanos = profileFinishedAt - profileStartedAt
                 publishProfile(
                     active,
+                    playerIndexes,
                     worldTick,
                     cycleDurationNanos,
                     profiler.record(cycleDurationNanos, profileFinishedAt),
@@ -130,37 +139,54 @@ internal class WorldRuntime(
             }
         } finally {
             commands.close()
-            active.values.forEach { it.removal.complete(Unit) }
-            active.clear()
+            active.keys.toList().forEach { removeParticipant(active, playerIndexes, it) }
             rejectPendingRegistrations()
             logger.info { "world: stopped after $worldTick cycles" }
         }
     }
 
-    private fun drainCommands(active: MutableMap<Long, ActiveParticipant>) {
+    private fun drainCommands(
+        active: MutableMap<Long, ActiveParticipant>,
+        playerIndexes: PlayerIndexAllocator,
+    ) {
         while (true) {
             when (val command = commands.tryReceive().getOrNull() ?: return) {
                 is Command.Add -> {
                     if (active.containsKey(command.participant.playerId)) {
-                        command.admission.complete(false)
+                        command.playerIndex.complete(null)
                         command.removal.complete(Unit)
                         logger.warn { "world: rejected duplicate session for player ${command.participant.playerId}" }
                     } else {
-                        active[command.participant.playerId] =
-                            ActiveParticipant(command.participant, command.removal, command.startActive)
-                        command.admission.complete(true)
-                        logger.info { "world: admitted player ${command.participant.playerId}" }
+                        val playerIndex = playerIndexes.allocate()
+                        if (playerIndex == null) {
+                            command.playerIndex.complete(null)
+                            command.removal.complete(Unit)
+                            logger.warn { "world: rejected player ${command.participant.playerId}; player slots are full" }
+                        } else {
+                            active[command.participant.playerId] =
+                                ActiveParticipant(
+                                    command.participant,
+                                    playerIndex,
+                                    command.removal,
+                                    command.startActive,
+                                )
+                            command.playerIndex.complete(playerIndex)
+                            logger.info {
+                                "world: admitted player ${command.participant.playerId} at index $playerIndex"
+                            }
+                        }
                     }
                 }
 
                 is Command.Activate -> active[command.playerId]?.active = true
-                is Command.Remove -> removeParticipant(active, command.playerId)
+                is Command.Remove -> removeParticipant(active, playerIndexes, command.playerId)
             }
         }
     }
 
     private fun runParticipantCycles(
         active: MutableMap<Long, ActiveParticipant>,
+        playerIndexes: PlayerIndexAllocator,
         worldTick: Long,
     ) {
         val removals = mutableListOf<Long>()
@@ -177,11 +203,12 @@ internal class WorldRuntime(
                 removals += playerId
             }
         }
-        removals.forEach { removeParticipant(active, it) }
+        removals.forEach { removeParticipant(active, playerIndexes, it) }
     }
 
     private fun publishProfile(
         active: MutableMap<Long, ActiveParticipant>,
+        playerIndexes: PlayerIndexAllocator,
         worldTick: Long,
         cycleDurationNanos: Long,
         event: emu.game.cycle.CycleProfileEvent,
@@ -210,23 +237,25 @@ internal class WorldRuntime(
                 removals += playerId
             }
         }
-        removals.forEach { removeParticipant(active, it) }
+        removals.forEach { removeParticipant(active, playerIndexes, it) }
     }
 
     private fun removeParticipant(
         active: MutableMap<Long, ActiveParticipant>,
+        playerIndexes: PlayerIndexAllocator,
         playerId: Long,
     ) {
         val removed = active.remove(playerId) ?: return
+        playerIndexes.release(removed.playerIndex)
         removed.removal.complete(Unit)
-        logger.info { "world: removed player $playerId" }
+        logger.info { "world: removed player $playerId from index ${removed.playerIndex}" }
     }
 
     private fun rejectPendingRegistrations() {
         while (true) {
             when (val command = commands.tryReceive().getOrNull() ?: return) {
                 is Command.Add -> {
-                    command.admission.complete(false)
+                    command.playerIndex.complete(null)
                     command.removal.complete(Unit)
                 }
 
@@ -240,7 +269,7 @@ internal class WorldRuntime(
         data class Add(
             val participant: WorldParticipant,
             val startActive: Boolean,
-            val admission: CompletableDeferred<Boolean>,
+            val playerIndex: CompletableDeferred<Int?>,
             val removal: CompletableDeferred<Unit>,
         ) : Command
 
@@ -251,12 +280,37 @@ internal class WorldRuntime(
 
     private data class ActiveParticipant(
         val participant: WorldParticipant,
+        val playerIndex: Int,
         val removal: CompletableDeferred<Unit>,
         var active: Boolean,
     )
 
     private companion object {
         const val DEFAULT_COMMAND_CAPACITY = 1_024
+    }
+}
+
+/** Deterministically owns the bounded set of non-zero rev-239 player-array indexes. */
+private class PlayerIndexAllocator {
+    private val allocated = BooleanArray(REV_239_MAX_PLAYER_INDEX + 1)
+
+    /** Reserves and returns the lowest available player index, or null when every slot is in use. */
+    fun allocate(): Int? {
+        for (playerIndex in 1 until allocated.size) {
+            if (!allocated[playerIndex]) {
+                allocated[playerIndex] = true
+                return playerIndex
+            }
+        }
+        return null
+    }
+
+    /** Returns a previously reserved player index to the available set. */
+    fun release(playerIndex: Int) {
+        check(playerIndex in 1 until allocated.size && allocated[playerIndex]) {
+            "player index $playerIndex is not allocated"
+        }
+        allocated[playerIndex] = false
     }
 }
 

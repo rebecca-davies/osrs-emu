@@ -24,16 +24,8 @@ data class AuthenticatedGameLogin(
     val inbound: IsaacCipher,
     val outbound: IsaacCipher,
     val player: PlayerRecord,
+    val reconnect: Boolean,
 )
-
-/**
- * The local player's index into the client's 2048-slot player array (`client.di`). This is the one
- * load-bearing field in the login-info trailer ([LOGIN_SUCCESS_TRAILER]) — the game stage's
- * initial `RebuildLogin`/`PlayerInfo` packets describe this same local player. Until external-player
- * GPI and a world player-index allocator are implemented, every client uses index 1 for its own
- * isolated local-player view (index 0 is conventionally reserved).
- */
-const val LOCAL_PLAYER_INDEX: Int = 1
 
 /**
  * Value the client requires in the byte after response code 2. This is not the number of account
@@ -65,23 +57,33 @@ private const val DI_OFFSET = 7
  * bytes here makes the login state parse those zeros as the first packet header and advances the
  * inbound ISAAC stream before the real rebuild.
  * Unimplemented account identifiers zero-fill. Rights come from the authenticated account rank,
- * and `di` carries [LOCAL_PLAYER_INDEX] so the client can index and draw its local avatar.
+ * and `di` carries the index allocated during paused world admission so the client can index and
+ * draw its local avatar.
  */
-val LOGIN_SUCCESS_TRAILER: ByteArray = loginSuccessTrailer(PlayerRank.PLAYER)
+internal const val LOGIN_SUCCESS_TRAILER_LENGTH = 35
 
 /** Index of the rev-239 rights byte in the complete span+login-info trailer. */
 internal const val LOGIN_RIGHTS_TRAILER_OFFSET = 6
 internal const val LOGIN_PLAYER_MOD_TRAILER_OFFSET = 7
 
-private fun loginSuccessTrailer(rank: PlayerRank): ByteArray =
-    byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock(rank)
+/** Builds the fresh-login account block for the player index reserved by the world. */
+internal fun loginSuccessTrailer(
+    rank: PlayerRank,
+    playerIndex: Int,
+): ByteArray {
+    require(playerIndex in 1 until 2_048) { "player index out of range: $playerIndex" }
+    return byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock(rank, playerIndex)
+}
 
-private fun buildLoginInfoBlock(rank: PlayerRank): ByteArray {
+private fun buildLoginInfoBlock(
+    rank: PlayerRank,
+    playerIndex: Int,
+): ByteArray {
     val block = ByteArray(LOGIN_INFO_PAYLOAD_LENGTH)
     block[RIGHTS_OFFSET] = rank.loginStaffModLevel.toByte()
     block[PLAYER_MOD_OFFSET] = if (rank.loginPlayerModerator) 1 else 0
-    block[DI_OFFSET] = (LOCAL_PLAYER_INDEX ushr 8).toByte()
-    block[DI_OFFSET + 1] = LOCAL_PLAYER_INDEX.toByte()
+    block[DI_OFFSET] = (playerIndex ushr 8).toByte()
+    block[DI_OFFSET + 1] = playerIndex.toByte()
     return block
 }
 
@@ -91,8 +93,8 @@ private fun buildLoginInfoBlock(rank: PlayerRank): ByteArray {
  * own opcode's payload). Reads the u16 frame length + that many payload bytes, decrypts/parses it
  * via [LoginBlockParser], and:
  *  - on success: checks the echoed server key, authenticates the parsed credentials, builds the
- *    inbound/outbound ISAAC ciphers, and replies response code 2 — followed by
- *    [LOGIN_SUCCESS_TRAILER] only on a FRESH login.
+ *    inbound/outbound ISAAC ciphers, and replies response code 2. A fresh login's index-dependent
+ *    account-info trailer is sent by [runGameStage] after paused world admission.
  *  - on failure: logs only structural diagnostics, never the credential-bearing packet bytes.
  *
  * [reconnect] MUST be true for an op-18 block: the decompiled client's response-2 dispatch routes a
@@ -164,17 +166,13 @@ suspend fun performLoginBlock(
 
                 val inbound = IsaacCipher(parsed.seeds)
                 val outbound = IsaacCipher(IntArray(parsed.seeds.size) { parsed.seeds[it] + 50 })
-                logger.info {
-                    "login authenticated. Sending response code ${LoginResponse.SUCCESS}" +
-                        if (reconnect) " (reconnect: no trailer)." else " + trailer."
-                }
+                logger.info { "login authenticated. Sending response code ${LoginResponse.SUCCESS}." }
                 write.writeFully(
                     LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(LoginResponse.SUCCESS)),
                 )
-                if (!reconnect) write.writeFully(loginSuccessTrailer(authentication.player.rank))
                 write.flush()
 
-                AuthenticatedGameLogin(inbound, outbound, authentication.player)
+                AuthenticatedGameLogin(inbound, outbound, authentication.player, reconnect)
             } finally {
                 parsed.clearPassword()
             }
