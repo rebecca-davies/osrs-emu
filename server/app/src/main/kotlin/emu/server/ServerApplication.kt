@@ -5,12 +5,13 @@ import emu.server.gateway.GatewayService
 import emu.server.js5.BoundedJs5Server
 import emu.server.js5.handler.Js5RequestHandler
 import emu.server.login.BoundedLoginServer
-import emu.server.login.LoginAuthenticator
-import emu.persistence.AccountService
-import emu.persistence.ChatAuditSink
-import emu.persistence.ChatAuditWriter
-import emu.persistence.PlayerRepository
-import emu.persistence.PostgresDatabase
+import emu.server.login.auth.AccountAuthenticator
+import emu.server.login.auth.BcryptPasswordHasher
+import emu.persistence.account.AccountStore
+import emu.persistence.character.CharacterStore
+import emu.persistence.chat.ChatAuditSink
+import emu.persistence.postgres.chat.ChatAuditWriter
+import emu.persistence.postgres.database.PostgresMigrator
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -34,12 +35,11 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             modules(persistenceModule(config.database))
         }
     val koin = koinApplication.koin
-    val database = koin.get<PostgresDatabase>()
-    withContext(Dispatchers.IO) { database.migrate() }
+    withContext(Dispatchers.IO) { koin.get<PostgresMigrator>().migrate() }
     val persistenceReady = System.nanoTime()
 
-    val accounts = koin.get<AccountService>()
-    val players = koin.get<PlayerRepository>()
+    val authenticator = AccountAuthenticator(koin.get<AccountStore>(), BcryptPasswordHasher(config.authentication))
+    val characters = koin.get<CharacterStore>()
     val chatAuditWriter = koin.get<ChatAuditWriter>()
     val js5 =
         BoundedJs5Server(
@@ -50,14 +50,14 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
     val login =
         BoundedLoginServer(
             rsaKeyPair = assets.rsaKeyPair,
-            authenticator = LoginAuthenticator { username, password -> accounts.authenticateLogin(username, password) },
+            authenticator = authenticator,
             config = config.login,
         )
     val game =
         BoundedGameServer(
             store = assets.store,
             codecs = buildGameCodecRepository(),
-            players = players,
+            characters = characters,
             chatAudit = koin.get<ChatAuditSink>(),
             config = config.game,
         )

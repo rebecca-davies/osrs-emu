@@ -2,8 +2,9 @@ package emu.server.game.session
 
 import emu.crypto.IsaacCipher
 import emu.server.game.world.WorldRuntime
-import emu.persistence.PlayerPosition
-import emu.persistence.PlayerRecord
+import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerRecord
+import emu.persistence.character.PlayerSessionSave
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
@@ -37,8 +38,7 @@ class GameStagePersistenceTest {
                 // Drain encoded packets so the writer can never back-pressure this unit test.
             }
         }
-        data class Save(val id: Long, val position: PlayerPosition, val seconds: Long, val varps: Map<Int, Int>)
-        val saves = mutableListOf<Save>()
+        val saves = mutableListOf<PlayerSessionSave>()
         val worldRuntime = WorldRuntime(tickInterval = 1.milliseconds)
         val worldJob = launch { worldRuntime.run() }
 
@@ -50,7 +50,7 @@ class GameStagePersistenceTest {
             gameCodecs = codecs,
             player = player,
             worldRuntime = worldRuntime,
-            saveSession = { id, position, seconds, varps -> saves += Save(id, position, seconds, varps) },
+            saveSession = saves::add,
             idleTimeout = 1.seconds,
             maxTicks = 0,
         )
@@ -59,9 +59,9 @@ class GameStagePersistenceTest {
         outbound.close()
         sink.join()
         assertEquals(1, saves.size)
-        assertEquals(42, saves.single().id)
+        assertEquals(42, saves.single().playerId)
         assertEquals(player.position, saves.single().position)
-        assertTrue(saves.single().seconds >= 0)
-        assertEquals(emptyMap(), saves.single().varps)
+        assertTrue(saves.single().playedSeconds >= 0)
+        assertEquals(emptyMap(), saves.single().dirtyVarps)
     }
 }

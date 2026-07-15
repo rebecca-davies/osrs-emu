@@ -1,7 +1,7 @@
 package emu.server.game.session
 
-import emu.persistence.PlayerPosition
-import emu.persistence.PlayerRecord
+import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerRecord
 
 internal val TEST_PLAYER =
     PlayerRecord(

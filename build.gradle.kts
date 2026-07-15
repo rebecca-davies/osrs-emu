@@ -55,13 +55,21 @@ val architectureCheck by tasks.registering {
             mapOf(
                 ":server-gateway" to emptySet(),
                 ":server-session" to emptySet(),
-                ":server-login" to setOf(":server-session", ":buffer", ":crypto", ":net-core", ":protocol-login"),
+                ":server-login" to
+                    setOf(
+                        ":server-session",
+                        ":persistence-api",
+                        ":buffer",
+                        ":crypto",
+                        ":net-core",
+                        ":protocol-login",
+                    ),
                 ":server-js5" to setOf(":cache", ":crypto", ":net-core", ":protocol-js5"),
                 ":server-game" to
                     setOf(
                         ":server-session",
                         ":game",
-                        ":persistence",
+                        ":persistence-api",
                         ":net-core",
                         ":protocol-game",
                         ":cache",
@@ -76,10 +84,68 @@ val architectureCheck by tasks.registering {
                     .flatMap { it.dependencies.withType<org.gradle.api.artifacts.ProjectDependency>() }
                     .map { it.path }
                     .toSet()
-            check(actual.all { it in permitted }) {
-                "$path has forbidden project dependencies: ${actual - permitted}"
+            check(actual == permitted) {
+                "$path project dependencies differ: missing=${permitted - actual}, forbidden=${actual - permitted}"
             }
         }
+
+        val persistenceApi = requireNotNull(findProject(":persistence-api"))
+        val apiProjectDependencies =
+            persistenceApi.configurations
+                .flatMap { it.dependencies.withType<org.gradle.api.artifacts.ProjectDependency>() }
+                .map { it.path }
+                .toSet()
+        check(apiProjectDependencies.isEmpty()) {
+            ":persistence-api must remain a dependency-free contract module: $apiProjectDependencies"
+        }
+
+        val postgres = requireNotNull(findProject(":persistence-postgres"))
+        val postgresProjectDependencies =
+            postgres.configurations
+                .flatMap { it.dependencies.withType<org.gradle.api.artifacts.ProjectDependency>() }
+                .map { it.path }
+                .toSet()
+        check(postgresProjectDependencies == setOf(":persistence-api")) {
+            ":persistence-postgres dependencies differ: $postgresProjectDependencies"
+        }
+
+        val apiForbidden = Regex("^import (java\\.sql|javax\\.sql|at\\.favre|emu\\.server|emu\\.protocol)", RegexOption.MULTILINE)
+        persistenceApi.projectDir.resolve("src/main").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                check(!apiForbidden.containsMatchIn(source.readText())) {
+                    ":persistence-api contains an infrastructure or service import: $source"
+                }
+            }
+
+        val postgresForbidden = Regex("^import (at\\.favre|emu\\.server|emu\\.protocol)", RegexOption.MULTILINE)
+        postgres.projectDir.resolve("src/main").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                val text = source.readText()
+                check(!postgresForbidden.containsMatchIn(text)) {
+                    ":persistence-postgres contains authentication or service policy: $source"
+                }
+                check(!text.contains("BCrypt") && !text.contains("fun authenticate")) {
+                    ":persistence-postgres contains authentication policy: $source"
+                }
+            }
+
+        val loginAuth = requireNotNull(findProject(":server-login")).projectDir.resolve("src/main/kotlin/emu/server/login/auth")
+        val loginAuthForbidden =
+            Regex(
+                "^import (java\\.sql|javax\\.sql|com\\.zaxxer|org\\.koin|emu\\.protocol|" +
+                    "emu\\.server\\.(game|js5|gateway)|emu\\.persistence\\.postgres)",
+                RegexOption.MULTILINE,
+            )
+        loginAuth.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { source ->
+                val text = source.readText()
+                check(!loginAuthForbidden.containsMatchIn(text) && !text.contains("System.getenv")) {
+                    "login authentication contains infrastructure or peer-service coupling: $source"
+                }
+            }
 
         val servicePackages =
             mapOf(
@@ -93,6 +159,9 @@ val architectureCheck by tasks.registering {
             val sources = service.projectDir.resolve("src").walkTopDown().filter { it.isFile && it.extension == "kt" }
             for (source in sources) {
                 val text = source.readText()
+                check(!text.contains("import emu.persistence.postgres")) {
+                    "$path imports a concrete PostgreSQL adapter in $source"
+                }
                 for (peerPackage in servicePackages.values - ownPackage) {
                     check(!text.contains("import $peerPackage")) { "$path imports peer service package in $source" }
                 }

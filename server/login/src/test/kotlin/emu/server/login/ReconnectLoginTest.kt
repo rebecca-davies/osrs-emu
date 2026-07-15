@@ -1,5 +1,7 @@
 package emu.server.login
 
+import emu.server.login.auth.LoginAuthenticator
+
 import emu.server.login.wire.loginSuccessTrailer
 import emu.server.login.wire.performLoginBlock
 import emu.protocol.osrs239.login.codec.LoginBlockParser
