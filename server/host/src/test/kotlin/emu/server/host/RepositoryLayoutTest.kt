@@ -23,4 +23,13 @@ class RepositoryLayoutTest {
         }
         assertFalse(settings.contains("net-core"))
     }
+
+    @Test
+    fun `transport message directions are explicit contracts without a common marker`() {
+        val messagePackage = root.resolve("libraries/transport/src/main/kotlin/emu/transport/message")
+
+        assertTrue(messagePackage.resolve("IncomingMessage.kt").exists())
+        assertTrue(messagePackage.resolve("OutgoingMessage.kt").exists())
+        assertFalse(messagePackage.resolve("Message.kt").exists())
+    }
 }
