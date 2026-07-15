@@ -4,39 +4,45 @@ import java.sql.ResultSet
 
 /** Thin JDBC persistence for account rows and write-behind session saves. */
 class PlayerRepository(private val database: PostgresDatabase) {
-    internal fun findByUsername(username: String): StoredPlayer? =
+    internal fun findAccountByUsername(username: String): StoredAccount? =
         database.connection { connection ->
-            val stored = connection.prepareStatement(
-                "SELECT id, username, password_hash, display_name, x, y, plane, play_time_seconds, rank " +
+            connection.prepareStatement(
+                "SELECT id, username, password_hash, display_name, rank " +
                     "FROM players WHERE username = ?",
             ).use { statement ->
                 statement.setString(1, username)
-                statement.executeQuery().use { result -> if (result.next()) result.storedPlayer() else null }
+                statement.executeQuery().use { result -> if (result.next()) result.storedAccount() else null }
             }
-            stored?.let {
-                it.copy(player = it.player.copy(varps = loadVarps(connection, it.player.id)))
+        }
+
+    /** Loads mutable character state after login has established the account id. */
+    fun loadCharacter(playerId: Long): PlayerRecord? =
+        database.connection { connection ->
+            val player = connection.prepareStatement(
+                "SELECT id, username, display_name, x, y, plane, play_time_seconds, rank " +
+                    "FROM players WHERE id = ?",
+            ).use { statement ->
+                statement.setLong(1, playerId)
+                statement.executeQuery().use { result -> if (result.next()) result.playerRecord() else null }
             }
+            player?.copy(varps = loadVarps(connection, player.id))
         }
 
     /** Inserts a first-login account, returning `null` if another login created it concurrently. */
     internal fun createAccount(
         identity: PlayerIdentity,
         passwordHash: String,
-        spawn: PlayerPosition,
-    ): StoredPlayer? =
+    ): StoredAccount? =
         database.connection { connection ->
             connection.prepareStatement(
-                "INSERT INTO players(username, password_hash, display_name, x, y, plane) " +
-                    "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (username) DO NOTHING " +
-                    "RETURNING id, username, password_hash, display_name, x, y, plane, play_time_seconds, rank",
+                "INSERT INTO players(username, password_hash, display_name) " +
+                    "VALUES (?, ?, ?) ON CONFLICT (username) DO NOTHING " +
+                    "RETURNING id, username, password_hash, display_name, rank",
             ).use { statement ->
                 statement.setString(1, identity.username)
                 statement.setString(2, passwordHash)
                 statement.setString(3, identity.displayName)
-                statement.setInt(4, spawn.x)
-                statement.setInt(5, spawn.y)
-                statement.setInt(6, spawn.plane)
-                statement.executeQuery().use { result -> if (result.next()) result.storedPlayer() else null }
+                statement.executeQuery().use { result -> if (result.next()) result.storedAccount() else null }
             }
         }
 
@@ -116,18 +122,26 @@ class PlayerRepository(private val database: PostgresDatabase) {
         }
     }
 
-    private fun ResultSet.storedPlayer(): StoredPlayer =
-        StoredPlayer(
-            player =
-                PlayerRecord(
+    private fun ResultSet.storedAccount(): StoredAccount =
+        StoredAccount(
+            account =
+                AccountRecord(
                     id = getLong("id"),
                     username = getString("username"),
                     displayName = getString("display_name"),
-                    position = PlayerPosition(getInt("x"), getInt("y"), getInt("plane")),
-                    playTimeSeconds = getLong("play_time_seconds"),
                     rank = PlayerRank.fromId(getInt("rank")),
                 ),
             passwordHash = getString("password_hash"),
+        )
+
+    private fun ResultSet.playerRecord(): PlayerRecord =
+        PlayerRecord(
+            id = getLong("id"),
+            username = getString("username"),
+            displayName = getString("display_name"),
+            position = PlayerPosition(getInt("x"), getInt("y"), getInt("plane")),
+            playTimeSeconds = getLong("play_time_seconds"),
+            rank = PlayerRank.fromId(getInt("rank")),
         )
 
     private fun loadVarps(connection: java.sql.Connection, playerId: Long): Map<Int, Int> =
@@ -142,7 +156,7 @@ class PlayerRepository(private val database: PostgresDatabase) {
             }
         }
 
-    internal data class StoredPlayer(val player: PlayerRecord, val passwordHash: String)
+    internal data class StoredAccount(val account: AccountRecord, val passwordHash: String)
 
     private companion object {
         val WORLD_COORDINATES = 0..0x3FFF

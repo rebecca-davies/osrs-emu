@@ -54,9 +54,8 @@ Notes:
   GitHub-hosted runners this uses the Actions cache; under `act` it uses act's built-in
   local cache server (it saves/restores a ~300 MB gradle cache between runs) — either way
   it never fails the job.
-- **Skipped tests are expected**: tests that need the gitignored runtime assets (the
-  cache dump, `server-rsa.properties`) skip themselves when those are absent. CI does not
-  provide them, and the build is still green.
+- **Runtime fixtures are not provisioned in GitHub CI**: hermetic tests run there; cache- and
+  RSA-backed fixture branches require a provisioned runner and are not claimed as CI coverage.
 
 Speed-ups (optional):
 
@@ -66,7 +65,7 @@ Speed-ups (optional):
 
 ## Deploy locally (CD)
 
-Deploy is **containerized**: the gateway runs as the `osrsemu-gateway` Docker container,
+Deploy is **containerized**: the server runs as the `osrsemu-server` Docker container,
 defined by [`Dockerfile`](Dockerfile) + [`compose.yaml`](compose.yaml) and driven by
 [`scripts/deploy.sh`](scripts/deploy.sh).
 
@@ -74,17 +73,17 @@ defined by [`Dockerfile`](Dockerfile) + [`compose.yaml`](compose.yaml) and drive
 
 `scripts/deploy.sh` (idempotent):
 
-1. Builds the gateway image (multi-stage: Gradle `:gateway:installDist` → a JRE-only
+1. Builds the server image (multi-stage: Gradle `:server-app:installDist` → a JRE-only
    runtime image). No source, cache dump, RSA key, or client tree is baked in
    (`.dockerignore` enforces this).
-2. Preserves the previous deployed image as `osrsemu-gateway:rollback`, then builds an image tagged
+2. Preserves the previous deployed image as `osrsemu-server:rollback`, then builds an image tagged
    with the source commit rather than mutable `latest`.
-3. Brings up the internal PostgreSQL service and gateway. Only the gateway is published, on
+3. Brings up the internal PostgreSQL service and server. Only the server is published, on
    **127.0.0.1:43594** by default; PostgreSQL stays inside the Compose network and cannot collide
    with development databases.
-4. Mounts the cache read-only and the mode-`0600` RSA key as a Compose secret. The gateway runs as
+4. Mounts the cache read-only and the mode-`0600` RSA key as a Compose secret. The server runs as
    that asset owner's unprivileged UID/GID, and health requires both a readable key and listener.
-   A timeout or unhealthy container fails deployment and prints the gateway logs.
+   A timeout or unhealthy container fails deployment and prints the server logs.
 
 Running it directly on the host (the paths must point at a location that has `cache-data/`
 and `server-rsa.properties` — e.g. the main checkout):
@@ -120,7 +119,7 @@ Manage the deployed container:
 
 ```bash
 docker compose -p osrsemu -f compose.yaml ps
-docker compose -p osrsemu -f compose.yaml logs -f gateway
+docker compose -p osrsemu -f compose.yaml logs -f server
 docker compose -p osrsemu -f compose.yaml down     # stop + remove
 ```
 
@@ -145,7 +144,7 @@ path for a single-host deployment.
 ### Deploy design decision: container, not host process
 
 `act` jobs are inherently containerized, so "restart a host process" has no clean,
-safe escape hatch. Deploying the gateway as its **own container** (built via DooD,
+safe escape hatch. Deploying the server as its **own container** (built via DooD,
 started with a fixed Compose project name) is the pragmatic, idempotent, isolated
 approach: it restarts cleanly, mounts the host-only runtime assets read-only, and cannot
 disturb the unrelated stacks on this box.
@@ -156,7 +155,7 @@ These are enforced, not aspirational (CLAUDE.md §12/§12a/§14):
 
 - **The client is never launched.** Deploy starts the **server only**. There is no client
   step anywhere in `cd.yml`, `deploy.sh`, `Dockerfile`, or `compose.yaml`, and no relaunch
-  loop. The gateway process never reaches Jagex's network.
+  loop. The server process never reaches Jagex's network.
 - **No secrets or large/gitignored assets in the image.** `.dockerignore` excludes
   `client/`, `cache-data/`, `server-rsa.properties`, build output, and `.git`. The cache
   dump and RSA key are bind-mounted **read-only** at runtime instead of copied in.

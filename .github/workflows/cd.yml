@@ -4,7 +4,7 @@ name: CD
 # from the labelled self-hosted runner (or an explicit local `act` invocation).
 #
 # What "deploy" means here (see scripts/deploy.sh + CI.md):
-#   - Build the gateway Docker image and (re)start ONLY the `osrsemu-gateway` container.
+#   - Build the server Docker image and (re)start ONLY the `osrsemu-server` container.
 #   - It is the SERVER only. It NEVER launches the RuneLite client and never reaches
 #     Jagex's network (CLAUDE.md §12a). There is deliberately no client step.
 #   - The cache dump + RSA key are bind-mounted read-only from the host (CLAUDE.md §14);
@@ -13,7 +13,7 @@ name: CD
 # How the deploy job reaches the host Docker daemon:
 #   act runs each job inside a container. This job uses docker-out-of-docker: act mounts
 #   the host's /var/run/docker.sock into the runner by default, so `docker`/`docker compose`
-#   here drive the HOST daemon and the gateway container is created as a sibling on the host.
+#   here drive the HOST daemon and the server container is created as a sibling on the host.
 #   Because the host daemon resolves bind-mount sources, the runtime asset paths must be
 #   absolute HOST paths, supplied via the environment (OSRS_CACHE_DIR /
 #   OSRS_SERVER_RSA_PROPERTIES / OSRS_ASSETS_ON_HOST=1). See CI.md for the exact
@@ -61,5 +61,5 @@ jobs:
       # Reads OSRS_CACHE_DIR / OSRS_SERVER_RSA_PROPERTIES / OSRS_ASSETS_ON_HOST from the
       # ambient environment (act `--env`, or the self-hosted runner's env). Not hardcoded
       # here so an unset repo variable can't blank them out.
-      - name: Deploy gateway (build image + restart local container)
+      - name: Deploy server (build image + restart local container)
         run: ./scripts/deploy.sh

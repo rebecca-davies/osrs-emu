@@ -1,4 +1,4 @@
-# Local single-host stack: Postgres (persistence) + the gateway server.
+# Local single-host stack: Postgres and the all-in-one server launcher.
 #
 # `name:` fixes the Compose PROJECT name, so every `docker compose` command scoped to this
 # file only ever touches this project's containers — it can NOT affect the unrelated Postgres
@@ -20,12 +20,12 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
-  gateway:
+  server:
     build:
       context: .
       dockerfile: Dockerfile
-    image: "osrsemu-gateway:${OSRS_IMAGE_TAG:-dev}"
-    container_name: osrsemu-gateway
+    image: "osrsemu-server:${OSRS_IMAGE_TAG:-dev}"
+    container_name: osrsemu-server
     # Compose file-secrets are read-only bind mounts and retain host ownership. Run as the asset
     # owner (exported by deploy.sh) so a host-mode-0600 RSA key remains readable without root.
     user: "${OSRS_RUNTIME_UID:-1000}:${OSRS_RUNTIME_GID:-1000}"
@@ -52,7 +52,7 @@ services:
     secrets:
       - server_rsa
     healthcheck:
-      # Passively confirm the gateway holds a LISTEN socket on 43594 (0xAA4A) by reading the
+      # Passively confirm the server holds a LISTEN socket on 43594 (0xAA4A) by reading the
       # kernel socket tables (state 0A = LISTEN, remote all-zeros). Checks /proc/net/tcp and
       # /proc/net/tcp6 (the gateway binds an IPv6 wildcard). Deliberately does NOT open a client
       # connection — a bare connect-then-close would make the gateway log a read-EOF ERROR each probe.

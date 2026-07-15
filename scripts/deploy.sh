@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deploy the osrsemu gateway to the local single host: (re)build its Docker image and
-# (re)start ONLY the gateway container. Idempotent — safe to run repeatedly.
+# Deploy the osrsemu server to the local single host: (re)build its Docker image and
+# (re)start ONLY the server container. Idempotent — safe to run repeatedly.
 #
 # This is the deploy primitive invoked by .github/workflows/cd.yml after a push to main and by
 # scripts/run-local-cd.sh after an opted-in local merge. It is also runnable directly.
@@ -12,7 +12,7 @@
 #          they are never copied into the image (.dockerignore enforces this).
 #   Isolation — every docker action is scoped to the `osrsemu` Compose project, so the
 #          unrelated stacks on this box (rotmgemu / uber_scraper / uber-tracker) are never
-#          touched. Brings up postgres + gateway together (gateway depends_on postgres).
+#          touched. Brings up postgres + server together (server depends_on postgres).
 set -euo pipefail
 
 PROJECT="osrsemu"
@@ -66,41 +66,41 @@ else
 fi
 
 log "project=$PROJECT"
-log "image   =osrsemu-gateway:$OSRS_IMAGE_TAG"
+log "image   =osrsemu-server:$OSRS_IMAGE_TAG"
 log "user    =$OSRS_RUNTIME_UID:$OSRS_RUNTIME_GID (RSA asset owner)"
 log "cache   =$OSRS_CACHE_DIR (bind-mounted read-only)"
 log "rsa key =$OSRS_SERVER_RSA_PROPERTIES (bind-mounted read-only)"
-log "Building gateway image and (re)starting the container..."
+log "Building server image and (re)starting the container..."
 
 # Preserve the currently deployed immutable image as an explicit rollback target before Compose
 # replaces the container. The tag is local to this host and never contains secrets or runtime data.
-if PREVIOUS_IMAGE_ID="$(docker inspect --format '{{.Image}}' osrsemu-gateway 2>/dev/null)"; then
-  docker image tag "$PREVIOUS_IMAGE_ID" osrsemu-gateway:rollback
-  log "preserved previous image as osrsemu-gateway:rollback"
+if PREVIOUS_IMAGE_ID="$(docker inspect --format '{{.Image}}' osrsemu-server 2>/dev/null)"; then
+  docker image tag "$PREVIOUS_IMAGE_ID" osrsemu-server:rollback
+  log "preserved previous image as osrsemu-server:rollback"
 fi
 
-# `up -d --build` rebuilds the image, then recreates the single `gateway` container only if
+# `up -d --build` rebuilds the image, then recreates the single `server` container only if
 # its image/config changed. No client is ever started (there is no client service).
 "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build
 
-GATEWAY_CONTAINER_ID="$("${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps -q gateway)"
-if [ -z "$GATEWAY_CONTAINER_ID" ]; then
-  log "ERROR: Compose did not create the gateway container." >&2
+SERVER_CONTAINER_ID="$("${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps -q server)"
+if [ -z "$SERVER_CONTAINER_ID" ]; then
+  log "ERROR: Compose did not create the server container." >&2
   exit 1
 fi
 
-log "Waiting up to ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s for gateway health..."
+log "Waiting up to ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s for server health..."
 deadline=$((SECONDS + DEPLOY_HEALTH_TIMEOUT_SECONDS))
 while (( SECONDS < deadline )); do
-  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$GATEWAY_CONTAINER_ID")"
+  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$SERVER_CONTAINER_ID")"
   case "$status" in
     healthy)
-      log "gateway is healthy"
+      log "server is healthy"
       break
       ;;
     unhealthy|exited|dead)
-      log "ERROR: gateway entered terminal state: $status" >&2
-      "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 gateway >&2
+      log "ERROR: server entered terminal state: $status" >&2
+      "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 server >&2
       exit 1
       ;;
   esac
@@ -108,13 +108,13 @@ while (( SECONDS < deadline )); do
 done
 
 if [ "${status:-unknown}" != "healthy" ]; then
-  log "ERROR: gateway did not become healthy within ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s" >&2
-  "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 gateway >&2
+  log "ERROR: server did not become healthy within ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s" >&2
+  "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 server >&2
   exit 1
 fi
 
 log "Deployed. Current state:"
 "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps
 
-log "Logs:  ${COMPOSE[*]} -p $PROJECT -f $COMPOSE_FILE logs -f gateway"
+log "Logs:  ${COMPOSE[*]} -p $PROJECT -f $COMPOSE_FILE logs -f server"
 log "Stop:  ${COMPOSE[*]} -p $PROJECT -f $COMPOSE_FILE down"

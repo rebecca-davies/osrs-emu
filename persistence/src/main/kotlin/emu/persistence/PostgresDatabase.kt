@@ -16,6 +16,9 @@ class PostgresDatabase(config: PostgresConfig) : AutoCloseable {
     val dataSource: DataSource
         get() = pool
 
+    val isClosed: Boolean
+        get() = pool.isClosed
+
     /** Applies each bundled migration once, recording it in `schema_migrations`. */
     fun migrate() {
         connection { connection ->
@@ -74,6 +77,7 @@ class PostgresDatabase(config: PostgresConfig) : AutoCloseable {
                 Migration(2, "/db/migration/V2__player_rank.sql"),
                 Migration(3, "/db/migration/V3__player_varps.sql"),
                 Migration(4, "/db/migration/V4__chat_messages.sql"),
+                Migration(5, "/db/migration/V5__character_defaults.sql"),
             )
     }
 }

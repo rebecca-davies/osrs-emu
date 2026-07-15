@@ -17,8 +17,12 @@ review.
    - `cache` — layered: `Store` leaf → `Container`(decompress/XTEA) → `Js5Index` → `Definition`.
      Each layer a small pure/testable unit, not one god-class. Build upper layers as needed (YAGNI).
    - `protocol/{login,js5,game}` — owns the rev-239 opcode/size tables and per-packet codecs.
-   - services (`gateway`, later `login`/`world`/`social`) — thin: wire codecs + handlers onto
-     `ProtocolStage`; never hand-roll wire parsing.
+   - `server/gateway`, `server/login`, `server/js5`, `server/game` — peer services with no peer
+     dependencies. Gateway accepts and routes sockets; each protocol service owns its stage.
+   - Login owns authentication policy and bcrypt under `server/login/auth`; do not create a separate
+     identity service. Persistence owns storage, not authentication decisions.
+   - `server/session` — framework-free handoff contracts shared by the peer services.
+   - `server/app` — the only composition root, process entry point, DI owner and environment reader.
    - Dependencies point *down* the stack; leaves never depend on services.
 4. **Codec-registry pattern** for packets: immutable message data classes + tiny
    `MessageDecoder`/`MessageEncoder` units bound into an immutable registry. Moving revisions =
@@ -32,21 +36,23 @@ review.
     dependencies via constructor args.
 5b. **Packaging — concern sub-packages, never giga-folders.** Within a protocol domain, split by
     concern: `<domain>/prot`, `<domain>/message`, `<domain>/codec`. Never a flat folder mixing
-    messages + encoders + prot + wiring. Inbound **handlers live a layer up** in the service
-    (gateway), not beside the protocol codecs. Organize by **domain** (`js5`, `login`, `game/…`)
+    messages + encoders + prot + wiring. Inbound **handlers live a layer up** in the owning service,
+    not beside the protocol codecs. Organize by **domain** (`js5`, `login`, `game/…`)
     so it scales to hundreds of packets.
-5c. **Registration via DI factories, not binding chains.** Codecs/handlers are collected via
-    **Koin** (each declared once in its domain's Koin module; the `CodecRepository`/
-    `HandlerRepository` built by `getAll<...>()`), so there is NO chained `bindEncoder(...)`
-    growing at one site. **Koin lives only in the service layer; `net-core` stays
-    framework-agnostic** (its registries are plain maps populated by the service). Registration
-    stays explicit-per-packet (a module declaration each), never reflection/classpath scanning.
+5c. **Registration is explicit and framework-free.** Protocols expose named repository factories;
+    services constructor-inject handlers and connection-local state. Koin and environment reads
+    live only in `server/app`; peer services and `net-core` use ordinary Kotlin constructors.
+5d. **Cohesion is enforced.** One primary responsibility per file. Reusable or independently
+    changing logic gets a named subpackage and its own file. Never create `Util`, `Common`, or
+    unrelated config companion-object dumps. Keep wire, handler, domain, persistence and
+    orchestration packages separate. Gradle modules live under capability folders such as
+    `protocol/`, `server/`, and `tools/`; executable architecture checks protect these boundaries.
 
 ## Code style
 
-6. **KDoc, not comment-scatter.** Document intent/contract with `/** ... */` doc comments on
-   declarations (class/function/property). AVOID clusters of inline `//` comments. An inline
-   comment is only for a non-obvious constraint that cannot live in a doc comment.
+6. **KDoc is contract-only.** Describe what callers need to know about a declaration, not the
+   implementation history or thought process. Avoid comment scatter; use an inline comment only
+   for a local non-obvious constraint.
 7. **Proper logger, never `println`.** Use slf4j + logback via `KotlinLogging.logger {}`. Levels:
    DEBUG = wire/packet detail; INFO = lifecycle; WARN = anomalies; ERROR = exceptions (pass the
    throwable). No `System.out`/`printStackTrace` in `src/main`.
@@ -75,17 +81,17 @@ review.
     screenshot is genuinely needed, launch it inside a **rootless network namespace**
     (`unshare -rn`) containing the gateway + local http + client on loopback only, so it physically
     cannot reach Jagex. (3) Launch the real client RARELY and never in a relaunch loop.
-13. **NEVER log credentials** (password/username) or retain them. Auto-accept logins for now
-    without storing the plaintext.
+13. **NEVER log credentials** (password or username) or store plaintext passwords. Decode passwords
+    into a short-lived `CharArray`, verify them with bcrypt, and clear the array immediately.
 14. RSA private key stays server-side (gitignored `server-rsa.properties`); never commit keys,
     the cache dump, the client tree, or screenshots (all gitignored).
 
 ## Revision pinning
 
 15. Pinned to **rev 239** (client = self-built `client/runelite`; cache = OpenRS2 build 239;
-    gateway handshake = 239). We self-host JS5 — we never contact Jagex's update server. A new
+    login and JS5 protocols = 239). We self-host JS5 — we never contact Jagex's update server. A new
     Jagex revision does not affect us; moving revisions is a deliberate build step (bump
-    `TARGET_BUILD`, re-fetch cache, bump the gateway revision, re-run the opcode/RSA recon).
+    `TARGET_BUILD`, re-fetch cache, bump protocol revisions, re-run the opcode/RSA recon).
 
 ## Process
 

@@ -1,0 +1,13 @@
+package emu.server.game.session
+
+import emu.persistence.PlayerPosition
+import emu.persistence.PlayerRecord
+
+internal val TEST_PLAYER =
+    PlayerRecord(
+        id = 1,
+        username = "test player",
+        displayName = "Test_Player",
+        position = PlayerPosition(3222, 3218, 0),
+        playTimeSeconds = 0,
+    )

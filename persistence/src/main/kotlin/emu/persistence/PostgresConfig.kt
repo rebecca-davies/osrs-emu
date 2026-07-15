@@ -12,7 +12,7 @@ data class PostgresConfig(
 
     companion object {
         /** Loads production overrides or the loopback-only compose development defaults. */
-        fun fromEnvironment(environment: Map<String, String> = System.getenv()): PostgresConfig =
+        fun fromEnvironment(environment: Map<String, String>): PostgresConfig =
             PostgresConfig(
                 jdbcUrl = environment["OSRS_DATABASE_URL"] ?: "jdbc:postgresql://127.0.0.1:54330/osrsemu",
                 username = environment["OSRS_DATABASE_USER"] ?: "osrsemu",
