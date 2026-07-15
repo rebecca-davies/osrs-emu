@@ -11,6 +11,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.yield
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -134,7 +135,12 @@ internal class WorldRuntime(
                 )
                 worldTick++
                 if (worldTick < maxTicks) {
-                    delay(schedule.delayAfterTick(startedAtMillis, System.currentTimeMillis()))
+                    val delayMillis = schedule.delayAfterTick(startedAtMillis, System.currentTimeMillis())
+                    if (delayMillis > 0) {
+                        delay(delayMillis)
+                    } else {
+                        yield()
+                    }
                 }
             }
         } finally {
