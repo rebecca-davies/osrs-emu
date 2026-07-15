@@ -94,8 +94,8 @@ review.
     the client is the oracle when the decompile and the wire disagree.
 17. **Never change wire behavior in a cleanup/refactor.** Byte-for-byte tests must still pass.
 18. Non-trivial changes get a review pass (spec compliance + code quality) before merge.
-19. Git: feature branch → `staging` (validated there) → `main`. Don't push without explicit
-    go-ahead.
+19. Git: isolated feature branch/worktree → validated merge to `main` → push to the canonical
+    remote. Never revive the removed `staging` branch.
 20. **Every concurrent subagent works in its OWN git worktree on its OWN branch — never two
     editing agents in one working tree.** Two agents sharing a checkout compile each other's
     half-written code (false build failures) and tangle commits. Create a worktree per workstream
@@ -103,7 +103,9 @@ review.
     branch back when the agent's task is validated. Only READ-ONLY agents (research/review) may
     run alongside an editor on the same tree.
 
-## Ground-truth docs
+## Project records
 
-- Design: `docs/superpowers/specs/`. Protocol facts: `docs/superpowers/research/`.
-- Architecture rationale: `docs/superpowers/research/2026-07-14-networking-architecture-lessons.md`.
+- Design, research, architecture notes, and assistant state live outside this code repository.
+- Never add `docs/` or `.superpowers/` to this repository.
+- Production comments explain their local invariant instead of depending on an external task
+  narrative. When code and an approved design conflict, stop and reconcile them explicitly.

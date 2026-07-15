@@ -4,9 +4,8 @@ import emu.netcore.message.OutgoingMessage
 
 /**
  * The local player's absolute tile coordinates. Encodes as the first post-login game packet:
- * GPI-init (local player position + zeroed reference coords for every other player slot, §4a)
- * followed by the centre-zone coordinates for the 13x13 build area (§3b).
- * See docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §3/§4a.
+ * GPI-init (local player position + zeroed reference coordinates for every other player slot)
+ * followed by the centre-zone coordinates for the 13x13 build area.
  *
  * @param plane 0..3
  * @param x absolute world X, a 14-bit value (0..16383)

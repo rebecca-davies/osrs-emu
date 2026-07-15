@@ -8,7 +8,7 @@ import emu.protocol.osrs239.login.prot.LoginProt
 
 /**
  * Server->client reply to opcode 14: [1 status byte = 0][8-byte server session key, big-endian
- * long]. See docs/superpowers/research/2026-07-14-rev239-login-facts.md §1. This message carries no
+ * long]. This message carries no
  * wire opcode of its own — [LoginProt.OUTGOING] is a registry-only sentinel (same pattern as
  * `Js5Prot.GROUP_RESPONSE` / `Js5ResponseEncoder`); the gateway writes these bytes raw, ahead of any
  * ISAAC cipher (which does not exist yet at this point in the handshake).

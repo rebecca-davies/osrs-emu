@@ -4,7 +4,6 @@ import emu.netcore.prot.Prot
 
 /**
  * JS5 opcode/size table for OSRS rev 235.
- * See docs/superpowers/research/2026-07-13-rev235-protocol-facts.md §5.
  */
 object Js5Prot {
     val HANDSHAKE = Prot(15, 20)

@@ -3,9 +3,8 @@ package emu.protocol.osrs239.game.prot
 import emu.netcore.prot.Prot
 
 /**
- * Game (post-login) server->client opcode/size table for OSRS rev 239 — the subset of the
- * 149-entry `ServerProt` table (`jc.java`) that this milestone needs.
- * See docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §1c.
+ * Game (post-login) server->client opcode/size table for OSRS rev 239 — the implemented subset of
+ * the client's 149-entry `ServerProt` table (`jc.java`).
  */
 object GameServerProt {
     /** Private-chat visibility mode (opcode 5, fixed 1). */

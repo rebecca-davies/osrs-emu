@@ -99,9 +99,8 @@ tools/verify/screenshot-login.sh -w 40 -k -- java -jar /path/to/host-patched-cli
 The screenshot capability is done. To make the screenshot show **our** login
 screen (not Jagex's), two things must exist first — neither is in place yet:
 
-1. **The gateway must be running.** Per the JS5 plan
-   (`docs/superpowers/plans/2026-07-14-osrs-emulator-js5.md`), the client first
-   does a JS5 handshake and downloads the cache from our server on port
+1. **The gateway must be running.** The client first does a JS5 handshake and downloads the cache
+   from our server on port
    **43594**. Steps: run `:tools:cache-fetch:run` to populate `cache-data/`,
    then start the gateway (`:gateway:run`). At time of writing the gateway module
    only has `CacheStore`/`Js5Response` compiled — the `Main.kt` that binds 43594

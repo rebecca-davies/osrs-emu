@@ -70,8 +70,7 @@ fun main() {
  * map keys (the community corpus lags a few builds), so scenery loc groups in the served cache stay
  * encrypted. This fetches `keys.json` from the newest live oldschool cache with build `<=
  * TARGET_BUILD` that actually has keys (build 236, id 2499 at time of writing — keys are
- * revision-stable for old content like Lumbridge; see
- * docs/superpowers/research/2026-07-14-map-xtea-keys.md), plus the Lumbridge `l50_50` container so
+ * revision-stable for old content like Lumbridge), plus the Lumbridge `l50_50` container so
  * the key can be validated by trial-decrypt ([emu.cache.container.MapXteaKeys]). These are **not**
  * injected into any rev-239 game packet — the decompiled client's REBUILD_NORMAL carries no keys;
  * they exist for server-side loc validation/decode.

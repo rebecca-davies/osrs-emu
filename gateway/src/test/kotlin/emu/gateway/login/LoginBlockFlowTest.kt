@@ -23,9 +23,8 @@ import kotlin.test.assertEquals
 // Main.kt's dispatch: opcode 14 replies the server session key (and remembers it for this
 // connection), then a synthesized op-16 "new login" block — built with the SAME RSA keypair the
 // gateway reads from server-rsa.properties — is decrypted, its echoed server key checked, ISAAC
-// ciphers built, and response code 2 (+ trailer) sent back. See
-// docs/superpowers/research/2026-07-14-rev239-login-facts.md §1-§4 and LoginBlockParser's doc for
-// the exact plaintext layout and the header-offset/auth-token assumptions this test locks in.
+// ciphers built, and response code 2 (+ trailer) sent back. LoginBlockParser documents the exact
+// plaintext layout and the header-offset/auth-token assumptions this test locks in.
 class LoginBlockFlowTest {
 
     // Same fixture convention as Js5RealCacheTest: use the real, gitignored keypair

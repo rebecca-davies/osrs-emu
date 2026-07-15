@@ -27,8 +27,7 @@ data class AuthenticatedGameLogin(
 )
 
 /**
- * The local player's index into the client's 2048-slot player array (`client.di`,
- * docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §2/§4a). This is the one
+ * The local player's index into the client's 2048-slot player array (`client.di`). This is the one
  * load-bearing field in the login-info trailer ([LOGIN_SUCCESS_TRAILER]) — the game stage's
  * initial `RebuildLogin`/`PlayerInfo` packets describe this same local player. Until external-player
  * GPI and a world player-index allocator are implemented, every client uses index 1 for its own

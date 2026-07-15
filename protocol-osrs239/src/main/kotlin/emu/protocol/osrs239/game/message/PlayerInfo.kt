@@ -4,9 +4,8 @@ import emu.netcore.message.OutgoingMessage
 
 /**
  * PLAYER_INFO (opcode 28) for the current single-local-player world: no other players are updated
- * or added, and the local player may be idle, walking, or running. This is the standard OSRS "GPI" bit stream
- * (docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §4b/§4c), reconstructed from the
- * rev-239 decompile (`dy.ae`/`dy.uq`/`dy.ax`/`dy.ab`) 2026-07-14.
+ * or added, and the local player may be idle, walking, or running. This is the standard OSRS "GPI"
+ * bit stream reconstructed from the rev-239 decompile (`dy.ae`/`dy.uq`/`dy.ax`/`dy.ab`).
  *
  * @param appearance if non-null, the local player is flagged for an extended-info **appearance**
  *   block so its avatar model draws. If null, this packet carries no appearance update; the client

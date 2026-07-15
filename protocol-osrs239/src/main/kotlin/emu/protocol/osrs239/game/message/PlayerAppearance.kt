@@ -2,8 +2,7 @@ package emu.protocol.osrs239.game.message
 
 /**
  * The visual/identity data the client needs to draw a player's avatar model — the payload of the
- * PLAYER_INFO "appearance" extended-info block
- * (docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §4b/§4c).
+ * PLAYER_INFO "appearance" extended-info block.
  *
  * **CONFIDENCE: MEDIUM/LOW throughout this class.** The recon confirms *that* an appearance block
  * exists and roughly where it sits (§4b, `dy.ax`), but `dy.ax`/`dy.uq`/`dy.yq` are CFR-mangled

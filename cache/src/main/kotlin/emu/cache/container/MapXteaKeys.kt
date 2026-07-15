@@ -20,7 +20,7 @@ private data class MapXteaEntry(
 
 /**
  * Per-mapsquare XTEA keys for map-region (index 5) loc (`l`) groups, loaded from an OpenRS2
- * `keys.json` dump (see docs/superpowers/research/2026-07-14-map-xtea-keys.md).
+ * `keys.json` dump.
  *
  * **Where these keys are used — and where they are NOT.** Verified against the rev-239 decompiled
  * client (`uk.df`, the REBUILD_NORMAL body): rev-239 REBUILD_NORMAL carries **no** XTEA keys — it

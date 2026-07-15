@@ -8,8 +8,7 @@ import emu.protocol.osrs239.game.message.RebuildLogin
 import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
- * Encodes [RebuildLogin] as GPI-init followed by the REBUILD_NORMAL body
- * (docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §3b/§3d/§4a):
+ * Encodes [RebuildLogin] as GPI-init followed by the REBUILD_NORMAL body:
  *
  * 1. **GPI-init** — bit-packed (MSB-first, via [BitBuf]): 30 bits packing the local player's
  *    absolute coordinate as `(plane shl 28) or (x shl 14) or y` (§3d, `kt.av`/`kt.ag`), followed
@@ -39,7 +38,7 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  * rev-239 delivers loc keys via the JS5 cache layer (`uf.ez` decrypts only when a group's stored
  * key is non-zero), NOT this packet — so this encoder must NOT append a key loop (doing so would
  * desync the client, which would read those bytes as GPI/zone data). See
- * docs/superpowers/research/2026-07-14-map-xtea-keys.md and [emu.cache.container.MapXteaKeys].
+ * [emu.cache.container.MapXteaKeys].
  *
  * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
  * adjustment is applied by the pipeline, not here — this method deliberately never touches

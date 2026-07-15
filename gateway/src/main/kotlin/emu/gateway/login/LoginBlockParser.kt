@@ -10,7 +10,7 @@ import java.math.BigInteger
  * outer u16 frame length have already been stripped by the caller (see [performLoginBlock] /
  * `Main.kt`). No sockets, no I/O; a `ByteArray` in, a [Result] out.
  *
- * Wire layout (docs/superpowers/research/2026-07-14-rev239-login-facts.md §5):
+ * Wire layout:
  * ```
  * [cleartext header, CLEARTEXT_HEADER_SIZE bytes: revision int, subversion int, build/flags int,
  *  3 flag bytes]

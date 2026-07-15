@@ -12,8 +12,7 @@ client/
 /server-rsa.properties
 .kotlin/
 
-# Local assistant state is not part of the shippable project. Repository documentation under
-# docs/ is source-controlled architecture and protocol ground truth (CLAUDE.md, "Ground-truth
-# docs") and must remain trackable.
+# Project records and assistant state live outside the code repository.
 .claude/
-.superpowers/
+/.superpowers/
+/docs/

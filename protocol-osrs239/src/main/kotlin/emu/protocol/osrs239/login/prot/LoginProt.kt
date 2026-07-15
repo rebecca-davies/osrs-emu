@@ -4,7 +4,6 @@ import emu.netcore.prot.Prot
 
 /**
  * Login opcode/size table for OSRS rev 239.
- * See docs/superpowers/research/2026-07-14-rev239-login-facts.md §1.
  */
 object LoginProt {
     /** Login init: single opcode byte, no payload. */

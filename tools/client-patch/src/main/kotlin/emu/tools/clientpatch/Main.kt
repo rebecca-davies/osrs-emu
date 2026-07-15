@@ -9,8 +9,7 @@ private val logger = KotlinLogging.logger {}
 
 /**
  * The exact Jagex login RSA modulus (rev 239), stored as a plain 256-hex-char UTF-8 String
- * literal in class `bg` (field bg.af), exponent bg.ag = "10001". See
- * docs/superpowers/research/2026-07-14-rev239-login-facts.md §3.
+ * literal in class `bg` (field bg.af), exponent bg.ag = "10001".
  */
 private const val JAGEX_MODULUS_HEX =
     "c4cc48b4f69a621564fe6227e5ee0d9a58642f25b2e29800d4529bdb92f693b226f06c62fa3d61ce8b578b77b0bb2a4074c05a4e3ff901917d2db94e76718f712619ce0ec71239558f1753b28a0654a542375f6302df7c1e06d1df07cbc4297d792cba9df43ea09b2059c868eaffff0bad854574d270624794379cb5e8b061f3"

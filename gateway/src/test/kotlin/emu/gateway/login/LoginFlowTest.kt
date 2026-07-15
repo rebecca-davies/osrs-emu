@@ -16,8 +16,7 @@ import kotlin.test.assertEquals
 
 // Proves the opcode-14 exchange over a real loopback socket, mirroring how Main.kt dispatches:
 // read the first opcode byte, and on 14 (LoginProt.INIT, no payload) reply with the server session
-// key. See docs/superpowers/research/2026-07-14-rev239-login-facts.md §1: "the SERVER must reply:
-// [1 status byte == 0][8-byte server session key (big-endian long)]".
+// key as [1 status byte == 0][8-byte server session key (big-endian long)].
 class LoginFlowTest {
     @Test fun `opcode 14 replies status 0 then the 8-byte server session key`() = runBlocking {
         val selector = SelectorManager(Dispatchers.IO)

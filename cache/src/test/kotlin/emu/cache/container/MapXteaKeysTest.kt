@@ -9,9 +9,8 @@ import kotlin.test.assertTrue
 
 /**
  * Covers the map-region XTEA key loader and, when a real rev-239 cache dump is present, validates the
- * borrowed build-236 Lumbridge key by trial-decrypting the *served build-239* `l50_50` loc group
- * (docs/superpowers/research/2026-07-14-map-xtea-keys.md §4 — keys are revision-stable but must be
- * verified per group).
+ * borrowed build-236 Lumbridge key by trial-decrypting the *served build-239* `l50_50` loc group.
+ * Keys are revision-stable but must still be verified per group.
  */
 class MapXteaKeysTest {
     /** The confirmed build-236 `l50_50` (mapsquare 12850) key — see the research doc appendix. */
