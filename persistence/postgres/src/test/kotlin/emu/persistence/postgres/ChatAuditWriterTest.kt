@@ -49,4 +49,54 @@ class ChatAuditWriterTest {
             blocked.countDown()
         }
     }
+
+    @Test
+    fun `close waits beyond warning threshold while audit storage is active`() {
+        val enteredStore = CountDownLatch(1)
+        val releaseStore = CountDownLatch(1)
+        val store =
+            ChatAuditStore {
+                enteredStore.countDown()
+                while (releaseStore.count > 0) {
+                    try {
+                        releaseStore.await()
+                    } catch (_: InterruptedException) {
+                        // Simulate a blocking JDBC driver that does not honour interruption.
+                    }
+                }
+            }
+        val writer =
+            ChatAuditWriter(
+                store,
+                ChatAuditWriterConfig(
+                    capacity = 1,
+                    batchSize = 1,
+                    flushMillis = 1,
+                    closeWarningMillis = 10,
+                ),
+            )
+        assertTrue(writer.submit(ChatAuditMessage(1, ChatChannel.PUBLIC, "hello", Instant.EPOCH)))
+        assertTrue(enteredStore.await(1, TimeUnit.SECONDS))
+
+        val closer = Thread(writer::close).apply { start() }
+        Thread.sleep(50)
+
+        assertTrue(closer.isAlive)
+        releaseStore.countDown()
+        closer.join(1_000)
+        assertFalse(closer.isAlive)
+    }
+
+    @Test
+    fun `closed writer rejects audit admission`() {
+        val writer =
+            ChatAuditWriter(
+                ChatAuditStore {},
+                ChatAuditWriterConfig(flushMillis = 1),
+            )
+
+        writer.close()
+
+        assertFalse(writer.submit(ChatAuditMessage(1, ChatChannel.PUBLIC, "late", Instant.EPOCH)))
+    }
 }

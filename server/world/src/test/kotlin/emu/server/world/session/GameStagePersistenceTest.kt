@@ -5,6 +5,7 @@ import emu.server.world.runtime.WorldRuntime
 import emu.server.world.config.GameConnectionConfig
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerRecord
+import emu.persistence.character.CharacterSaveSink
 import emu.persistence.character.PlayerSessionSave
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.utils.io.ByteChannel
@@ -40,6 +41,7 @@ class GameStagePersistenceTest {
             }
         }
         val saves = mutableListOf<PlayerSessionSave>()
+        var saveAttempts = 0
         val worldRuntime = WorldRuntime(tickInterval = 1.milliseconds)
         val worldJob = launch { worldRuntime.run() }
 
@@ -51,7 +53,16 @@ class GameStagePersistenceTest {
             gameCodecs = codecs,
             player = player,
             worldSessions = worldRuntime,
-            saveSession = saves::add,
+            characterSaves =
+                CharacterSaveSink { save ->
+                    saveAttempts++
+                    if (saveAttempts == 1) {
+                        false
+                    } else {
+                        saves += save
+                        true
+                    }
+                },
             connectionConfig = GameConnectionConfig(idleTimeout = 1.seconds),
             maxTicks = 0,
         )
@@ -60,6 +71,7 @@ class GameStagePersistenceTest {
         outbound.close()
         sink.join()
         assertEquals(1, saves.size)
+        assertEquals(2, saveAttempts)
         assertEquals(42, saves.single().playerId)
         assertEquals(player.position, saves.single().position)
         assertTrue(saves.single().playedSeconds >= 0)

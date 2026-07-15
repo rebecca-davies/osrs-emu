@@ -4,7 +4,7 @@ import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
 import emu.game.pathfinding.CollisionMap
 import emu.transport.codec.CodecRepository
-import emu.persistence.character.CharacterStore
+import emu.persistence.character.CharacterSaveSink
 import emu.persistence.chat.ChatAuditSink
 import emu.server.world.admission.GameAdmission
 import emu.server.world.config.GameConnectionConfig
@@ -27,7 +27,7 @@ private val logger = KotlinLogging.logger {}
 /** In-process world service for prepared character sessions. */
 class InProcessWorldServer(
     private val codecs: CodecRepository,
-    private val characters: CharacterStore,
+    private val characterSaves: CharacterSaveSink,
     private val chatAudit: ChatAuditSink,
     private val connectionConfig: GameConnectionConfig,
     private val world: WorldRuntime,
@@ -81,7 +81,7 @@ class InProcessWorldServer(
                     codecs,
                     player,
                     world,
-                    characters::save,
+                    characterSaves,
                     connectionConfig = connectionConfig,
                     collisionMap = collision,
                     huffman = huffman,

@@ -1,6 +1,7 @@
 package emu.server.world.session
 
 import emu.crypto.IsaacCipher
+import emu.persistence.character.CharacterSaveSink
 import emu.server.world.runtime.WorldParticipant
 import emu.server.world.runtime.WorldParticipantResult
 import emu.server.world.config.GameConnectionConfig
@@ -67,7 +68,7 @@ class GameStageTest {
                     gameCodecs = buildGameCodecRepository(),
                     player = TEST_PLAYER,
                     worldSessions = world,
-                    saveSession = {},
+                    characterSaves = CharacterSaveSink { true },
                     connectionConfig = GameConnectionConfig(idleTimeout = 2.seconds),
                     maxTicks = 1,
                 )

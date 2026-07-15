@@ -1,8 +1,8 @@
-package emu.persistence.postgres.chat
+package emu.persistence.postgres.character
 
-import emu.persistence.chat.ChatAuditMessage
-import emu.persistence.chat.ChatAuditSink
-import emu.persistence.chat.ChatAuditStore
+import emu.persistence.character.CharacterSaveSink
+import emu.persistence.character.CharacterStore
+import emu.persistence.character.PlayerSessionSave
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CountDownLatch
@@ -11,35 +11,34 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 private val logger = KotlinLogging.logger {}
 
-/** Bounded worker that admits chat only when its audit entry can be retained for durable delivery. */
-class ChatAuditWriter(
-    private val store: ChatAuditStore,
-    private val config: ChatAuditWriterConfig = ChatAuditWriterConfig(),
-) : ChatAuditSink, AutoCloseable {
-    private val queue = ArrayBlockingQueue<ChatAuditMessage>(config.capacity)
+/** Delivers bounded character save points to blocking storage on one dedicated worker. */
+class CharacterSaveWriter(
+    private val store: CharacterStore,
+    private val config: CharacterSaveWriterConfig,
+) : CharacterSaveSink, AutoCloseable {
+    private val saves = ArrayBlockingQueue<PlayerSessionSave>(config.capacity)
     private val lifecycle = Any()
-    private val running = AtomicBoolean(true)
+    private val accepting = AtomicBoolean(true)
     private val closed = CountDownLatch(1)
-    private val worker = Thread(::runWorker, "chat-audit-writer").apply { isDaemon = true; start() }
+    private val worker = Thread(::runWorker, "character-save-writer").apply { isDaemon = true; start() }
 
-    override fun submit(message: ChatAuditMessage): Boolean =
+    override fun submit(save: PlayerSessionSave): Boolean =
         synchronized(lifecycle) {
-            if (!running.get()) return@synchronized false
-            queue.offer(message).also { admitted ->
-                if (!admitted) logger.warn { "chat audit queue saturated; rejecting unauditable message" }
-            }
+            if (!accepting.get()) return@synchronized false
+            saves.offer(save.copy(dirtyVarps = save.dirtyVarps.toMap()))
         }
 
     override fun close() {
         val shouldClose =
             synchronized(lifecycle) {
-                if (!running.compareAndSet(true, false)) return@synchronized false
+                if (!accepting.compareAndSet(true, false)) return@synchronized false
                 true
             }
         if (!shouldClose) {
             awaitClosed()
             return
         }
+
         try {
             worker.interrupt()
             awaitWorker()
@@ -57,7 +56,7 @@ class ChatAuditWriter(
         }
         if (worker.isAlive) {
             logger.warn {
-                "chat audit writer exceeded ${config.closeWarningMillis}ms shutdown warning threshold; " +
+                "character save writer exceeded ${config.closeWarningMillis}ms shutdown warning threshold; " +
                     "waiting for durable delivery before closing storage"
             }
         }
@@ -84,29 +83,21 @@ class ChatAuditWriter(
     }
 
     private fun runWorker() {
-        var retained: List<ChatAuditMessage>? = null
-        while (running.get() || retained != null || queue.isNotEmpty()) {
+        var retained: PlayerSessionSave? = null
+        while (accepting.get() || retained != null || saves.isNotEmpty()) {
             try {
-                val batch = retained ?: nextBatch() ?: continue
+                val save = retained ?: saves.poll(config.pollMillis, TimeUnit.MILLISECONDS) ?: continue
                 try {
-                    store.append(batch)
+                    store.save(save)
                     retained = null
-                } catch (failure: Throwable) {
-                    retained = batch
-                    logger.warn(failure) { "chat audit batch write failed; retaining batch for retry" }
+                } catch (failure: Exception) {
+                    retained = save
+                    logger.warn(failure) { "character save failed for player ${save.playerId}; retaining for retry" }
                     Thread.sleep(config.retryMillis)
                 }
             } catch (_: InterruptedException) {
-                if (!running.get()) continue
+                // Closing interrupts polling or retry delay so the worker can drain immediately.
             }
         }
-    }
-
-    private fun nextBatch(): List<ChatAuditMessage>? {
-        val first = queue.poll(config.flushMillis, TimeUnit.MILLISECONDS) ?: return null
-        val batch = ArrayList<ChatAuditMessage>(config.batchSize)
-        batch += first
-        queue.drainTo(batch, config.batchSize - 1)
-        return batch
     }
 }

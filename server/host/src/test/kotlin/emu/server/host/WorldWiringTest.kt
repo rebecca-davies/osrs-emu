@@ -3,6 +3,7 @@ package emu.server.host
 import emu.compression.HuffmanCodec
 import emu.game.pathfinding.OpenCollisionMap
 import emu.persistence.character.CharacterStore
+import emu.persistence.character.CharacterSaveSink
 import emu.persistence.character.PlayerRecord
 import emu.persistence.character.PlayerSessionSave
 import emu.persistence.chat.ChatAuditSink
@@ -20,6 +21,7 @@ class WorldWiringTest {
         val dependencies =
             module {
                 single<CharacterStore> { NoCharacters }
+                single<CharacterSaveSink> { CharacterSaveSink { true } }
                 single<ChatAuditSink> { ChatAuditSink { true } }
             }
         val application =

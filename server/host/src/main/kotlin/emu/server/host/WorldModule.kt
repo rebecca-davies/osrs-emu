@@ -44,7 +44,7 @@ internal fun worldModule(
     single<WorldServer> {
         InProcessWorldServer(
             codecs = get(),
-            characters = get(),
+            characterSaves = get(),
             chatAudit = get<ChatAuditSink>(),
             connectionConfig = get(),
             world = get(),

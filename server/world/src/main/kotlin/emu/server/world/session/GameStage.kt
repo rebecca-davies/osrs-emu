@@ -29,6 +29,7 @@ import emu.transport.pipeline.ProtocolStage
 import emu.transport.prot.Prot
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerRecord
+import emu.persistence.character.CharacterSaveSink
 import emu.persistence.character.PlayerSessionSave
 import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.prot.GameClientProt
@@ -43,11 +44,13 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = KotlinLogging.logger {}
 
@@ -58,9 +61,9 @@ internal const val SPAWN_Y = 3218
 
 /**
  * Attaches an authenticated character to the shared world, sends its initial cycle, drains inbound
- * packets, and persists session state on exit. The bounded outbound mailbox isolates the world
- * clock from socket backpressure while one writer retains exclusive cipher and channel ownership.
- * [maxTicks] is a deterministic test limit.
+ * packets, and queues session state for write-behind on exit. The bounded outbound mailbox
+ * isolates the world clock from socket backpressure while one writer retains exclusive cipher and
+ * channel ownership. [maxTicks] is a deterministic test limit.
  */
 internal suspend fun runGameStage(
     read: ByteReadChannel,
@@ -70,7 +73,7 @@ internal suspend fun runGameStage(
     gameCodecs: CodecRepository,
     player: PlayerRecord,
     worldSessions: WorldSessionRegistry,
-    saveSession: (PlayerSessionSave) -> Unit,
+    characterSaves: CharacterSaveSink,
     connectionConfig: GameConnectionConfig,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
@@ -185,21 +188,23 @@ internal suspend fun runGameStage(
         val elapsedSeconds = ((System.nanoTime() - sessionStarted) / NANOS_PER_SECOND).coerceAtLeast(0)
         val finalPosition = PlayerPosition(movement.position.x, movement.position.y, movement.position.plane)
         try {
-            withContext(NonCancellable + ioDispatcher) {
+            withContext(NonCancellable) {
                 withTimeout(SESSION_SAVE_TIMEOUT) {
-                    saveSession(
+                    val save =
                         PlayerSessionSave(
                             playerId = player.id,
                             position = finalPosition,
                             playedSeconds = elapsedSeconds,
                             dirtyVarps = playerVarps.dirtyPersistentValues(),
-                        ),
-                    )
+                        )
+                    while (!characterSaves.submit(save)) {
+                        delay(SAVE_QUEUE_RETRY_INTERVAL)
+                    }
                 }
             }
-            logger.info { "game stage: saved player ${player.id} session state" }
+            logger.info { "game stage: queued player ${player.id} session state" }
         } catch (failure: Throwable) {
-            logger.error(failure) { "game stage: failed to save player ${player.id} session state" }
+            logger.error(failure) { "game stage: failed to queue player ${player.id} session state" }
         }
     }
 }
@@ -277,5 +282,6 @@ private const val MAX_GAME_PACKET_SIZE = 10_000
 private const val NANOS_PER_SECOND = 1_000_000_000L
 private const val OUTBOUND_BATCH_CAPACITY = 4
 private val SESSION_SAVE_TIMEOUT = 5.seconds
+private val SAVE_QUEUE_RETRY_INTERVAL = 10.milliseconds
 private val INITIAL_BATCH_TIMEOUT = 10.seconds
 private val OUTBOUND_DRAIN_TIMEOUT = 2.seconds

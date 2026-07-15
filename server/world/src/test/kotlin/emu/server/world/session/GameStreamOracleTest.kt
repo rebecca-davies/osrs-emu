@@ -1,6 +1,7 @@
 package emu.server.world.session
 
 import emu.crypto.IsaacCipher
+import emu.persistence.character.CharacterSaveSink
 import emu.server.world.runtime.WorldRuntime
 import emu.server.world.config.GameConnectionConfig
 import emu.protocol.osrs239.game.buildGameCodecRepository
@@ -119,7 +120,7 @@ class GameStreamOracleTest {
                     gameCodecs = gameCodecs,
                     player = TEST_PLAYER,
                     worldSessions = worldRuntime,
-                    saveSession = {},
+                    characterSaves = CharacterSaveSink { true },
                     connectionConfig = GameConnectionConfig(idleTimeout = 10.seconds),
                     maxTicks = ORACLE_TICKS,
                 )
