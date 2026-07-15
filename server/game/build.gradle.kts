@@ -1,7 +1,7 @@
 dependencies {
     implementation(project(":server-session"))
     implementation(project(":game"))
-    implementation(project(":persistence"))
+    implementation(project(":persistence-api"))
     implementation(project(":net-core"))
     implementation(project(":protocol-game"))
     implementation(project(":cache"))

@@ -1,7 +1,7 @@
 package emu.server.game.admission
 
-import emu.persistence.PlayerPosition
-import emu.persistence.PlayerRecord
+import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerRecord
 import emu.server.game.world.WorldRuntime
 import emu.server.session.AccountPrivilege
 import emu.server.session.AuthenticatedPrincipal

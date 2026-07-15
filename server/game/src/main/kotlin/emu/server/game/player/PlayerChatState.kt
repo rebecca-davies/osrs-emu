@@ -5,10 +5,10 @@ import emu.game.chat.ChatFilterInput
 import emu.game.chat.PublicChatInput
 import emu.game.chat.chatActions
 import emu.game.varp.PlayerVarps
-import emu.persistence.ChatAuditMessage
-import emu.persistence.ChatAuditSink
-import emu.persistence.ChatChannel
-import emu.persistence.PlayerRank
+import emu.persistence.account.PlayerRank
+import emu.persistence.chat.ChatAuditMessage
+import emu.persistence.chat.ChatAuditSink
+import emu.persistence.chat.ChatChannel
 import emu.protocol.osrs239.game.message.PlayerPublicChat
 import java.time.Clock
 

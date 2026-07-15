@@ -6,6 +6,7 @@ import emu.buffer.JagexBuffer
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
 import emu.server.session.AuthenticationCompletion
+import emu.server.login.auth.LoginAuthenticator
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket

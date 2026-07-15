@@ -3,6 +3,7 @@ package emu.server.login
 import emu.crypto.NopStreamCipher
 import emu.crypto.RsaKeyPair
 import emu.server.login.config.LoginExecutionConfig
+import emu.server.login.auth.LoginAuthenticator
 import emu.server.login.wire.loginSuccessTrailer
 import emu.server.login.wire.performLoginBlock
 import emu.server.login.wire.performLoginInit

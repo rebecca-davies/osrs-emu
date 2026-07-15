@@ -47,6 +47,13 @@ review.
     unrelated config companion-object dumps. Keep wire, handler, domain, persistence and
     orchestration packages separate. Gradle modules live under capability folders such as
     `protocol/`, `server/`, and `tools/`; executable architecture checks protect these boundaries.
+5e. **One independently meaningful production declaration per file.** `internal` is visibility,
+    not permission to hide another class in a convenient file. Secondary declarations are allowed
+    only when private, small, stateless and inseparable, or nested in one closed sealed family.
+    Interfaces belong at capability and substitutable external seams, not in front of private pure
+    helpers. Companion objects contain only factories or conversions intrinsic to their owning
+    type; environment keys, service defaults, SQL, migrations, registries, caches and unrelated
+    constants belong to typed configuration, named catalogs, or file-private implementation values.
 
 ## Code style
 

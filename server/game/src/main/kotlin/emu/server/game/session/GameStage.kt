@@ -26,9 +26,10 @@ import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.OutboundSession
 import emu.netcore.pipeline.ProtocolStage
 import emu.netcore.prot.Prot
-import emu.persistence.ChatAuditSink
-import emu.persistence.PlayerPosition
-import emu.persistence.PlayerRecord
+import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerRecord
+import emu.persistence.character.PlayerSessionSave
+import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.prot.GameClientProt
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
@@ -71,7 +72,7 @@ internal suspend fun runGameStage(
     gameCodecs: CodecRepository,
     player: PlayerRecord,
     worldRuntime: WorldRuntime,
-    saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit,
+    saveSession: (PlayerSessionSave) -> Unit,
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
@@ -195,7 +196,14 @@ internal suspend fun runGameStage(
         try {
             withContext(NonCancellable + ioDispatcher) {
                 withTimeout(SESSION_SAVE_TIMEOUT) {
-                    saveSession(player.id, finalPosition, elapsedSeconds, playerVarps.dirtyPersistentValues())
+                    saveSession(
+                        PlayerSessionSave(
+                            playerId = player.id,
+                            position = finalPosition,
+                            playedSeconds = elapsedSeconds,
+                            dirtyVarps = playerVarps.dirtyPersistentValues(),
+                        ),
+                    )
                 }
             }
             logger.info { "game stage: saved player ${player.id} session state" }

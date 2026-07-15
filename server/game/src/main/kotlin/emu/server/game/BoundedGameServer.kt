@@ -11,8 +11,8 @@ import emu.server.game.map.CacheCollisionMap
 import emu.server.game.session.runGameStage
 import emu.server.game.world.WorldRuntime
 import emu.netcore.codec.CodecRepository
-import emu.persistence.ChatAuditSink
-import emu.persistence.PlayerRepository
+import emu.persistence.character.CharacterStore
+import emu.persistence.chat.ChatAuditSink
 import emu.server.session.ConnectionHandoff
 import emu.server.session.GameSessionToken
 import emu.server.session.AuthenticatedPrincipal
@@ -37,7 +37,7 @@ private val logger = KotlinLogging.logger {}
 class BoundedGameServer(
     store: Store,
     private val codecs: CodecRepository,
-    private val players: PlayerRepository,
+    private val characters: CharacterStore,
     private val chatAudit: ChatAuditSink,
     private val config: GameExecutionConfig = GameExecutionConfig(),
     private val worldDispatcher: ExecutorCoroutineDispatcher = newWorldDispatcher(),
@@ -48,7 +48,7 @@ class BoundedGameServer(
     private val huffman = loadHuffmanCodec(store)
     private val admissions =
         GameAdmission(world, config.maxConcurrentSessions) { accountId ->
-            withContext(ioDispatcher) { players.loadCharacter(accountId) }
+            withContext(ioDispatcher) { characters.load(accountId) }
         }
     private val started = AtomicBoolean(false)
     private val worldScope = CoroutineScope(SupervisorJob() + worldDispatcher)
@@ -92,7 +92,7 @@ class BoundedGameServer(
                     codecs,
                     player,
                     world,
-                    players::saveSession,
+                    characters::save,
                     idleTimeout = config.idleTimeout,
                     collisionMap = collision,
                     huffman = huffman,

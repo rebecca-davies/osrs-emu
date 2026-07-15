@@ -66,7 +66,7 @@ class GameStageTest {
                     gameCodecs = buildGameCodecRepository(),
                     player = TEST_PLAYER,
                     worldRuntime = world,
-                    saveSession = { _, _, _, _ -> },
+                    saveSession = {},
                     idleTimeout = 2.seconds,
                     maxTicks = 1,
                 )

@@ -73,6 +73,26 @@ class CompositionBoundaryTest {
         }
     }
 
+    @Test
+    fun `persistence contracts are isolated from postgres and authentication policy`() {
+        val settings = root.resolve("settings.gradle.kts").readText()
+        assertTrue(settings.contains("file(\"persistence/api\")"))
+        assertTrue(settings.contains("file(\"persistence/postgres\")"))
+
+        val worldBuild = root.resolve("server/game/build.gradle.kts").readText()
+        assertTrue(worldBuild.contains("project(\":persistence-api\")"))
+        assertFalse(worldBuild.contains("project(\":persistence-postgres\")"))
+
+        val loginSources = serverSources("login").map(Path::readText)
+        assertTrue(loginSources.any { it.contains("interface PasswordHasher") })
+        assertTrue(loginSources.any { it.contains("class BcryptPasswordHasher") })
+
+        val postgresSources = root.resolve("persistence/postgres/src/main").kotlinSources()
+        assertTrue(postgresSources.any { it.readText().contains("class PostgresAccountStore") })
+        assertTrue(postgresSources.any { it.readText().contains("class PostgresCharacterStore") })
+        assertFalse(postgresSources.any { it.readText().contains("class AccountService") })
+    }
+
     private fun serverSources(module: String): List<Path> = root.resolve("server/$module/src").kotlinSources()
 
     private fun Path.kotlinSources(): List<Path> =

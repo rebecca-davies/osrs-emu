@@ -9,7 +9,7 @@ import emu.server.game.network.GameOutputBatch
 import emu.server.game.player.PlayerVarpTypes
 import emu.server.game.network.gameOutputBatch
 import emu.netcore.message.OutgoingMessage
-import emu.persistence.PlayerRank
+import emu.persistence.account.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset
 import emu.protocol.osrs239.game.message.CamTargetPlayer

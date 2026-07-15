@@ -15,8 +15,8 @@ import emu.protocol.osrs239.game.message.VarpSmall
 import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.ChatFilterSettings
 import emu.protocol.osrs239.game.message.ChatFilterPrivate
-import emu.persistence.PlayerPosition
-import emu.persistence.PlayerRank
+import emu.persistence.account.PlayerRank
+import emu.persistence.character.PlayerPosition
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -5,9 +5,9 @@ import emu.game.chat.ChatFilterInput
 import emu.game.chat.PublicChatInput
 import emu.game.varp.PlayerVarps
 import kotlinx.coroutines.runBlocking
-import emu.persistence.ChatAuditMessage
-import emu.persistence.ChatAuditSink
-import emu.persistence.PlayerRank
+import emu.persistence.account.PlayerRank
+import emu.persistence.chat.ChatAuditMessage
+import emu.persistence.chat.ChatAuditSink
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -51,7 +51,7 @@ class PlayerChatStateTest {
 
         actions.dispatch(PublicChatInput(1, 2, "hello", null))
 
-        assertEquals(listOf(ChatAuditMessage(42, emu.persistence.ChatChannel.PUBLIC, "hello", Instant.EPOCH)), audits)
+        assertEquals(listOf(ChatAuditMessage(42, emu.persistence.chat.ChatChannel.PUBLIC, "hello", Instant.EPOCH)), audits)
         val published = assertNotNull(state.takePublicChat())
         assertEquals(1, published.modIcon)
         assertEquals("hello", huffman.decode(published.encodedText))

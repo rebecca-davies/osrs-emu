@@ -118,7 +118,7 @@ class GameStreamOracleTest {
                     gameCodecs = gameCodecs,
                     player = TEST_PLAYER,
                     worldRuntime = worldRuntime,
-                    saveSession = { _, _, _, _ -> },
+                    saveSession = {},
                     idleTimeout = 10.seconds,
                     maxTicks = ORACLE_TICKS,
                 )

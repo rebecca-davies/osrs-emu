@@ -1,13 +1,16 @@
 package emu.server
 
-import emu.persistence.AccountService
-import emu.persistence.ChatAuditSink
-import emu.persistence.ChatAuditWriter
-import emu.persistence.ChatRepository
-import emu.persistence.PasswordHasher
-import emu.persistence.PlayerRepository
-import emu.persistence.PostgresConfig
-import emu.persistence.PostgresDatabase
+import emu.persistence.account.AccountStore
+import emu.persistence.character.CharacterStore
+import emu.persistence.chat.ChatAuditSink
+import emu.persistence.chat.ChatAuditStore
+import emu.persistence.postgres.account.PostgresAccountStore
+import emu.persistence.postgres.character.PostgresCharacterStore
+import emu.persistence.postgres.chat.ChatAuditWriter
+import emu.persistence.postgres.chat.PostgresChatAuditStore
+import emu.persistence.postgres.database.PostgresConfig
+import emu.persistence.postgres.database.PostgresDatabase
+import emu.persistence.postgres.database.PostgresMigrator
 
 import org.koin.dsl.onClose
 import org.koin.dsl.module
@@ -16,11 +19,11 @@ import org.koin.dsl.module
 fun persistenceModule(config: PostgresConfig) =
     module {
         single { config }
-        single { PasswordHasher() }
         single { PostgresDatabase(get()) } onClose { it?.close() }
-        single { PlayerRepository(get()) }
-        single { ChatRepository(get()) }
-        single { ChatAuditWriter(get<ChatRepository>()::appendBatch) }
+        single { PostgresMigrator(get()) }
+        single<AccountStore> { PostgresAccountStore(get()) }
+        single<CharacterStore> { PostgresCharacterStore(get()) }
+        single<ChatAuditStore> { PostgresChatAuditStore(get()) }
+        single { ChatAuditWriter(get()) }
         single<ChatAuditSink> { get<ChatAuditWriter>() }
-        single { AccountService(get(), get()) }
     }
