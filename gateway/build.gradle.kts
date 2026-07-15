@@ -12,6 +12,7 @@ tasks.named<JavaExec>("run") {
 }
 dependencies {
     implementation(project(":game"))
+    implementation(project(":persistence"))
     implementation(project(":net-core"))
     implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))

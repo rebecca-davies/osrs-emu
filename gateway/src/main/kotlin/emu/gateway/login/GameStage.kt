@@ -6,6 +6,10 @@ import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
+import emu.game.ui.PlayerButtonQueue
+import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.PlayerVarpTypes
+import emu.gateway.game.playerButtonActions
 import emu.gateway.game.installGameHandlers
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
@@ -13,16 +17,20 @@ import emu.netcore.pipeline.OutboundSession
 import emu.netcore.pipeline.ProtocolStage
 import emu.netcore.prot.Prot
 import emu.protocol.osrs239.game.prot.GameClientProt
-import emu.protocol.osrs239.game.message.PlayerAppearance
+import emu.persistence.PlayerPosition
+import emu.persistence.PlayerRecord
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -73,47 +81,103 @@ suspend fun runGameStage(
     inboundCipher: IsaacCipher,
     outboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
+    player: PlayerRecord,
+    saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit,
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
-): Unit = coroutineScope {
+): Unit {
+    val sessionStarted = System.nanoTime()
     val session = OutboundSession(gameCodecs, outboundCipher, write)
-    val movement = PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), collisionMap)
+    val playerVarps = initialPlayerVarps(player.varps)
+    val movement =
+        initialPlayerMovement(
+            player.position,
+            playerVarps[PlayerVarpTypes.RUN_MODE] == 1,
+            collisionMap,
+        )
     val routeRequests = PlayerRouteRequestQueue()
-    val gameLoop = GameLoop(session, tickInterval, playerMovement = movement, routeRequests = routeRequests)
-    val appearance = if (System.getenv("EMU_NO_APPEARANCE") == "1") null else PlayerAppearance()
-    sendInitialGameCycle(
-        session = session,
-        spawnPlane = SPAWN_PLANE,
-        spawnX = SPAWN_X,
-        spawnY = SPAWN_Y,
-        localPlayerIndex = LOCAL_PLAYER_INDEX,
-        appearance = appearance,
+    val buttonClicks = PlayerButtonQueue()
+    val sessionControl = PlayerSessionControl()
+    val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
+    val gameLoop = GameLoop(
+        session,
+        tickInterval,
+        playerMovement = movement,
+        routeRequests = routeRequests,
+        buttonClicks = buttonClicks,
+        buttonActions = buttonActions,
+        playerVarps = playerVarps,
+        sessionControl = sessionControl,
+        profileLabel = "player ${player.id}",
+        onProfileReport = { snapshot ->
+            adminCycleReport(player.rank, snapshot)?.let { session.send(it) }
+        },
     )
+    try {
+        coroutineScope {
+            val appearance =
+                if (System.getenv("EMU_NO_APPEARANCE") == "1") null
+                else playerAppearance(player.displayName)
+            sendInitialGameCycle(
+                session = session,
+                spawnPlane = player.position.plane,
+                spawnX = player.position.x,
+                spawnY = player.position.y,
+                localPlayerIndex = LOCAL_PLAYER_INDEX,
+                appearance = appearance,
+                accountVarps = initialAccountVarps(playerVarps),
+            )
+            playerVarps.markClientSynchronized()
 
-    // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
-    // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
-    // by a per-tick packet or the login/rebuild itself.
-    val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
-    if (skipTicks) {
-        logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
-        drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
-        return@coroutineScope
+            // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
+            // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
+            // by a per-tick packet or the login/rebuild itself.
+            val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
+            if (skipTicks) {
+                logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
+                return@coroutineScope
+            }
+
+            val tickJob = launch { gameLoop.run(maxTicks) }
+            val readJob = launch {
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
+                // The client is gone / idle: stop the heartbeat so this connection can close.
+                tickJob.cancel()
+            }
+
+            // Complete when the heartbeat ends — either the reader cancelled it (client gone / idle) or it
+            // hit its tick cap (tests) — then stop the reader if it is still blocked awaiting a byte.
+            tickJob.join()
+            readJob.cancel()
+        }
+    } finally {
+        val elapsedSeconds = ((System.nanoTime() - sessionStarted) / NANOS_PER_SECOND).coerceAtLeast(0)
+        val finalPosition = PlayerPosition(movement.position.x, movement.position.y, movement.position.plane)
+        try {
+            withContext(NonCancellable + Dispatchers.IO) {
+                withTimeout(SESSION_SAVE_TIMEOUT) {
+                    saveSession(player.id, finalPosition, elapsedSeconds, playerVarps.dirtyPersistentValues())
+                }
+            }
+            logger.info { "game stage: saved player ${player.id} session state" }
+        } catch (failure: Throwable) {
+            logger.error(failure) { "game stage: failed to save player ${player.id} session state" }
+        }
     }
-
-    val tickJob = launch { gameLoop.run(maxTicks) }
-    val readJob = launch {
-        drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, idleTimeout)
-        // The client is gone / idle: stop the heartbeat so this connection can close.
-        tickJob.cancel()
-    }
-
-    // Complete when the heartbeat ends — either the reader cancelled it (client gone / idle) or it
-    // hit its tick cap (tests) — then stop the reader if it is still blocked awaiting a byte.
-    tickJob.join()
-    readJob.cancel()
 }
+
+/** Creates the live movement session with server-authoritative unlimited run enabled. */
+internal fun initialPlayerMovement(
+    position: PlayerPosition,
+    runEnabled: Boolean = false,
+    collisionMap: CollisionMap = OpenCollisionMap,
+): PlayerMovement =
+    PlayerMovement(Tile(position.x, position.y, position.plane), collisionMap).apply {
+        this.runEnabled = runEnabled
+    }
 
 /**
  * Runs the revision-neutral [ProtocolStage] over rev-239's complete inbound size table. Implemented
@@ -127,9 +191,10 @@ internal suspend fun drainGameInbound(
     inboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     routeRequests: PlayerRouteRequestQueue,
+    buttonClicks: PlayerButtonQueue,
     idleTimeout: Duration,
 ) {
-    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests).build()
+    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests, buttonClicks).build()
     val stage =
         ProtocolStage(
             gameCodecs,
@@ -172,3 +237,5 @@ private suspend fun readGamePayload(read: ByteReadChannel, prot: Prot): ByteArra
 }
 
 private const val MAX_GAME_PACKET_SIZE = 10_000
+private const val NANOS_PER_SECOND = 1_000_000_000L
+private val SESSION_SAVE_TIMEOUT = 5.seconds

@@ -1,5 +1,6 @@
 package emu.gateway.login
 
+import emu.game.cycle.CycleProfileSnapshot
 import emu.protocol.osrs239.game.message.IfOpenSub
 import emu.protocol.osrs239.game.message.CamTargetPlayer
 import emu.protocol.osrs239.game.message.MessageGame
@@ -9,13 +10,52 @@ import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
+import emu.protocol.osrs239.game.message.UpdateStat
+import emu.protocol.osrs239.game.message.VarpSmall
+import emu.protocol.osrs239.game.message.VarpLarge
+import emu.persistence.PlayerPosition
+import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class InitialGameCycleTest {
+    @Test fun `fresh account starts walking and can still use unlimited run`() {
+        val varps = initialPlayerVarps()
+        val movement = initialPlayerMovement(PlayerPosition(3222, 3218, 0), runEnabled = false)
+
+        assertFalse(movement.runEnabled)
+        assertTrue(initialAccountVarps(varps).contains(VarpSmall(173, 0)))
+    }
+
+    @Test fun `cycle profile chat is visible only to administrators`() {
+        val snapshot = CycleProfileSnapshot(50, 2_000_000, 8_000_000, 1, 30_000_000_000)
+
+        assertEquals(null, adminCycleReport(PlayerRank.PLAYER, snapshot))
+        assertEquals(null, adminCycleReport(PlayerRank.MODERATOR, snapshot))
+        val report = requireNotNull(adminCycleReport(PlayerRank.ADMINISTRATOR, snapshot))
+        assertTrue("avg=2.0ms" in report.message)
+        assertTrue("max=8.0ms" in report.message)
+    }
+
+    @Test fun `authenticated display name is used by local-player appearance and chat identity`() {
+        assertEquals("Rebecca_Bird", playerAppearance("Rebecca_Bird").name)
+        assertTrue(initialAccountVarps().contains(VarpLarge(1737, Int.MIN_VALUE)))
+    }
+
+    @Test fun `new character starts with authentic hitpoints and otherwise level one stats`() {
+        val stats = initialStatMessages()
+
+        assertEquals(23, stats.size)
+        assertEquals(UpdateStat(stat = 3, currentLevel = 10, invisibleBoostedLevel = 10, experience = 1_154), stats[3])
+        assertTrue(stats.withIndex().all { (index, stat) ->
+            index == 3 || stat == UpdateStat(index, 1, 1, 0)
+        })
+    }
+
     @Test fun `initial world group matches capture order and clears the captured 7 by 7 zone window`() {
         val group = initialWorldGroup(
             PlayerAppearance(),

@@ -6,6 +6,9 @@ import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
+import emu.game.ui.PlayerButtonQueue
+import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.playerButtonActions
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.buildCodecRepository
 import emu.protocol.osrs239.game.gameModule
@@ -25,6 +28,9 @@ class GameLoopMapRebuildTest {
         val movement = PlayerMovement(Tile(3255, 3218), OpenCollisionMap)
         val routeRequests = PlayerRouteRequestQueue()
         val buildArea = PlayerBuildArea(Tile(3222, 3218))
+        val buttonClicks = PlayerButtonQueue()
+        val playerVarps = initialPlayerVarps().apply { markClientSynchronized() }
+        val sessionControl = PlayerSessionControl()
         routeRequests.submit(3256, 3218, 0)
 
         GameLoop(
@@ -33,6 +39,10 @@ class GameLoopMapRebuildTest {
             playerMovement = movement,
             routeRequests = routeRequests,
             buildArea = buildArea,
+            buttonClicks = buttonClicks,
+            buttonActions = playerButtonActions(movement, playerVarps, sessionControl),
+            playerVarps = playerVarps,
+            sessionControl = sessionControl,
         ).run(maxTicks = 1)
 
         val rebuildPacket = ByteArray(9)

@@ -25,7 +25,7 @@ import kotlin.test.assertEquals
 // gateway reads from server-rsa.properties — is decrypted, its echoed server key checked, ISAAC
 // ciphers built, and response code 2 (+ trailer) sent back. See
 // docs/superpowers/research/2026-07-14-rev239-login-facts.md §1-§4 and LoginBlockParser's doc for
-// the exact plaintext layout and the header-offset/auth-byte assumptions this test locks in.
+// the exact plaintext layout and the header-offset/auth-token assumptions this test locks in.
 class LoginBlockFlowTest {
 
     // Same fixture convention as Js5RealCacheTest: use the real, gitignored keypair
@@ -41,11 +41,12 @@ class LoginBlockFlowTest {
     }
 
     private fun rsaPlaintext(seeds: IntArray, serverKey: Long, password: String): ByteArray {
-        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1)
+        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1)
         buf.writeByte(1) // magic
         for (s in seeds) buf.writeInt(s)
         buf.writeLong(serverKey)
-        buf.writeByte(0) // auth-method byte (assumed 0 = no authenticator; see LoginBlockParser doc)
+        buf.writeByte(2) // auth-method wire value for client.dm case 0
+        buf.writeInt(0) // fixed four-byte auth payload (reserved for case 0)
         buf.writeByte(0) // string-type marker byte
         buf.writeCString(password)
         return buf.array
@@ -55,12 +56,12 @@ class LoginBlockFlowTest {
         val plaintext = rsaPlaintext(seeds, serverKey, password)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE) // contents irrelevant to the parser
-        val xteaTailFiller = ByteArray(8) // dummy stand-in for the (currently unparsed) XTEA tail
-        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + xteaTailFiller.size)
+        val usernameTail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + usernameTail.size)
         out.writeBytes(header)
         out.writeShort(cipherBytes.size)
         out.writeBytes(cipherBytes)
-        out.writeBytes(xteaTailFiller)
+        out.writeBytes(usernameTail)
         return out.array
     }
 
@@ -79,7 +80,13 @@ class LoginBlockFlowTest {
                 14 -> {
                     val serverKey = performLoginInit(w)
                     when (r.readByte().toInt() and 0xFF) {
-                        16, 18 -> performLoginBlock(r, w, serverKey, keyPair)
+                        16, 18 -> performLoginBlock(
+                            r,
+                            w,
+                            serverKey,
+                            keyPair,
+                            authenticate = ::acceptTestLogin,
+                        )
                         else -> {}
                     }
                 }

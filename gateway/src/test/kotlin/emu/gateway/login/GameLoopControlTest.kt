@@ -1,0 +1,87 @@
+package emu.gateway.login
+
+import emu.crypto.NopStreamCipher
+import emu.game.pathfinding.OpenCollisionMap
+import emu.game.pathfinding.PlayerMovement
+import emu.game.pathfinding.PlayerRouteRequestQueue
+import emu.game.pathfinding.Tile
+import emu.game.ui.ButtonClick
+import emu.game.ui.PlayerButtonQueue
+import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.playerButtonActions
+import emu.netcore.pipeline.OutboundSession
+import emu.protocol.osrs239.buildCodecRepository
+import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.prot.GameServerProt
+import io.ktor.utils.io.ByteChannel
+import io.ktor.utils.io.close
+import io.ktor.utils.io.core.readBytes
+import io.ktor.utils.io.readRemaining
+import kotlinx.coroutines.runBlocking
+import org.koin.dsl.koinApplication
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.milliseconds
+
+class GameLoopControlTest {
+    @Test fun `logout button sends clean logout packet and ends the cycle loop`() = runBlocking {
+        val output = ByteChannel(autoFlush = true)
+        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val varps = initialPlayerVarps().apply { markClientSynchronized() }
+        val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
+        val buttons = PlayerButtonQueue()
+        val control = PlayerSessionControl()
+        val actions = playerButtonActions(movement, varps, control)
+        val loop =
+            GameLoop(
+                session = OutboundSession(codecs, NopStreamCipher, output),
+                tickInterval = 1.milliseconds,
+                playerMovement = movement,
+                routeRequests = PlayerRouteRequestQueue(),
+                buttonClicks = buttons,
+                buttonActions = actions,
+                playerVarps = varps,
+                sessionControl = control,
+            )
+        buttons.submit(ButtonClick(182, 8, -1, -1, 1))
+
+        loop.run(maxTicks = 5)
+        output.close()
+
+        assertEquals(
+            listOf(GameServerProt.LOGOUT.opcode.toByte()),
+            output.readRemaining().readBytes().toList(),
+        )
+    }
+
+    @Test fun `run button publishes the changed account varp before world output`() = runBlocking {
+        val output = ByteChannel(autoFlush = true)
+        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val varps = initialPlayerVarps().apply { markClientSynchronized() }
+        val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
+        val buttons = PlayerButtonQueue()
+        val control = PlayerSessionControl()
+        val actions = playerButtonActions(movement, varps, control)
+        val loop =
+            GameLoop(
+                session = OutboundSession(codecs, NopStreamCipher, output),
+                tickInterval = 1.milliseconds,
+                playerMovement = movement,
+                routeRequests = PlayerRouteRequestQueue(),
+                buttonClicks = buttons,
+                buttonActions = actions,
+                playerVarps = varps,
+                sessionControl = control,
+            )
+        buttons.submit(ButtonClick(160, 28, -1, -1, 1))
+
+        loop.run(maxTicks = 1)
+        output.close()
+        val wire = output.readRemaining().readBytes()
+
+        assertEquals(
+            listOf(GameServerProt.VARP_SMALL.opcode.toByte(), 129.toByte(), 45, 0),
+            wire.take(4),
+        )
+    }
+}

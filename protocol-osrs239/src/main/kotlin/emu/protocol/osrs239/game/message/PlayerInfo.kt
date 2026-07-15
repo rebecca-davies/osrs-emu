@@ -15,7 +15,22 @@ import emu.netcore.message.OutgoingMessage
 data class PlayerInfo(
     val appearance: PlayerAppearance? = null,
     val movement: PlayerMovement? = null,
-) : OutgoingMessage
+    /** Cached movement speed: 0=crawl, 1=walk, 2=run, 127=stationary. */
+    val moveSpeed: Int? = null,
+    /** Per-movement override when the queued step count disagrees with [moveSpeed]. */
+    val temporaryMoveSpeed: Int? = null,
+) : OutgoingMessage {
+    init {
+        require(moveSpeed == null || moveSpeed in VALID_MOVE_SPEEDS) { "invalid move speed $moveSpeed" }
+        require(temporaryMoveSpeed == null || temporaryMoveSpeed in VALID_MOVE_SPEEDS) {
+            "invalid temporary move speed $temporaryMoveSpeed"
+        }
+    }
+
+    private companion object {
+        val VALID_MOVE_SPEEDS = setOf(0, 1, 2, 127)
+    }
+}
 
 /** Local-player movement delta encoded by the rev-239 high-resolution GPI bitcode. */
 sealed interface PlayerMovement {

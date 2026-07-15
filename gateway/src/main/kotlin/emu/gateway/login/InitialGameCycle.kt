@@ -1,9 +1,14 @@
 package emu.gateway.login
 
+import emu.game.cycle.CycleProfileSnapshot
 import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.Tile
+import emu.game.varp.PlayerVarps
+import emu.game.varp.VarpValue
+import emu.gateway.game.PlayerVarpTypes
 import emu.netcore.message.OutgoingMessage
 import emu.netcore.pipeline.OutboundSession
+import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset
 import emu.protocol.osrs239.game.message.CamTargetPlayer
@@ -32,6 +37,8 @@ import emu.protocol.osrs239.game.message.UpdateRunWeight
 import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
 import emu.protocol.osrs239.game.message.VarpReset
+import emu.protocol.osrs239.game.message.VarpSmall
+import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.WorldEntityInfo
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -47,6 +54,38 @@ internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
 internal fun loginNoticeMessages(): List<MessageGame> = listOf(
     MessageGame(MessageGame.GAME_MESSAGE, WELCOME_MESSAGE),
 )
+
+/** Builds the appearance block that establishes the authenticated name used by chat and overlays. */
+internal fun playerAppearance(displayName: String): PlayerAppearance = PlayerAppearance(name = displayName)
+
+/** Authentic fresh-account stats: 10 Hitpoints (1,154 XP), all other rev-239 skills at level 1. */
+internal fun initialStatMessages(): List<UpdateStat> =
+    List(OSRS_SKILL_COUNT) { stat ->
+        if (stat == HITPOINTS_STAT) UpdateStat(stat, 10, 10, 1_154)
+        else UpdateStat(stat, 1, 1, 0)
+    }
+
+/** Builds typed live varp state from sparse permanent account rows and server-derived login state. */
+internal fun initialPlayerVarps(savedValues: Map<Int, Int> = emptyMap()): PlayerVarps =
+    PlayerVarps(PlayerVarpTypes.CATALOG, savedValues).apply {
+        this[PlayerVarpTypes.HAS_DISPLAY_NAME] = 1
+    }
+
+/** Complete transmitted player variables after VARP_RESET, selecting small/large wire forms. */
+internal fun initialAccountVarps(varps: PlayerVarps = initialPlayerVarps()): List<OutgoingMessage> =
+    varps.loginSync().map(VarpValue::toProtocolMessage)
+
+internal fun VarpValue.toProtocolMessage(): OutgoingMessage =
+    if (value in Byte.MIN_VALUE..Byte.MAX_VALUE) VarpSmall(id, value) else VarpLarge(id, value)
+
+/** Formats the rolling cycle telemetry as an in-game admin message. */
+internal fun adminCycleReport(rank: PlayerRank, snapshot: CycleProfileSnapshot): MessageGame? {
+    if (rank != PlayerRank.ADMINISTRATOR) return null
+    val text =
+        "Cycle profile: cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
+            "max=${millis(snapshot.maxNanos)}ms, lag spikes=${snapshot.lagSpikes}."
+    return MessageGame(MessageGame.GAME_MESSAGE, text)
+}
 
 /**
  * Builds the capture-shaped atomic initial world group: active-world context, NPC origin, empty
@@ -122,6 +161,7 @@ internal suspend fun sendInitialGameCycle(
     spawnY: Int,
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
+    accountVarps: List<OutgoingMessage> = initialAccountVarps(),
 ) {
     val buildArea = PlayerBuildArea(Tile(spawnX, spawnY, spawnPlane))
     session.send(RebuildLogin(spawnPlane, spawnX, spawnY, localPlayerIndex))
@@ -132,6 +172,7 @@ internal suspend fun sendInitialGameCycle(
     session.send(HideLocOps())
     session.send(HideObjOps())
     session.send(VarpReset)
+    for (varp in accountVarps) session.send(varp)
 
     sendPacketGroup(
         session,
@@ -148,7 +189,7 @@ internal suspend fun sendInitialGameCycle(
 
     for (message in initialFrameMessages()) session.send(message)
 
-    repeat(25) { stat -> session.send(UpdateStat(stat, 1, 1, 0)) }
+    for (stat in initialStatMessages()) session.send(stat)
     session.send(UpdateRunWeight())
     session.send(UpdateRunEnergy())
     session.send(ResetAnims)
@@ -177,3 +218,7 @@ private val INITIAL_ZONE_SPIRAL: List<Pair<Int, Int>> = listOf(
     32 to 72, 24 to 72, 24 to 64, 24 to 56, 24 to 48, 24 to 40, 24 to 32,
     24 to 24, 32 to 24, 40 to 24, 48 to 24, 56 to 24, 64 to 24, 72 to 24,
 )
+
+private const val OSRS_SKILL_COUNT = 23
+private const val HITPOINTS_STAT = 3
+private fun millis(nanos: Long): Double = nanos / 1_000_000.0

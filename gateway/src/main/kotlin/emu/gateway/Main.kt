@@ -10,8 +10,11 @@ import emu.game.pathfinding.CollisionMap
 import emu.game.pathfinding.OpenCollisionMap
 import emu.gateway.js5.installJs5Handlers
 import emu.gateway.js5.performHandshake
+import emu.gateway.login.AuthenticatedGameLogin
 import emu.gateway.login.GAME_IDLE_TIMEOUT
-import emu.gateway.login.GameCiphers
+import emu.gateway.login.SPAWN_PLANE
+import emu.gateway.login.SPAWN_X
+import emu.gateway.login.SPAWN_Y
 import emu.gateway.login.ServerRsaKeyFile
 import emu.gateway.login.performLoginBlock
 import emu.gateway.login.performLoginInit
@@ -26,6 +29,12 @@ import emu.protocol.osrs239.js5.js5Module
 import emu.protocol.osrs239.js5.prot.Js5Prot
 import emu.protocol.osrs239.login.loginModule
 import emu.protocol.osrs239.login.prot.LoginProt
+import emu.persistence.AccountService
+import emu.persistence.AuthenticationResult
+import emu.persistence.PlayerPosition
+import emu.persistence.PlayerRepository
+import emu.persistence.PostgresDatabase
+import emu.persistence.persistenceModule
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
@@ -41,6 +50,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
@@ -75,16 +85,33 @@ internal val HANDSHAKE_TIMEOUT: Duration = 15.seconds
  * chain.
  */
 fun main() = runBlocking {
+    val startupStarted = System.nanoTime()
     val store = FlatFileStore(cacheDir())
     val collisionMap = loadCollisionMap(store)
+    val cacheReady = System.nanoTime()
     val rsaKeyPair = loadServerRsaKeyPair()
-    val koin = startKoin { modules(js5Module, loginModule, gameModule, gatewayModule(store, rsaKeyPair)) }.koin
+    val bootstrapReady = System.nanoTime()
+    val koin = startKoin {
+        modules(js5Module, loginModule, gameModule, persistenceModule, gatewayModule(store, rsaKeyPair))
+    }.koin
+    val database = koin.get<PostgresDatabase>()
+    withContext(Dispatchers.IO) { database.migrate() }
+    val databaseReady = System.nanoTime()
+    val accounts = koin.get<AccountService>()
+    val players = koin.get<PlayerRepository>()
     val codecs = buildJs5CodecRepository()
     val gameCodecs = buildGameCodecRepository()
 
     val selector = SelectorManager(Dispatchers.IO)
     val server = aSocket(selector).tcp().bind(InetSocketAddress("0.0.0.0", 43594))
-    logger.info { "gateway listening on 43594" }
+    val listening = System.nanoTime()
+    logger.info {
+        "gateway listening on 43594; startup total=${millis(startupStarted, listening)}ms " +
+            "(cache=${millis(startupStarted, cacheReady)}ms, " +
+            "bootstrap=${millis(cacheReady, bootstrapReady)}ms, " +
+            "database=${millis(bootstrapReady, databaseReady)}ms, " +
+            "codecs+bind=${millis(databaseReady, listening)}ms)"
+    }
     while (true) {
         val conn = server.accept()
         launch {
@@ -96,10 +123,20 @@ fun main() = runBlocking {
                 rsaKeyPair,
                 koin = koin,
                 collisionMap = collisionMap,
+                authenticate = { username, password ->
+                    accounts.loginOrCreate(
+                        username,
+                        password,
+                        PlayerPosition(SPAWN_X, SPAWN_Y, SPAWN_PLANE),
+                    )
+                },
+                saveSession = players::saveSession,
             )
         }
     }
 }
+
+private fun millis(startNanos: Long, endNanos: Long): Long = (endNanos - startNanos) / 1_000_000
 
 /**
  * What a successful pre-game handshake hands off to run *outside* [HANDSHAKE_TIMEOUT]'s deadline:
@@ -108,7 +145,7 @@ fun main() = runBlocking {
  */
 private sealed interface PostHandshake {
     data class Js5Pipeline(val cipher: XorStreamCipher) : PostHandshake
-    data class GameStage(val ciphers: GameCiphers) : PostHandshake
+    data class GameStage(val login: AuthenticatedGameLogin) : PostHandshake
 }
 
 /**
@@ -139,6 +176,10 @@ internal suspend fun handleConnection(
     gameIdleTimeout: Duration = GAME_IDLE_TIMEOUT,
     koin: Koin = koinApplication { modules(gatewayModule(store, rsaKeyPair)) }.koin,
     collisionMap: CollisionMap = OpenCollisionMap,
+    authenticate: (String, CharArray) -> AuthenticationResult = { _, _ ->
+        AuthenticationResult.InvalidCredentials
+    },
+    saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit = { _, _, _, _ -> },
 ) {
     try {
         val r = conn.openReadChannel()
@@ -146,7 +187,7 @@ internal suspend fun handleConnection(
         val next = withTimeout(handshakeTimeout) {
             when (val opcode = r.readByte().toInt() and 0xFF) {
                 Js5Prot.HANDSHAKE.opcode -> handshakeJs5(r, w)
-                LoginProt.INIT.opcode -> handshakeLogin(r, w, rsaKeyPair)
+                LoginProt.INIT.opcode -> handshakeLogin(r, w, rsaKeyPair, authenticate)
                 else -> { logger.warn { "unknown first opcode $opcode; closing connection" }; null }
             }
         }
@@ -156,10 +197,12 @@ internal suspend fun handleConnection(
                 runGameStage(
                     r,
                     w,
-                    next.ciphers.inbound,
-                    next.ciphers.outbound,
+                    next.login.inbound,
+                    next.login.outbound,
                     gameCodecs,
-                    gameIdleTimeout,
+                    player = next.login.player,
+                    saveSession = saveSession,
+                    idleTimeout = gameIdleTimeout,
                     collisionMap = collisionMap,
                 )
             null -> {}
@@ -190,11 +233,16 @@ private suspend fun handshakeJs5(r: ByteReadChannel, w: ByteWriteChannel): PostH
 /**
  * Performs opcode 14 (login init) through the opcode-16/18 login block for a connection whose first
  * opcode was [LoginProt.INIT.opcode]. On a successful login block, returns the
- * [PostHandshake.GameStage] action carrying the resulting [GameCiphers]; returns null (connection
+ * [PostHandshake.GameStage] action carrying the authenticated player and ISAAC ciphers; returns null (connection
  * left for the caller to close) if no server RSA keypair was loaded at startup, the opcode after
  * INIT is neither [LoginProt.NEW_LOGIN] nor [LoginProt.RECONNECT], or the login block itself fails.
  */
-private suspend fun handshakeLogin(r: ByteReadChannel, w: ByteWriteChannel, rsaKeyPair: RsaKeyPair?): PostHandshake? {
+private suspend fun handshakeLogin(
+    r: ByteReadChannel,
+    w: ByteWriteChannel,
+    rsaKeyPair: RsaKeyPair?,
+    authenticate: (String, CharArray) -> AuthenticationResult,
+): PostHandshake? {
     logger.debug { "login: received opcode 14 (INIT); sending server session key" }
     val serverKey = performLoginInit(w)
     return when (val next = r.readByte().toInt() and 0xFF) {
@@ -204,7 +252,14 @@ private suspend fun handshakeLogin(r: ByteReadChannel, w: ByteWriteChannel, rsaK
                 logger.warn { "rejecting login block: no server RSA keypair loaded" }
                 null
             } else {
-                performLoginBlock(r, w, serverKey, rsaKeyPair, reconnect = next == LoginProt.RECONNECT.opcode)
+                performLoginBlock(
+                    r,
+                    w,
+                    serverKey,
+                    rsaKeyPair,
+                    reconnect = next == LoginProt.RECONNECT.opcode,
+                    authenticate = authenticate,
+                )
                     ?.let { PostHandshake.GameStage(it) }
             }
         }
@@ -290,6 +345,6 @@ private fun buildJs5CodecRepository(): CodecRepository = koinApplication { modul
  * never picks up a JS5/login codec. [emu.gateway.login.runGameStage] uses it (via
  * [emu.netcore.pipeline.OutboundSession]) to encode the initial-scene packets; it holds no
  * per-connection state, unlike the outbound ISAAC cipher each connection gets from its own
- * [emu.gateway.login.GameCiphers].
+ * authenticated game login.
  */
 private fun buildGameCodecRepository(): CodecRepository = koinApplication { modules(gameModule) }.koin.buildCodecRepository()

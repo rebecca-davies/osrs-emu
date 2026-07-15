@@ -39,9 +39,8 @@ package emu.protocol.osrs239.game.message
  *   `[stand, standTurn, walk, turnAround180, turnRight90, turnLeft90, run]`. **LOW** confidence on
  *   field order; defaulted to `-1` (see class doc) so the exact ids don't matter for a first
  *   render.
- * @param name display name, base37-encoded into a wire long by the encoder (see
- *   [PlayerInfoEncoder]). **MEDIUM** confidence that rev 239 still uses the classic base37-long
- *   name encoding rather than a raw c-string (recon: "name (long/base37 or cstring per rev)").
+ * @param name display name, encoded as the rev-239 CP-1252 C-string read by the client's
+ *   appearance decoder (see [PlayerInfoEncoder]).
  * @param combatLevel **HIGH** confidence on presence/position relative to name (universal RS2
  *   convention); not confirmed for rev 239 specifically.
  * @param skillLevel a secondary level field sent after combat level (historically used for

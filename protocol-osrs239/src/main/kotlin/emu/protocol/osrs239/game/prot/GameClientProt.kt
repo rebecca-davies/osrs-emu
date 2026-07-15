@@ -30,10 +30,14 @@ object GameClientProt {
     /** Ground-click movement request: variable-byte frame with a five-byte decoded body. */
     val MOVE_GAMECLICK: Prot = protocols[114]
 
+    /** Generic interface button operation with packed component, slot, object, and operation. */
+    val IF_BUTTONX: Prot = protocols[47]
+
     /** Returns the declared protocol entry, or null for an opcode outside rev 239's table. */
     fun find(opcode: Int): Prot? = protocols.getOrNull(opcode)
 
     init {
         require(MOVE_GAMECLICK.size == Prot.VAR_BYTE)
+        require(IF_BUTTONX.size == 9)
     }
 }

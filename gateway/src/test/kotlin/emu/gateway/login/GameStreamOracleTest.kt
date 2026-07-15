@@ -142,9 +142,17 @@ class GameStreamOracleTest {
                 check(r.readByte().toInt() and 0xFF == 14) { "expected op14" }
                 val serverKey = performLoginInit(w)
                 check(r.readByte().toInt() and 0xFF == 16) { "expected op16" }
-                val ciphers = performLoginBlock(r, w, serverKey, keyPair) ?: error("login block rejected")
+                val ciphers = performLoginBlock(
+                    r,
+                    w,
+                    serverKey,
+                    keyPair,
+                    authenticate = ::acceptTestLogin,
+                ) ?: error("login block rejected")
                 runGameStage(
                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
+                    player = ciphers.player,
+                    saveSession = { _, _, _, _ -> },
                     idleTimeout = 10.seconds,
                     tickInterval = 1.milliseconds,
                     maxTicks = ORACLE_TICKS,
@@ -182,29 +190,30 @@ class GameStreamOracleTest {
 
         val expected = buildList {
             add(49 to 4614)
-            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0))
+            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0, 97 to 3))
+            add(12 to 6) // HAS_DISPLAY_NAME's high-bit base varp requires VARP_LARGE.
             add(93 to 2)
             add(47 to 3)
             add(116 to 2)
             add(122 to 1)
-            add(28 to 75)
+            add(28 to 80) // Authenticated display name "Test_Player" is carried in appearance.
             add(85 to 1)
             repeat(49) { add(54 to 3) }
             add(87 to 5)
             addAll(listOf(22 to 8, 22 to 8, 96 to 2))
             repeat(25) { add(7 to 7) }
             addAll(listOf(3 to 0, 138 to 1, 25 to 179))
-            repeat(25) { add(46 to 7) }
+            repeat(23) { add(46 to 7) }
             addAll(listOf(31 to 2, 64 to 2, 92 to 0, 43 to 1))
             add(74 to 24) // MESSAGE_GAME "Welcome to RuneScape." (1 smart type + 1 flag + 21 + NUL)
             add(83 to 0)
             // Every steady-state cycle is also packet-grouped: active world, NPC origin, idle
             // player info and empty NPC info, followed by the tick terminator.
-            repeat(ORACLE_TICKS) {
+            repeat(ORACLE_TICKS) { tick ->
                 add(93 to 2)
                 add(47 to 3)
                 add(116 to 2)
-                add(28 to 3)
+                add(28 to if (tick == 0) 6 else 3) // Tick zero publishes cached walk speed.
                 add(85 to 1)
                 add(83 to 0)
             }
@@ -227,20 +236,22 @@ class GameStreamOracleTest {
 
     private fun loginBlockPayload(keyPair: RsaKeyPair, seeds: IntArray, serverKey: Long): ByteArray {
         val password = "testpass"
-        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1).apply {
+        val plaintext = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1).apply {
             writeByte(1)
             for (s in seeds) writeInt(s)
             writeLong(serverKey)
-            writeByte(0)
+            writeByte(2)
+            writeInt(0)
             writeByte(0)
             writeCString(password)
         }.array
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
-        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + 8).apply {
+        val tail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        return JagexBuffer.alloc(LoginBlockParser.CLEARTEXT_HEADER_SIZE + 2 + cipherBytes.size + tail.size).apply {
             writeBytes(ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE))
             writeShort(cipherBytes.size)
             writeBytes(cipherBytes)
-            writeBytes(ByteArray(8))
+            writeBytes(tail)
         }.array
     }
 }

@@ -75,11 +75,12 @@ class GameStageTest {
     }
 
     private fun rsaPlaintext(seeds: IntArray, serverKey: Long, password: String): ByteArray {
-        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 1 + password.length + 1)
+        val buf = JagexBuffer.alloc(1 + 16 + 8 + 1 + 4 + 1 + password.length + 1)
         buf.writeByte(1) // magic
         for (s in seeds) buf.writeInt(s)
         buf.writeLong(serverKey)
-        buf.writeByte(0) // auth-method byte
+        buf.writeByte(2) // auth-method wire value for client.dm case 0
+        buf.writeInt(0) // fixed four-byte auth payload
         buf.writeByte(0) // string-type marker byte
         buf.writeCString(password)
         return buf.array
@@ -89,12 +90,12 @@ class GameStageTest {
         val plaintext = rsaPlaintext(seeds, serverKey, password)
         val cipherBytes = Rsa.crypt(plaintext, keyPair.modulus, keyPair.publicExp)
         val header = ByteArray(LoginBlockParser.CLEARTEXT_HEADER_SIZE)
-        val xteaTailFiller = ByteArray(8)
-        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + xteaTailFiller.size)
+        val usernameTail = encryptedUsernameTail(TEST_LOGIN_NAME, seeds)
+        val out = JagexBuffer.alloc(header.size + 2 + cipherBytes.size + usernameTail.size)
         out.writeBytes(header)
         out.writeShort(cipherBytes.size)
         out.writeBytes(cipherBytes)
-        out.writeBytes(xteaTailFiller)
+        out.writeBytes(usernameTail)
         return out.array
     }
 
@@ -114,10 +115,18 @@ class GameStageTest {
                     val serverKey = performLoginInit(w)
                     when (r.readByte().toInt() and 0xFF) {
                         16, 18 -> {
-                            val ciphers = performLoginBlock(r, w, serverKey, keyPair)
+                            val ciphers = performLoginBlock(
+                                r,
+                                w,
+                                serverKey,
+                                keyPair,
+                                authenticate = ::acceptTestLogin,
+                            )
                             if (ciphers != null) {
                                 runGameStage(
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
+                                    player = ciphers.player,
+                                    saveSession = { _, _, _, _ -> },
                                     idleTimeout = 2.seconds,
                                     tickInterval = 20.milliseconds,
                                     maxTicks = 1,

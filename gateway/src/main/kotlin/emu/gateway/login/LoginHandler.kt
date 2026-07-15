@@ -3,6 +3,9 @@ package emu.gateway.login
 import emu.crypto.IsaacCipher
 import emu.crypto.NopStreamCipher
 import emu.crypto.RsaKeyPair
+import emu.persistence.AuthenticationResult
+import emu.persistence.PlayerRecord
+import emu.persistence.PlayerRank
 import emu.protocol.osrs239.login.codec.LoginResponseEncoder
 import emu.protocol.osrs239.login.message.LoginResponse
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -11,11 +14,17 @@ import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val logger = KotlinLogging.logger {}
 
-/** The two ISAAC ciphers established once a login block is accepted (rev239-login-facts.md §4). */
-data class GameCiphers(val inbound: IsaacCipher, val outbound: IsaacCipher)
+/** Authenticated account state and ISAAC ciphers handed to the game stage. */
+data class AuthenticatedGameLogin(
+    val inbound: IsaacCipher,
+    val outbound: IsaacCipher,
+    val player: PlayerRecord,
+)
 
 /**
  * The local player's index into the client's 2048-slot player array (`client.di`,
@@ -48,9 +57,9 @@ private const val DI_OFFSET = 7
  * (37); a mismatch calls `xz.ai(byte)` and bounces to the login screen. It then (state `cd.am`)
  * waits until 37 bytes are available, but consumes only this 34-byte login-info payload:
  * ```
- * [1] account-hash-present flag  [4] account hash (read regardless of the flag)
- * [1] jo  [1] member flag  [2] di (u16)  [1] ef
- * [8] long qo  [8] long nq  [8] long nh              (= 34 parsed bytes)
+ * [1] authenticator flag  [4] encrypted authenticator code
+ * [1] staff-mod level  [1] player-mod flag  [2] local player index  [1] members flag
+ * [8] account hash  [8] user id  [8] user hash              (= 34 parsed bytes)
  * ```
  * The final three bytes in the advertised span are the immediately following first game packet's
  * smart opcode (one byte for REBUILD_NORMAL) and u16 body length. Adding three account-info pad
@@ -60,10 +69,19 @@ private const val DI_OFFSET = 7
  * carries [LOCAL_PLAYER_INDEX] — the client needs this to index its own player array and draw the
  * avatar the game stage's `PlayerInfo` packet describes.
  */
-val LOGIN_SUCCESS_TRAILER: ByteArray = byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock()
+val LOGIN_SUCCESS_TRAILER: ByteArray = loginSuccessTrailer(PlayerRank.PLAYER)
 
-private fun buildLoginInfoBlock(): ByteArray {
+/** Index of the rev-239 rights byte in the complete span+login-info trailer. */
+internal const val LOGIN_RIGHTS_TRAILER_OFFSET = 6
+internal const val LOGIN_PLAYER_MOD_TRAILER_OFFSET = 7
+
+private fun loginSuccessTrailer(rank: PlayerRank): ByteArray =
+    byteArrayOf(LOGIN_INFO_SPAN.toByte()) + buildLoginInfoBlock(rank)
+
+private fun buildLoginInfoBlock(rank: PlayerRank): ByteArray {
     val block = ByteArray(LOGIN_INFO_PAYLOAD_LENGTH)
+    block[RIGHTS_OFFSET] = rank.loginStaffModLevel.toByte()
+    block[PLAYER_MOD_OFFSET] = if (rank.loginPlayerModerator) 1 else 0
     block[DI_OFFSET] = (LOCAL_PLAYER_INDEX ushr 8).toByte()
     block[DI_OFFSET + 1] = LOCAL_PLAYER_INDEX.toByte()
     return block
@@ -77,9 +95,7 @@ private fun buildLoginInfoBlock(): ByteArray {
  *  - on success: verifies the echoed server key (warns but proceeds regardless — milestone-3
  *    auto-accepts any credentials, see the plan), builds the inbound/outbound ISAAC ciphers, and
  *    replies response code 2 — followed by [LOGIN_SUCCESS_TRAILER] only on a FRESH login.
- *  - on failure: logs the parser's diagnostic (raw payload hex + header offset attempted, so
- *    Task 7 can correct [LoginBlockParser.CLEARTEXT_HEADER_SIZE] against the real client) and
- *    writes nothing.
+ *  - on failure: logs only structural diagnostics, never the credential-bearing packet bytes.
  *
  * [reconnect] MUST be true for an op-18 block: the decompiled client's response-2 dispatch routes a
  * reconnecting client (`ol.cl` set) to state `cd.aj`, which consumes NO bytes after the response
@@ -87,7 +103,7 @@ private fun buildLoginInfoBlock(): ByteArray {
  * payload. Sending the trailer on reconnect shifts the whole game stream by 35 bytes (observed live as the client
  * mis-framing our REBUILD_NORMAL and throwing `dy.ae: 773 4614`). See [ReconnectLoginTest].
  *
- * Returns the [GameCiphers] for the ensuing game stage on success, or null on any failure — the
+ * Returns the [AuthenticatedGameLogin] for the ensuing game stage on success, or null on failure — the
  * caller is expected to close the connection when this returns null.
  */
 suspend fun performLoginBlock(
@@ -96,49 +112,74 @@ suspend fun performLoginBlock(
     expectedServerKey: Long,
     rsaKeyPair: RsaKeyPair,
     reconnect: Boolean = false,
-): GameCiphers? {
+    authenticate: (String, CharArray) -> AuthenticationResult,
+): AuthenticatedGameLogin? {
     val length = readU16(read)
     logger.debug { "login block: framed u16 length=$length; reading that many payload bytes" }
     val payload = ByteArray(length)
     read.readFully(payload)
+    val payloadSize = payload.size
+    val parsedResult = LoginBlockParser.parse(
+        payload,
+        rsaKeyPair.modulus,
+        rsaKeyPair.privateExp,
+        reconnect = reconnect,
+    )
+    payload.fill(0)
 
-    return when (val result = LoginBlockParser.parse(payload, rsaKeyPair.modulus, rsaKeyPair.privateExp)) {
+    return when (val result = parsedResult) {
         is LoginBlockParser.Result.BadMagic -> {
             logger.warn {
                 "login block rejected: RSA decrypt did not yield magic byte 1 (got ${result.magicByte}) " +
                     "using cleartext-header offset ${result.headerSizeUsed} " +
                     "(LoginBlockParser.CLEARTEXT_HEADER_SIZE) — adjust that constant against the real " +
-                    "client's captured bytes. raw payload (${payload.size}B): ${result.payloadHex}"
+                    "client's captured bytes"
             }
             null
         }
         is LoginBlockParser.Result.Malformed -> {
-            logger.warn { "login block malformed: ${result.reason}. raw payload (${payload.size}B): ${result.payloadHex}" }
+            logger.warn { "login block malformed ($payloadSize bytes): ${result.reason}" }
             null
         }
         is LoginBlockParser.Result.Ok -> {
-            logger.debug { "login block: ${payload.size} bytes, decrypt OK" }
+            logger.debug { "login block: $payloadSize bytes, decrypt OK" }
             val parsed = result.parsed
-            if (parsed.serverKey != expectedServerKey) {
-                logger.warn {
-                    "login block echoed server key ${parsed.serverKey} but this connection was sent " +
-                        "$expectedServerKey — proceeding anyway (milestone-3 auto-accepts any credentials; " +
-                        "see docs/superpowers/plans/2026-07-14-login-handshake.md)."
+            try {
+                if (parsed.serverKey != expectedServerKey) {
+                    logger.warn { "login block echoed a different server key; rejecting" }
+                    return null
                 }
+                val authentication = withContext(Dispatchers.IO) {
+                    authenticate(parsed.username, parsed.password)
+                }
+                if (authentication !is AuthenticationResult.Authenticated) {
+                    write.writeFully(
+                        LoginResponseEncoder.encode(
+                            NopStreamCipher,
+                            LoginResponse(LoginResponse.INVALID_CREDENTIALS),
+                        ),
+                    )
+                    write.flush()
+                    logger.info { "login rejected: invalid credentials" }
+                    return null
+                }
+
+                val inbound = IsaacCipher(parsed.seeds)
+                val outbound = IsaacCipher(IntArray(parsed.seeds.size) { parsed.seeds[it] + 50 })
+                logger.info {
+                    "login authenticated. Sending response code ${LoginResponse.SUCCESS}" +
+                        if (reconnect) " (reconnect: no trailer)." else " + trailer."
+                }
+                write.writeFully(
+                    LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(LoginResponse.SUCCESS)),
+                )
+                if (!reconnect) write.writeFully(loginSuccessTrailer(authentication.player.rank))
+                write.flush()
+
+                AuthenticatedGameLogin(inbound, outbound, authentication.player)
+            } finally {
+                parsed.clearPassword()
             }
-            // Encryptor(client->server) = raw seeds => our INBOUND cipher; decryptor(server->client)
-            // = seeds+50 => our OUTBOUND cipher (rev239-login-facts.md §4).
-            val inbound = IsaacCipher(parsed.seeds)
-            val outbound = IsaacCipher(IntArray(parsed.seeds.size) { parsed.seeds[it] + 50 })
-
-            // NEVER log the password (or any credential). Milestone-3 auto-accepts, so we do not
-            // even need it — logging it would leak a real user's password.
-            logger.info { "login block OK: magic=1. Sending response code 2${if (reconnect) " (reconnect: no trailer)" else " + trailer"}." }
-            write.writeFully(LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(2)))
-            if (!reconnect) write.writeFully(LOGIN_SUCCESS_TRAILER)
-            write.flush()
-
-            GameCiphers(inbound, outbound)
         }
     }
 }
@@ -148,3 +189,16 @@ private suspend fun readU16(read: ByteReadChannel): Int {
     val lo = read.readByte().toInt() and 0xFF
     return (hi shl 8) or lo
 }
+
+private const val RIGHTS_OFFSET = LOGIN_RIGHTS_TRAILER_OFFSET - 1
+private const val PLAYER_MOD_OFFSET = LOGIN_PLAYER_MOD_TRAILER_OFFSET - 1
+
+private val PlayerRank.loginStaffModLevel: Int
+    get() = when (this) {
+        PlayerRank.PLAYER -> 0
+        PlayerRank.MODERATOR -> 1
+        PlayerRank.ADMINISTRATOR -> 2
+    }
+
+private val PlayerRank.loginPlayerModerator: Boolean
+    get() = this != PlayerRank.PLAYER

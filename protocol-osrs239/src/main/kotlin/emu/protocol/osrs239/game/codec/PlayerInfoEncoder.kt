@@ -65,6 +65,11 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
      */
     private const val APPEARANCE_FLAG = 0x20
 
+    /** Cached and per-movement speed flags from rev-239's extended-info decoder. */
+    private const val MOVE_SPEED_FLAG = 0x400
+    private const val TEMP_MOVE_SPEED_FLAG = 0x1000
+    private const val EXTENDED_SHORT_FLAG = 0x8
+
     /** Signed-byte sentinel `-1` (`0xFF`) for the appearance's skull/overhead icon "none" fields. */
     private const val ICON_NONE = 0xFF
 
@@ -72,13 +77,15 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
         val bits = BitBuf()
         val appearance = message.appearance
         val movement = message.movement
+        val hasExtendedInfo =
+            appearance != null || message.moveSpeed != null || message.temporaryMoveSpeed != null
 
         // High-resolution section: the sole high-res player is the local avatar. Its byte layout is
         // identical whether the client reads it in the "active-last-cycle" (cycle 0) or
         // "inactive-last-cycle" (cycle 1+) high-res section, because both sections run the same
         // active/getHighResolutionPlayerPosition/readStationary logic and byte-align identically
         // (rev-239 PlayerInfoClient.decodeBitCodes) — so this encoding is cycle-independent.
-        if (appearance == null && movement == null) {
+        if (!hasExtendedInfo && movement == null) {
             // No extended info: a zero-length stationary run (selector 0 => skip 0). Sets the local
             // player IDLE with no avatar model — the minimal per-tick heartbeat.
             bits.writeBits(1, 0) // active? no -> stationary run
@@ -87,7 +94,7 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
             // Active movement and/or extended-info update. An opcode-0 idle update is legal only
             // with extended info; the branch above keeps an unextended idle player stationary.
             bits.writeBits(1, 1) // active? yes
-            bits.writeBits(1, if (appearance != null) 1 else 0)
+            bits.writeBits(1, if (hasExtendedInfo) 1 else 0)
             when (movement) {
                 null -> bits.writeBits(2, 0)
                 is PlayerMovement.Walk -> {
@@ -110,19 +117,33 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
         alignToByte(bits)
 
         val gpi = bits.toByteArray()
-        if (appearance == null) return gpi
+        if (!hasExtendedInfo) return gpi
 
-        // Extended-info pass (byte-aligned, after all bit sections): one entry, for the local
-        // player queued above. Flag word = APPEARANCE only (single byte); then the appearance block
-        // length as p1Alt3 (`128 - value`, the inverse of the client's `g1Alt3 = 128 - raw`);
-        // then the appearance sub-buffer with 128 added to every byte (`pdataAlt2`), inverse of
-        // the client's `gdataAlt2` copy into its temporary appearance buffer.
-        val block = buildAppearanceBlock(appearance)
-        val out = JagexBuffer.alloc(gpi.size + 2 + block.size)
+        var flags = 0
+        if (appearance != null) flags = flags or APPEARANCE_FLAG
+        if (message.moveSpeed != null) flags = flags or MOVE_SPEED_FLAG
+        if (message.temporaryMoveSpeed != null) flags = flags or TEMP_MOVE_SPEED_FLAG
+        if (flags ushr 8 != 0) flags = flags or EXTENDED_SHORT_FLAG
+
+        // Extended-info pass: low flag byte first and a high byte when 0x8 is set. Rev 239 decodes
+        // cached speed before temporary speed and appearance, irrespective of numeric flag order.
+        val block = appearance?.let(::buildAppearanceBlock)
+        val flagBytes = if (flags and EXTENDED_SHORT_FLAG != 0) 2 else 1
+        val out = JagexBuffer.alloc(
+            gpi.size + flagBytes +
+                (if (message.moveSpeed != null) 1 else 0) +
+                (if (message.temporaryMoveSpeed != null) 1 else 0) +
+                (block?.let { 1 + it.size } ?: 0),
+        )
         out.writeBytes(gpi)
-        out.writeByte(APPEARANCE_FLAG)
-        out.writeByte((128 - block.size) and 0xFF)
-        for (byte in block) out.writeByte(byte.toInt() + 128)
+        out.writeByte(flags)
+        if (flags and EXTENDED_SHORT_FLAG != 0) out.writeByte(flags ushr 8)
+        message.moveSpeed?.let(out::writeByteAlt2)
+        message.temporaryMoveSpeed?.let(out::writeByte)
+        if (block != null) {
+            out.writeByteAlt3(block.size)
+            for (byte in block) out.writeByte(byte.toInt() + 128)
+        }
         return out.array
     }
 
