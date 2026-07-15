@@ -52,11 +52,19 @@ data class PlayerRecord(
     val varps: Map<Int, Int> = emptyMap(),
 )
 
-/** Result of case-insensitive password authentication or first-login creation. */
-sealed interface AuthenticationResult {
-    data class Authenticated(val player: PlayerRecord, val created: Boolean) : AuthenticationResult
+/** Identity-only account data returned by authentication. */
+data class AccountRecord(
+    val id: Long,
+    val username: String,
+    val displayName: String,
+    val rank: PlayerRank,
+)
 
-    data object InvalidCredentials : AuthenticationResult
+/** Result of case-insensitive account authentication or first-login creation. */
+sealed interface AccountAuthenticationResult {
+    data class Authenticated(val account: AccountRecord, val created: Boolean) : AccountAuthenticationResult
+
+    data object InvalidCredentials : AccountAuthenticationResult
 }
 
 private fun Char.isAsciiLetterOrDigit(): Boolean = this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9'

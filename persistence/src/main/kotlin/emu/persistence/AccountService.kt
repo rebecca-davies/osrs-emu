@@ -8,28 +8,27 @@ class AccountService(
     fun loginOrCreate(
         submittedUsername: String,
         password: CharArray,
-        spawn: PlayerPosition,
-    ): AuthenticationResult {
-        val identity = PlayerIdentity.parse(submittedUsername) ?: return AuthenticationResult.InvalidCredentials
-        val existing = players.findByUsername(identity.username)
+    ): AccountAuthenticationResult {
+        val identity = PlayerIdentity.parse(submittedUsername) ?: return AccountAuthenticationResult.InvalidCredentials
+        val existing = players.findAccountByUsername(identity.username)
         if (existing != null) return authenticate(existing, password)
 
         val hash = passwords.hash(password)
-        val created = players.createAccount(identity, hash, spawn)
-        if (created != null) return AuthenticationResult.Authenticated(created.player, created = true)
+        val created = players.createAccount(identity, hash)
+        if (created != null) return AccountAuthenticationResult.Authenticated(created.account, created = true)
 
-        val concurrent = players.findByUsername(identity.username)
+        val concurrent = players.findAccountByUsername(identity.username)
             ?: error("account creation conflicted but the player row was not visible")
         return authenticate(concurrent, password)
     }
 
     private fun authenticate(
-        stored: PlayerRepository.StoredPlayer,
+        stored: PlayerRepository.StoredAccount,
         password: CharArray,
-    ): AuthenticationResult =
+    ): AccountAuthenticationResult =
         if (passwords.verify(password, stored.passwordHash)) {
-            AuthenticationResult.Authenticated(stored.player, created = false)
+            AccountAuthenticationResult.Authenticated(stored.account, created = false)
         } else {
-            AuthenticationResult.InvalidCredentials
+            AccountAuthenticationResult.InvalidCredentials
         }
 }

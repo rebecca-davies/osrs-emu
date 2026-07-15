@@ -21,23 +21,24 @@ class PlayerRepositoryTest {
         val name = "T_${UUID.randomUUID().toString().take(8)}"
         val password = "correct horse".toCharArray()
 
-        val created = fixture.accounts.loginOrCreate(name, password, SPAWN)
-        val player = assertIs<AuthenticationResult.Authenticated>(created)
-        assertEquals(true, player.created)
-        assertEquals(name, player.player.displayName)
-        assertEquals(name.lowercase().replace('_', ' '), player.player.username)
-        assertEquals(SPAWN, player.player.position)
-        assertEquals(0, player.player.playTimeSeconds)
-        assertEquals(PlayerRank.PLAYER, player.player.rank)
+        val created = fixture.accounts.loginOrCreate(name, password)
+        val account = assertIs<AccountAuthenticationResult.Authenticated>(created)
+        assertEquals(true, account.created)
+        assertEquals(name, account.account.displayName)
+        assertEquals(name.lowercase().replace('_', ' '), account.account.username)
+        assertEquals(PlayerRank.PLAYER, account.account.rank)
+        val character = requireNotNull(fixture.players.loadCharacter(account.account.id))
+        assertEquals(SPAWN, character.position)
+        assertEquals(0, character.playTimeSeconds)
 
-        val authenticated = fixture.accounts.loginOrCreate(name.lowercase().replace('_', ' '), password, SPAWN)
+        val authenticated = fixture.accounts.loginOrCreate(name.lowercase().replace('_', ' '), password)
         assertEquals(
-            player.player,
-            assertIs<AuthenticationResult.Authenticated>(authenticated).player,
+            account.account,
+            assertIs<AccountAuthenticationResult.Authenticated>(authenticated).account,
         )
         assertEquals(
-            AuthenticationResult.InvalidCredentials,
-            fixture.accounts.loginOrCreate(name, "wrong password".toCharArray(), SPAWN),
+            AccountAuthenticationResult.InvalidCredentials,
+            fixture.accounts.loginOrCreate(name, "wrong password".toCharArray()),
         )
     }
 
@@ -45,15 +46,15 @@ class PlayerRepositoryTest {
         val fixture = fixtureOrNull() ?: return
         val name = "R${UUID.randomUUID().toString().take(8)}"
         val password = "rank password".toCharArray()
-        val player = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val player = assertIs<AccountAuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password),
+        ).account
 
         fixture.players.setRank(player.id, PlayerRank.ADMINISTRATOR)
 
-        val loaded = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val loaded = assertIs<AccountAuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password),
+        ).account
         assertEquals(PlayerRank.ADMINISTRATOR, loaded.rank)
     }
 
@@ -62,18 +63,27 @@ class PlayerRepositoryTest {
         val fixture = fixtureOrNull() ?: return
         val name = "T${UUID.randomUUID().toString().take(8)}"
         val password = "session password".toCharArray()
-        val player = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val account = assertIs<AccountAuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password),
+        ).account
 
-        fixture.players.saveSession(player.id, PlayerPosition(3200, 3201, 1), playedSeconds = 42)
-        fixture.players.saveSession(player.id, PlayerPosition(3202, 3203, 2), playedSeconds = 8)
+        fixture.players.saveSession(account.id, PlayerPosition(3200, 3201, 1), playedSeconds = 42)
+        fixture.players.saveSession(account.id, PlayerPosition(3202, 3203, 2), playedSeconds = 8)
 
-        val loaded = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val loaded = requireNotNull(fixture.players.loadCharacter(account.id))
         assertEquals(PlayerPosition(3202, 3203, 2), loaded.position)
         assertEquals(50, loaded.playTimeSeconds)
+    }
+
+    @Test
+    fun `game service loads character state by authenticated account id`() {
+        val fixture = fixtureOrNull() ?: return
+        val name = "G${UUID.randomUUID().toString().take(8)}"
+        val created = assertIs<AccountAuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, "game load".toCharArray()),
+        ).account
+
+        assertEquals(created.id, fixture.players.loadCharacter(created.id)?.id)
     }
 
     @Test
@@ -81,9 +91,10 @@ class PlayerRepositoryTest {
         val fixture = fixtureOrNull() ?: return
         val name = "V${UUID.randomUUID().toString().take(8)}"
         val password = "varp password".toCharArray()
-        val player = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val account = assertIs<AccountAuthenticationResult.Authenticated>(
+            fixture.accounts.loginOrCreate(name, password),
+        ).account
+        val player = requireNotNull(fixture.players.loadCharacter(account.id))
 
         assertEquals(emptyMap(), player.varps)
         fixture.players.saveSession(
@@ -93,26 +104,20 @@ class PlayerRepositoryTest {
             dirtyVarps = mapOf(173 to 0, 1055 to Int.MAX_VALUE),
         )
 
-        val loaded = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val loaded = requireNotNull(fixture.players.loadCharacter(player.id))
         assertEquals(mapOf(1055 to Int.MAX_VALUE), loaded.varps)
 
         fixture.players.saveSession(player.id, SPAWN, playedSeconds = 0, dirtyVarps = mapOf(173 to 1))
-        val updated = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val updated = requireNotNull(fixture.players.loadCharacter(player.id))
         assertEquals(mapOf(173 to 1, 1055 to Int.MAX_VALUE), updated.varps)
 
         fixture.players.saveSession(player.id, SPAWN, playedSeconds = 0, dirtyVarps = mapOf(173 to 0))
-        val cleared = assertIs<AuthenticationResult.Authenticated>(
-            fixture.accounts.loginOrCreate(name, password, SPAWN),
-        ).player
+        val cleared = requireNotNull(fixture.players.loadCharacter(player.id))
         assertEquals(mapOf(1055 to Int.MAX_VALUE), cleared.varps)
     }
 
     private fun fixtureOrNull(): Fixture? {
-        val database = PostgresDatabase(PostgresConfig.fromEnvironment())
+        val database = PostgresDatabase(PostgresConfig.fromEnvironment(System.getenv()))
         this.database = database
         try {
             if (!database.connection { it.isValid(2) }) return null

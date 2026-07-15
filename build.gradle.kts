@@ -46,6 +46,73 @@ val verifyProtocolBoundaries by tasks.registering {
     }
 }
 
+val architectureCheck by tasks.registering {
+    group = "verification"
+    description = "Verifies service dependencies, package ownership, and composition boundaries."
+
+    doLast {
+        val allowed =
+            mapOf(
+                ":server-gateway" to emptySet(),
+                ":server-session" to emptySet(),
+                ":server-login" to setOf(":server-session", ":buffer", ":crypto", ":net-core", ":protocol-login"),
+                ":server-js5" to setOf(":cache", ":crypto", ":net-core", ":protocol-js5"),
+                ":server-game" to
+                    setOf(
+                        ":server-session",
+                        ":game",
+                        ":persistence",
+                        ":net-core",
+                        ":protocol-game",
+                        ":cache",
+                        ":compression",
+                        ":crypto",
+                    ),
+            )
+        for ((path, permitted) in allowed) {
+            val service = requireNotNull(findProject(path)) { "missing service project $path" }
+            val actual =
+                service.configurations
+                    .flatMap { it.dependencies.withType<org.gradle.api.artifacts.ProjectDependency>() }
+                    .map { it.path }
+                    .toSet()
+            check(actual.all { it in permitted }) {
+                "$path has forbidden project dependencies: ${actual - permitted}"
+            }
+        }
+
+        val servicePackages =
+            mapOf(
+                ":server-gateway" to "emu.server.gateway",
+                ":server-login" to "emu.server.login",
+                ":server-js5" to "emu.server.js5",
+                ":server-game" to "emu.server.game",
+            )
+        for ((path, ownPackage) in servicePackages) {
+            val service = requireNotNull(findProject(path))
+            val sources = service.projectDir.resolve("src").walkTopDown().filter { it.isFile && it.extension == "kt" }
+            for (source in sources) {
+                val text = source.readText()
+                for (peerPackage in servicePackages.values - ownPackage) {
+                    check(!text.contains("import $peerPackage")) { "$path imports peer service package in $source" }
+                }
+            }
+        }
+
+        for (subproject in subprojects.filter { it.path != ":server-gateway" }) {
+            val main = subproject.projectDir.resolve("src/main").takeIf { it.exists() } ?: continue
+            for (source in main.walkTopDown().filter { it.isFile && it.extension == "kt" }) {
+                val text = source.readText()
+                check(!text.contains("package emu.server.gateway")) { "gateway package is owned by :server-gateway: $source" }
+                if (subproject.path != ":server-app" && !subproject.path.startsWith(":tools:")) {
+                    check(!text.contains("org.koin")) { "Koin is owned by :server-app: $source" }
+                    check(!text.contains("System.getenv")) { "environment reads are owned by :server-app: $source" }
+                }
+            }
+        }
+    }
+}
+
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")
 
@@ -54,6 +121,7 @@ subprojects {
     }
 
     tasks.withType<Test> { useJUnitPlatform() }
+    tasks.named("check") { dependsOn(architectureCheck) }
 
     if (path in protocolDomainProjects) {
         tasks.named("check") { dependsOn(verifyProtocolBoundaries) }

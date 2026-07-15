@@ -11,5 +11,7 @@ data class LoginResponse(val code: Int) : OutgoingMessage {
     companion object {
         const val SUCCESS = 2
         const val INVALID_CREDENTIALS = 3
+        const val ACCOUNT_ONLINE = 5
+        const val WORLD_FULL = 7
     }
 }

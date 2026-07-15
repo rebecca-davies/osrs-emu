@@ -9,7 +9,7 @@ class PostgresDatabaseTest {
     @Test
     fun `migration is idempotent and creates the complete character schema`() {
         val config =
-            PostgresConfig.fromEnvironment().copy(
+            PostgresConfig.fromEnvironment(System.getenv()).copy(
                 pool = PostgresPoolConfig(maximumSize = 1, minimumIdle = 0),
             )
         val database = PostgresDatabase(config)
