@@ -1,12 +1,12 @@
 package emu.server.world.session
 
 import emu.crypto.IsaacCipher
-import emu.game.cycle.GameCycle
+import emu.game.input.PlayerInput
+import emu.game.input.PlayerInputQueue
+import emu.game.input.PlayerInputQueueConfig
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
-import emu.game.ui.PlayerButtonQueue
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameClientProt
 import io.ktor.utils.io.ByteChannel
@@ -25,10 +25,10 @@ class GameInboundTest {
         val serverCipher = IsaacCipher(seeds)
         val codecs = buildGameCodecRepository()
         val input = ByteChannel(autoFlush = true)
-        val requests = PlayerRouteRequestQueue()
+        val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val job = launch {
-            drainGameInbound(input, { true }, serverCipher, codecs, requests, PlayerButtonQueue(), 2.seconds)
+            drainGameInbound(input, { true }, serverCipher, codecs, inputs, 2.seconds)
         }
 
         input.writeEncryptedOpcode(0, clientCipher)
@@ -44,7 +44,9 @@ class GameInboundTest {
         input.close()
         job.join()
 
-        GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses()).tick()
+        val route = inputs.drainToList().single() as PlayerInput.Route
+        movement.routeTo(Tile(route.x, route.y, movement.position.plane))
+        movement.process()
 
         assertEquals(Tile(3223, 3218), movement.position)
     }
@@ -52,4 +54,7 @@ class GameInboundTest {
     private suspend fun ByteChannel.writeEncryptedOpcode(opcode: Int, cipher: IsaacCipher) {
         writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())
     }
+
+    private fun PlayerInputQueue.drainToList(): List<PlayerInput> =
+        buildList { drain(::add) }
 }

@@ -21,17 +21,13 @@ multiple|cache/src/main/kotlin/emu/cache/index/Js5Index.kt|type:Js5IndexFlags,ty
 multiple|libraries/crypto/src/main/kotlin/emu/crypto/Rsa.kt|type:RsaKeyPair,type:Rsa
 multiple|libraries/crypto/src/main/kotlin/emu/crypto/StreamCipher.kt|type:StreamCipher,type:NopStreamCipher
 multiple|game/src/main/kotlin/emu/game/chat/ChatActionRegistry.kt|type:ChatAction,type:ChatActionRegistry,function:chatActions,type:ChatActionRegistryBuilder
-multiple|game/src/main/kotlin/emu/game/chat/ChatInput.kt|type:ChatInput,type:PublicChatInput,type:ChatFilterInput
-multiple|game/src/main/kotlin/emu/game/chat/PlayerChatQueue.kt|type:PlayerChatSink,type:PlayerChatQueue
 multiple|game/src/main/kotlin/emu/game/cycle/CycleProfiler.kt|type:CycleProfileSnapshot,type:CycleProfileEvent,type:CycleProfiler
 multiple|game/src/main/kotlin/emu/game/cycle/FixedRateTickSchedule.kt|val:GAME_TICK_MILLIS,type:FixedRateTickSchedule
 multiple|game/src/main/kotlin/emu/game/cycle/GameCycle.kt|type:CycleProcess,type:GameCycle
 multiple|game/src/main/kotlin/emu/game/pathfinding/CollisionMap.kt|type:CollisionMap,type:OpenCollisionMap,type:MutableCollisionMap,function:canTravel
 multiple|game/src/main/kotlin/emu/game/pathfinding/PlayerMovement.kt|type:MovementUpdate,type:PlayerMovement
-multiple|game/src/main/kotlin/emu/game/pathfinding/PlayerRouteRequestQueue.kt|type:RouteRequestAdmission,type:RouteRequestMetrics,type:PlayerRouteRequestSink,type:PlayerRouteRequestQueue
 multiple|game/src/main/kotlin/emu/game/pathfinding/Tile.kt|type:Tile,type:PathRoute
 multiple|game/src/main/kotlin/emu/game/ui/ButtonActionRegistry.kt|type:ButtonAction,type:ButtonActionRegistry,function:buttonActions,type:ButtonActionRegistryBuilder
-multiple|game/src/main/kotlin/emu/game/ui/PlayerButtonQueue.kt|type:PlayerButtonSink,type:PlayerButtonQueue
 multiple|game/src/main/kotlin/emu/game/varp/VarpType.kt|type:VarpScope,type:VarpTransmit,type:VarpType,type:VarbitType,type:VarpValue,type:VarpCatalog
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/Codec.kt|type:MessageDecoder,type:MessageEncoder
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/CodecRepository.kt|type:CodecRepository,type:CodecRepositoryBuilder
@@ -44,7 +40,7 @@ multiple|server/host/src/main/kotlin/emu/server/host/RuntimeAssets.kt|type:Runti
 multiple|server/world/src/main/kotlin/emu/server/world/player/PlayerChatState.kt|type:PlayerChatState,function:playerChatActions
 multiple|server/world/src/main/kotlin/emu/server/world/player/PlayerGameState.kt|type:PlayerVarpTypes,type:PlayerSessionControl,function:playerButtonActions
 multiple|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|type:GameLoop,type:LocalPlayerInfoState
-multiple|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|val:GAME_IDLE_TIMEOUT,val:SPAWN_PLANE,val:SPAWN_X,val:SPAWN_Y,function:runGameStage,function:initialPlayerMovement,function:drainGameInbound
+multiple|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|val:SPAWN_PLANE,val:SPAWN_X,val:SPAWN_Y,function:runGameStage,function:initialPlayerMovement,function:drainGameInbound
 multiple|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|val:WELCOME_MESSAGE,function:loginNoticeMessages,function:playerAppearance,function:initialStatMessages,function:initialPlayerVarps,function:initialAccountVarps,function:initialChatFilters,function:toProtocolMessage,function:adminCycleReport,function:initialWorldGroup,function:initialFrameSubInterfaces,function:initialFrameMessages,function:initialGameCycle
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayConfig.kt|val:DEFAULT_GATEWAY_PORT,type:GatewayConfig
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayRoutes.kt|type:GatewayRouteHandler,type:GatewayRoutes

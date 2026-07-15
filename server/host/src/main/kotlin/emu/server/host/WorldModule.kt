@@ -27,6 +27,7 @@ internal fun worldModule(
     single<CollisionMap> { collision }
     single { huffman }
     single { config }
+    single { config.connection }
     single { WorldServerDispatchers(config.ioWorkerThreads) } onClose { it?.close() }
     single { WorldRuntime(maxPlayerIndex = config.maxConcurrentSessions) }
     single {
@@ -45,7 +46,7 @@ internal fun worldModule(
             codecs = get(),
             characters = get(),
             chatAudit = get<ChatAuditSink>(),
-            config = get(),
+            connectionConfig = get(),
             world = get(),
             collision = get(),
             huffman = get(),

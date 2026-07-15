@@ -3,6 +3,7 @@ package emu.server.world.session
 import emu.crypto.IsaacCipher
 import emu.server.world.runtime.WorldParticipant
 import emu.server.world.runtime.WorldParticipantResult
+import emu.server.world.config.GameConnectionConfig
 import emu.server.world.runtime.WorldRuntime
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameServerProt
@@ -67,7 +68,7 @@ class GameStageTest {
                     player = TEST_PLAYER,
                     worldSessions = world,
                     saveSession = {},
-                    idleTimeout = 2.seconds,
+                    connectionConfig = GameConnectionConfig(idleTimeout = 2.seconds),
                     maxTicks = 1,
                 )
             }

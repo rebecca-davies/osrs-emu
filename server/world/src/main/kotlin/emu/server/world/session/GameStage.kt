@@ -2,13 +2,12 @@ package emu.server.world.session
 
 import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
-import emu.game.chat.PlayerChatQueue
+import emu.game.input.PlayerInputQueue
+import emu.game.input.PlayerInputSink
 import emu.game.pathfinding.CollisionMap
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
-import emu.game.ui.PlayerButtonQueue
 import emu.server.world.network.GameOutboundMailbox
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
@@ -16,6 +15,7 @@ import emu.server.world.network.GameOutputSink
 import emu.server.world.player.PlayerChatState
 import emu.server.world.player.PlayerSessionControl
 import emu.server.world.player.PlayerVarpTypes
+import emu.server.world.config.GameConnectionConfig
 import emu.server.world.network.installGameHandlers
 import emu.server.world.player.playerButtonActions
 import emu.server.world.player.playerChatActions
@@ -50,9 +50,6 @@ import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 
-/** Inbound silence allowed after login; outbound world cycles continue during this interval. */
-val GAME_IDLE_TIMEOUT: Duration = 30.seconds
-
 /** Lumbridge, the default tile for a newly created account. */
 internal const val SPAWN_PLANE = 0
 internal const val SPAWN_X = 3222
@@ -73,7 +70,7 @@ internal suspend fun runGameStage(
     player: PlayerRecord,
     worldSessions: WorldSessionRegistry,
     saveSession: (PlayerSessionSave) -> Unit,
-    idleTimeout: Duration = GAME_IDLE_TIMEOUT,
+    connectionConfig: GameConnectionConfig,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
     huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
@@ -91,9 +88,7 @@ internal suspend fun runGameStage(
             playerVarps[PlayerVarpTypes.RUN_MODE] == 1,
             collisionMap,
         )
-    val routeRequests = PlayerRouteRequestQueue()
-    val buttonClicks = PlayerButtonQueue()
-    val chatInputs = PlayerChatQueue()
+    val inputs = PlayerInputQueue(connectionConfig.inputQueue)
     val chatState = PlayerChatState()
     val sessionControl = PlayerSessionControl()
     val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
@@ -102,11 +97,9 @@ internal suspend fun runGameStage(
         playerId = player.id,
         output = outboundMailbox,
         playerMovement = movement,
-        routeRequests = routeRequests,
-        buttonClicks = buttonClicks,
+        inputs = inputs,
         buttonActions = buttonActions,
         playerVarps = playerVarps,
-        chatInputs = chatInputs,
         chatActions = chatActions,
         chatState = chatState,
         sessionControl = sessionControl,
@@ -158,10 +151,8 @@ internal suspend fun runGameStage(
                                 outboundMailbox,
                                 inboundCipher,
                                 gameCodecs,
-                                routeRequests,
-                                buttonClicks,
-                                idleTimeout,
-                                chatInputs,
+                                inputs,
+                                connectionConfig.idleTimeout,
                                 huffman,
                             )
                         } finally {
@@ -234,13 +225,11 @@ internal suspend fun drainGameInbound(
     output: GameOutputSink,
     inboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
-    routeRequests: PlayerRouteRequestQueue,
-    buttonClicks: PlayerButtonQueue,
+    inputs: PlayerInputSink,
     idleTimeout: Duration,
-    chatInputs: PlayerChatQueue = PlayerChatQueue(),
     huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
 ) {
-    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests, buttonClicks, chatInputs, huffman).build()
+    val handlers = HandlerRepositoryBuilder().installGameHandlers(inputs, huffman).build()
     val stage =
         ProtocolStage(
             gameCodecs,

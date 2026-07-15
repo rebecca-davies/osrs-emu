@@ -1,7 +1,7 @@
 package emu.server.world.network.handler
 
-import emu.game.pathfinding.PlayerRouteRequestSink
-import emu.game.pathfinding.RouteRequestAdmission
+import emu.game.input.PlayerInput
+import emu.game.input.PlayerInputSink
 import emu.transport.pipeline.HandlerContext
 import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.game.message.MoveGameClick
@@ -16,13 +16,26 @@ private val logger = KotlinLogging.logger {}
  * authoritative world cycle's client-input/player phases.
  */
 class MoveGameClickHandler(
-    private val routeRequests: PlayerRouteRequestSink,
+    private val inputs: PlayerInputSink,
 ) : PacketHandler<MoveGameClick> {
     override suspend fun handle(message: MoveGameClick, ctx: HandlerContext) {
-        when (routeRequests.submit(message.x, message.z, message.keyCombination)) {
-            RouteRequestAdmission.QUEUED -> Unit
-            RouteRequestAdmission.REPLACED -> logger.debug { "coalesced pending player route request" }
-            RouteRequestAdmission.REJECTED -> logger.warn { "rejected player route request outside world bounds" }
+        val intent =
+            try {
+                PlayerInput.Route(
+                    x = message.x,
+                    y = message.z,
+                    invertRun = message.keyCombination == CONTROL_KEY,
+                )
+            } catch (_: IllegalArgumentException) {
+                logger.warn { "rejected player route request outside world bounds" }
+                return
+            }
+        if (!inputs.submit(intent)) {
+            logger.warn { "player input mailbox saturated; rejecting route request" }
         }
+    }
+
+    private companion object {
+        const val CONTROL_KEY = 1
     }
 }

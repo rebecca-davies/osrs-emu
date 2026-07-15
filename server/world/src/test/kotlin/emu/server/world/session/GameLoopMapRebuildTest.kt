@@ -1,12 +1,13 @@
 package emu.server.world.session
 
 import emu.crypto.NopStreamCipher
+import emu.game.input.PlayerInput
+import emu.game.input.PlayerInputQueue
+import emu.game.input.PlayerInputQueueConfig
 import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
-import emu.game.ui.PlayerButtonQueue
 import emu.server.world.player.PlayerSessionControl
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
@@ -26,21 +27,19 @@ class GameLoopMapRebuildTest {
         val codecs = buildGameCodecRepository()
         val output = ByteChannel(autoFlush = true)
         val movement = PlayerMovement(Tile(3255, 3218), OpenCollisionMap)
-        val routeRequests = PlayerRouteRequestQueue()
+        val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val buildArea = PlayerBuildArea(Tile(3222, 3218))
-        val buttonClicks = PlayerButtonQueue()
         val playerVarps = initialPlayerVarps().apply { markClientSynchronized() }
         val sessionControl = PlayerSessionControl()
         val batches = mutableListOf<GameOutputBatch>()
-        routeRequests.submit(3256, 3218, 0)
+        inputs.submit(PlayerInput.Route(3256, 3218, invertRun = false))
 
         GameLoop(
             playerId = 1,
             output = GameOutputSink { batches += it; true },
             playerMovement = movement,
-            routeRequests = routeRequests,
+            inputs = inputs,
             buildArea = buildArea,
-            buttonClicks = buttonClicks,
             buttonActions = playerButtonActions(movement, playerVarps, sessionControl),
             playerVarps = playerVarps,
             sessionControl = sessionControl,

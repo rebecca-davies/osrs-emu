@@ -4,16 +4,15 @@ import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
 import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.GameCycle
+import emu.game.input.PlayerInput
+import emu.game.input.PlayerInputQueue
 import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.MovementUpdate
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonActionRegistry
-import emu.game.ui.PlayerButtonQueue
 import emu.game.chat.ChatActionRegistry
-import emu.game.chat.PlayerChatQueue
 import emu.game.varp.PlayerVarps
 import emu.server.world.player.PlayerSessionControl
 import emu.server.world.player.PlayerChatState
@@ -49,13 +48,11 @@ internal class GameLoop(
     private val output: GameOutputSink,
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
-    private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
+    private val inputs: PlayerInputQueue,
     private val buildArea: PlayerBuildArea = PlayerBuildArea(playerMovement.position),
-    private val buttonClicks: PlayerButtonQueue,
-    buttonActions: ButtonActionRegistry,
+    private val buttonActions: ButtonActionRegistry,
     private val playerVarps: PlayerVarps,
-    private val chatInputs: PlayerChatQueue = PlayerChatQueue(),
-    chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
+    private val chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
     private val chatState: PlayerChatState = PlayerChatState(),
     private val sessionControl: PlayerSessionControl,
     private val onProfileReport: (CycleProfileSnapshot) -> Unit = {},
@@ -72,15 +69,31 @@ internal class GameLoop(
 
     private val cycle =
         GameCycle(
-            buttonClicks.cycleProcesses(buttonActions) +
-                chatInputs.cycleProcesses(chatActions) +
-                routeRequests.cycleProcesses(playerMovement) +
+            listOf(CycleProcess(CyclePhase.CLIENT_INPUT) { processInputs() }) +
                 cycleProcesses +
                 playerMovement.cycleProcesses() +
                 CycleProcess(CyclePhase.CLIENT_OUTPUT) { tickIndex ->
                     flushClientOutput(tickIndex)
                 },
         )
+
+    private fun processInputs() {
+        var latestRoute: PlayerInput.Route? = null
+        inputs.drain { input ->
+            when (input) {
+                is PlayerInput.Button -> buttonActions.dispatch(input.click)
+                is PlayerInput.Chat -> chatActions.dispatch(input.input)
+                is PlayerInput.Route -> latestRoute = input
+            }
+        }
+        latestRoute?.let(::applyRoute)
+    }
+
+    private fun applyRoute(route: PlayerInput.Route) {
+        val destination = Tile(route.x, route.y, playerMovement.position.plane)
+        val temporaryRun = if (route.invertRun) !playerMovement.runEnabled else null
+        playerMovement.routeTo(destination, temporaryRun)
+    }
 
     /**
      * Recentres the client's 104x104 build area when movement reaches its outer two zones, then

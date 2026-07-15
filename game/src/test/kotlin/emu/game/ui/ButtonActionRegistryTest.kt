@@ -1,30 +1,11 @@
 package emu.game.ui
 
-import emu.game.cycle.GameCycle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ButtonActionRegistryTest {
-    @Test fun `network submissions are bounded and handlers run only on the game cycle`() {
-        val clicks = PlayerButtonQueue(capacity = 1)
-        val handled = mutableListOf<ButtonClick>()
-        val actions = buttonActions {
-            onButton(interfaceId = 160, componentId = 28) { handled += it }
-        }
-        val cycle = GameCycle(clicks.cycleProcesses(actions))
-        val click = ButtonClick(160, 28, sub = -1, obj = -1, op = 1)
-
-        assertTrue(clicks.submit(click))
-        assertFalse(clicks.submit(click), "full mailbox must apply back-pressure")
-        assertTrue(handled.isEmpty(), "the network coroutine must not execute game actions")
-
-        cycle.tick()
-
-        assertEquals(listOf(click), handled)
-    }
-
     @Test fun `one component handler receives operation slot and object context`() {
         val handled = mutableListOf<ButtonClick>()
         val actions = buttonActions {

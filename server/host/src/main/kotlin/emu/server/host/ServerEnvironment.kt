@@ -66,10 +66,21 @@ private fun Map<String, String>.js5Config(): Js5ExecutionConfig =
 
 private fun Map<String, String>.worldConfig(): GameExecutionConfig =
     GameExecutionConfig().let { defaults ->
+        val connection = defaults.connection
+        val inputQueue = connection.inputQueue
         defaults.copy(
             ioWorkerThreads = int("OSRS_GAME_IO_WORKER_THREADS", defaults.ioWorkerThreads),
             maxConcurrentSessions = int("OSRS_GAME_MAX_CONCURRENT_SESSIONS", defaults.maxConcurrentSessions),
-            idleTimeout = long("OSRS_GAME_IDLE_TIMEOUT_SECONDS", defaults.idleTimeout.inWholeSeconds).seconds,
+            connection =
+                connection.copy(
+                    idleTimeout =
+                        long("OSRS_GAME_IDLE_TIMEOUT_SECONDS", connection.idleTimeout.inWholeSeconds).seconds,
+                    inputQueue =
+                        inputQueue.copy(
+                            capacity = int("OSRS_GAME_INPUT_QUEUE_CAPACITY", inputQueue.capacity),
+                            maxPerCycle = int("OSRS_GAME_INPUT_LIMIT_PER_CYCLE", inputQueue.maxPerCycle),
+                        ),
+                ),
         )
     }
 

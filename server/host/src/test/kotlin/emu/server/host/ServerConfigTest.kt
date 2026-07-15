@@ -23,6 +23,8 @@ class ServerConfigTest {
                     "OSRS_JS5_HANDSHAKE_TIMEOUT_SECONDS" to "10",
                     "OSRS_JS5_IDLE_TIMEOUT_SECONDS" to "20",
                     "OSRS_GAME_IDLE_TIMEOUT_SECONDS" to "45",
+                    "OSRS_GAME_INPUT_QUEUE_CAPACITY" to "256",
+                    "OSRS_GAME_INPUT_LIMIT_PER_CYCLE" to "12",
                     "OSRS_COORDINATOR_ADMISSION_TIMEOUT_SECONDS" to "7",
                     "OSRS_DATABASE_URL" to "jdbc:postgresql://database/osrsemu",
                     "OSRS_DATABASE_USER" to "server-user",
@@ -45,7 +47,9 @@ class ServerConfigTest {
         assertEquals(10, config.authentication.cost)
         assertEquals(10.seconds, config.js5.handshakeTimeout)
         assertEquals(20.seconds, config.js5.frameIdleTimeout)
-        assertEquals(45.seconds, config.world.idleTimeout)
+        assertEquals(45.seconds, config.world.connection.idleTimeout)
+        assertEquals(256, config.world.connection.inputQueue.capacity)
+        assertEquals(12, config.world.connection.inputQueue.maxPerCycle)
         assertEquals(7.seconds, config.coordinator.admissionTimeout)
         assertEquals("jdbc:postgresql://database/osrsemu", config.database.jdbcUrl)
         assertEquals("server-user", config.database.username)
@@ -69,7 +73,9 @@ class ServerConfigTest {
         assertEquals(15.seconds, config.login.authenticationTimeout)
         assertEquals(15.seconds, config.js5.handshakeTimeout)
         assertEquals(30.seconds, config.js5.frameIdleTimeout)
-        assertEquals(30.seconds, config.world.idleTimeout)
+        assertEquals(30.seconds, config.world.connection.idleTimeout)
+        assertEquals(128, config.world.connection.inputQueue.capacity)
+        assertEquals(32, config.world.connection.inputQueue.maxPerCycle)
         assertEquals(15.seconds, config.coordinator.admissionTimeout)
         assertEquals(12, config.authentication.cost)
         assertEquals("jdbc:postgresql://127.0.0.1:54330/osrsemu", config.database.jdbcUrl)

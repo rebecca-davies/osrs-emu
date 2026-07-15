@@ -2,6 +2,7 @@ package emu.server.world.session
 
 import emu.crypto.IsaacCipher
 import emu.server.world.runtime.WorldRuntime
+import emu.server.world.config.GameConnectionConfig
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.ByteReadChannel
@@ -119,7 +120,7 @@ class GameStreamOracleTest {
                     player = TEST_PLAYER,
                     worldSessions = worldRuntime,
                     saveSession = {},
-                    idleTimeout = 10.seconds,
+                    connectionConfig = GameConnectionConfig(idleTimeout = 10.seconds),
                     maxTicks = ORACLE_TICKS,
                 )
             }

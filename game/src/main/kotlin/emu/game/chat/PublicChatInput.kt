@@ -1,0 +1,31 @@
+package emu.game.chat
+
+/** A validated public-chat request ready for audit admission and local publication. */
+class PublicChatInput(
+    val colour: Int,
+    val effect: Int,
+    val text: String,
+    pattern: ByteArray?,
+) : ChatInput {
+    private val patternBytes = pattern?.copyOf()
+
+    val pattern: ByteArray?
+        get() = patternBytes?.copyOf()
+
+    init {
+        require(text.isNotBlank() && text.length <= MAX_CHAT_LENGTH) { "invalid public chat length" }
+        require(colour in 0..20) { "invalid public chat colour" }
+        require(effect in 0..5) { "invalid public chat effect" }
+        require(patternBytes == null || patternBytes.size in 1..8) { "invalid public chat pattern" }
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is PublicChatInput && colour == other.colour && effect == other.effect &&
+            text == other.text && patternBytes.contentEquals(other.patternBytes)
+
+    override fun hashCode(): Int = listOf(colour, effect, text, patternBytes?.contentHashCode()).hashCode()
+
+    companion object {
+        const val MAX_CHAT_LENGTH = 100
+    }
+}

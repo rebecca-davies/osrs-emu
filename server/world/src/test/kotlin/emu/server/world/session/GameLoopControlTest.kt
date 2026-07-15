@@ -3,10 +3,11 @@ package emu.server.world.session
 import emu.crypto.NopStreamCipher
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.PlayerRouteRequestQueue
+import emu.game.input.PlayerInput
+import emu.game.input.PlayerInputQueue
+import emu.game.input.PlayerInputQueueConfig
 import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonClick
-import emu.game.ui.PlayerButtonQueue
 import emu.server.world.player.PlayerSessionControl
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
@@ -28,15 +29,14 @@ class GameLoopControlTest {
     @Test fun `outbound saturation removes only that world participant`() = runBlocking {
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
-        val buttons = PlayerButtonQueue()
+        val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val control = PlayerSessionControl()
 
         val result = GameLoop(
             playerId = 1,
             output = GameOutputSink { false },
             playerMovement = movement,
-            routeRequests = PlayerRouteRequestQueue(),
-            buttonClicks = buttons,
+            inputs = inputs,
             buttonActions = playerButtonActions(movement, varps, control),
             playerVarps = varps,
             sessionControl = control,
@@ -50,7 +50,7 @@ class GameLoopControlTest {
         val codecs = buildGameCodecRepository()
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
-        val buttons = PlayerButtonQueue()
+        val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val control = PlayerSessionControl()
         val actions = playerButtonActions(movement, varps, control)
         val batches = mutableListOf<GameOutputBatch>()
@@ -59,13 +59,12 @@ class GameLoopControlTest {
                 playerId = 1,
                 output = GameOutputSink { batches += it; true },
                 playerMovement = movement,
-                routeRequests = PlayerRouteRequestQueue(),
-                buttonClicks = buttons,
+                inputs = inputs,
                 buttonActions = actions,
                 playerVarps = varps,
                 sessionControl = control,
             )
-        buttons.submit(ButtonClick(182, 8, -1, -1, 1))
+        inputs.submit(PlayerInput.Button(ButtonClick(182, 8, -1, -1, 1)))
 
         loop.cycle(worldTick = 0)
         GameOutboundWriter(OutboundSession(codecs, NopStreamCipher, output)).write(batches.single())
@@ -82,7 +81,7 @@ class GameLoopControlTest {
         val codecs = buildGameCodecRepository()
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
-        val buttons = PlayerButtonQueue()
+        val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val control = PlayerSessionControl()
         val actions = playerButtonActions(movement, varps, control)
         val batches = mutableListOf<GameOutputBatch>()
@@ -91,13 +90,12 @@ class GameLoopControlTest {
                 playerId = 1,
                 output = GameOutputSink { batches += it; true },
                 playerMovement = movement,
-                routeRequests = PlayerRouteRequestQueue(),
-                buttonClicks = buttons,
+                inputs = inputs,
                 buttonActions = actions,
                 playerVarps = varps,
                 sessionControl = control,
             )
-        buttons.submit(ButtonClick(160, 28, -1, -1, 1))
+        inputs.submit(PlayerInput.Button(ButtonClick(160, 28, -1, -1, 1)))
 
         loop.cycle(worldTick = 0)
         GameOutboundWriter(OutboundSession(codecs, NopStreamCipher, output)).write(batches.single())

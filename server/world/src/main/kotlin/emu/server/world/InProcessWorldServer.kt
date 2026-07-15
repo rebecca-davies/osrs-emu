@@ -7,7 +7,7 @@ import emu.transport.codec.CodecRepository
 import emu.persistence.character.CharacterStore
 import emu.persistence.chat.ChatAuditSink
 import emu.server.world.admission.GameAdmission
-import emu.server.world.config.GameExecutionConfig
+import emu.server.world.config.GameConnectionConfig
 import emu.server.world.session.runGameStage
 import emu.server.world.runtime.WorldLifecycle
 import emu.server.world.runtime.WorldRuntime
@@ -29,7 +29,7 @@ class InProcessWorldServer(
     private val codecs: CodecRepository,
     private val characters: CharacterStore,
     private val chatAudit: ChatAuditSink,
-    private val config: GameExecutionConfig,
+    private val connectionConfig: GameConnectionConfig,
     private val world: WorldRuntime,
     private val collision: CollisionMap,
     private val huffman: HuffmanCodec,
@@ -82,7 +82,7 @@ class InProcessWorldServer(
                     player,
                     world,
                     characters::save,
-                    idleTimeout = config.idleTimeout,
+                    connectionConfig = connectionConfig,
                     collisionMap = collision,
                     huffman = huffman,
                     chatAudit = chatAudit,

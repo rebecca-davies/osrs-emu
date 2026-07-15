@@ -2,6 +2,7 @@ package emu.server.world.session
 
 import emu.crypto.IsaacCipher
 import emu.server.world.runtime.WorldRuntime
+import emu.server.world.config.GameConnectionConfig
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerRecord
 import emu.persistence.character.PlayerSessionSave
@@ -51,7 +52,7 @@ class GameStagePersistenceTest {
             player = player,
             worldSessions = worldRuntime,
             saveSession = saves::add,
-            idleTimeout = 1.seconds,
+            connectionConfig = GameConnectionConfig(idleTimeout = 1.seconds),
             maxTicks = 0,
         )
         worldJob.cancelAndJoin()
