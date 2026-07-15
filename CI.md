@@ -73,7 +73,7 @@ defined by [`Dockerfile`](Dockerfile) + [`compose.yaml`](compose.yaml) and drive
 
 `scripts/deploy.sh` (idempotent):
 
-1. Builds the server image (multi-stage: Gradle `:server-app:installDist` → a JRE-only
+1. Builds the server image (multi-stage: Gradle `:server-host:installDist` → a JRE-only
    runtime image). No source, cache dump, RSA key, or client tree is baked in
    (`.dockerignore` enforces this).
 2. Preserves the previous deployed image as `osrsemu-server:rollback`, then builds an image tagged
