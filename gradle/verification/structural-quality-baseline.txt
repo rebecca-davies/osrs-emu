@@ -11,7 +11,7 @@ constructor-parameters|server/world/src/main/kotlin/emu/server/world/GameServer.
 constructor-parameters|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|GameLoop|13>7
 function-parameters|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|runGameStage|16>10
 large-file|cache/src/main/kotlin/emu/cache/def/codec/ObjectDefCodec.kt|319
-large-file|server/world/src/main/kotlin/emu/server/world/runtime/WorldRuntime.kt|382
+large-file|server/world/src/main/kotlin/emu/server/world/runtime/WorldRuntime.kt|381
 session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|3
 session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|6
 session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|4

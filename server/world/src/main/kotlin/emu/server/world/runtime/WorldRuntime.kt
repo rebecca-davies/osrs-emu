@@ -19,7 +19,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = KotlinLogging.logger {}
-private const val DEFAULT_MAX_PLAYER_INDEX = 2_047
 private const val DEFAULT_COMMAND_CAPACITY = 1_024
 
 /**
@@ -33,7 +32,7 @@ private const val DEFAULT_COMMAND_CAPACITY = 1_024
 class WorldRuntime(
     tickInterval: Duration = GAME_TICK_MILLIS.milliseconds,
     commandCapacity: Int = DEFAULT_COMMAND_CAPACITY,
-    private val maxPlayerIndex: Int = DEFAULT_MAX_PLAYER_INDEX,
+    private val maxPlayerIndex: Int = PlayerCapacity.PER_WORLD,
     private val profiler: CycleProfiler = CycleProfiler(),
 ) : WorldReservationService, WorldSessionRegistry {
     private val intervalMillis = tickInterval.inWholeMilliseconds
@@ -43,7 +42,7 @@ class WorldRuntime(
     init {
         require(intervalMillis > 0) { "tick interval must be at least one millisecond" }
         require(commandCapacity > 0) { "command capacity must be positive" }
-        require(maxPlayerIndex > 0) { "maximum player index must be positive" }
+        require(maxPlayerIndex in 1..PlayerCapacity.PER_WORLD) { "maximum player index out of range: $maxPlayerIndex" }
         commands = Channel(commandCapacity)
     }
 

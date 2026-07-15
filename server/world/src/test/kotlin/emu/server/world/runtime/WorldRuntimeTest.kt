@@ -4,12 +4,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 
 class WorldRuntimeTest {
+    @Test
+    fun `rejects an index range beyond one rev 239 world`() {
+        assertFailsWith<IllegalArgumentException> {
+            WorldRuntime(maxPlayerIndex = PlayerCapacity.PER_WORLD + 1)
+        }
+    }
+
     @Test
     fun `every participant observes the same authoritative world ticks`() = runBlocking {
         val runtime = WorldRuntime(tickInterval = 1.milliseconds)
