@@ -1,20 +1,20 @@
 package emu.persistence
 
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.sql.Connection
 import javax.sql.DataSource
-import org.postgresql.ds.PGSimpleDataSource
 
 private val logger = KotlinLogging.logger {}
 
-/** PostgreSQL connection factory and small, versioned schema migration runner. */
-class PostgresDatabase(config: PostgresConfig) {
-    val dataSource: DataSource =
-        PGSimpleDataSource().apply {
-            setURL(config.jdbcUrl)
-            user = config.username
-            password = config.password
-        }
+/** Bounded PostgreSQL connection pool and small, versioned schema migration runner. */
+class PostgresDatabase(config: PostgresConfig) : AutoCloseable {
+    private val pool = HikariDataSource(config.hikariConfig())
+
+    /** Shared pooled data source retained for callers that need the existing JDBC boundary. */
+    val dataSource: DataSource
+        get() = pool
 
     /** Applies each bundled migration once, recording it in `schema_migrations`. */
     fun migrate() {
@@ -57,6 +57,9 @@ class PostgresDatabase(config: PostgresConfig) {
     /** Opens one JDBC connection for [block] and always closes it afterwards. */
     fun <T> connection(block: (Connection) -> T): T = dataSource.connection.use(block)
 
+    /** Stops pool workers and closes every idle physical PostgreSQL connection. */
+    override fun close() = pool.close()
+
     private data class Migration(val version: Int, val resource: String)
 
     private companion object {
@@ -74,3 +77,19 @@ class PostgresDatabase(config: PostgresConfig) {
             )
     }
 }
+
+private fun PostgresConfig.hikariConfig(): HikariConfig =
+    HikariConfig().also { hikari ->
+        hikari.jdbcUrl = jdbcUrl
+        hikari.username = username
+        hikari.password = password
+        hikari.poolName = "osrsemu-postgres"
+        hikari.maximumPoolSize = pool.maximumSize
+        hikari.minimumIdle = pool.minimumIdle
+        hikari.connectionTimeout = pool.connectionTimeout.inWholeMilliseconds
+        hikari.validationTimeout = pool.validationTimeout.inWholeMilliseconds
+        hikari.idleTimeout = pool.idleTimeout.inWholeMilliseconds
+        hikari.maxLifetime = pool.maxLifetime.inWholeMilliseconds
+        hikari.initializationFailTimeout = -1
+        hikari.addDataSourceProperty("tcpKeepAlive", "true")
+    }

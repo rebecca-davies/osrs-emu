@@ -97,9 +97,10 @@ fun main() = runBlocking {
     val cacheReady = System.nanoTime()
     val rsaKeyPair = loadServerRsaKeyPair()
     val bootstrapReady = System.nanoTime()
-    val koin = startKoin {
+    val koinApplication = startKoin {
         modules(js5Module, loginModule, gameModule, persistenceModule, gatewayModule(store, rsaKeyPair))
-    }.koin
+    }
+    val koin = koinApplication.koin
     val database = koin.get<PostgresDatabase>()
     withContext(Dispatchers.IO) { database.migrate() }
     val databaseReady = System.nanoTime()
@@ -107,7 +108,15 @@ fun main() = runBlocking {
     val players = koin.get<PlayerRepository>()
     val chatAuditWriter = koin.get<ChatAuditWriter>()
     val chatAudit: ChatAuditSink = chatAuditWriter
-    Runtime.getRuntime().addShutdownHook(Thread(chatAuditWriter::close, "chat-audit-shutdown"))
+    Runtime.getRuntime().addShutdownHook(
+        Thread(
+            {
+                chatAuditWriter.close()
+                koinApplication.close()
+            },
+            "persistence-shutdown",
+        ),
+    )
     val codecs = buildJs5CodecRepository()
     val gameCodecs = buildGameCodecRepository()
     val worldRuntime = WorldRuntime()
