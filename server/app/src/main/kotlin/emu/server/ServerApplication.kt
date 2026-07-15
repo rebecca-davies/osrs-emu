@@ -69,6 +69,10 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
     val shutdownHook = Thread({ stop.complete(Unit) }, "server-shutdown")
     Runtime.getRuntime().addShutdownHook(shutdownHook)
     val gatewayJob = launch { listener.run() }
+    val worldMonitor = launch {
+        game.awaitTermination()
+        error("world server stopped unexpectedly")
+    }
     logger.info {
         "server listening on ${listener.localAddress}; startup total=${millis(startupStarted, listening)}ms " +
             "(assets=${millis(startupStarted, assetsReady)}ms, " +
@@ -78,8 +82,10 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
     try {
         stop.await()
     } finally {
+        worldMonitor.cancel()
         gatewayJob.cancel()
         listener.close()
+        worldMonitor.cancelAndJoin()
         gatewayJob.cancelAndJoin()
         game.stop()
         login.close()

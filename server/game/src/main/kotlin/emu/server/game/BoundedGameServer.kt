@@ -9,6 +9,7 @@ import emu.server.game.config.GameExecutionConfig
 import emu.server.game.network.loadHuffmanCodec
 import emu.server.game.map.CacheCollisionMap
 import emu.server.game.session.runGameStage
+import emu.server.game.world.WorldLifecycle
 import emu.server.game.world.WorldRuntime
 import emu.netcore.codec.CodecRepository
 import emu.persistence.character.CharacterStore
@@ -23,12 +24,8 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private val logger = KotlinLogging.logger {}
@@ -51,16 +48,19 @@ class BoundedGameServer(
             withContext(ioDispatcher) { characters.load(accountId) }
         }
     private val started = AtomicBoolean(false)
-    private val worldScope = CoroutineScope(SupervisorJob() + worldDispatcher)
-    private var worldJob: kotlinx.coroutines.Job? = null
+    private val worldLifecycle = WorldLifecycle(worldDispatcher, world::run)
 
     override fun start() {
         check(started.compareAndSet(false, true)) { "game server can only be started once" }
-        worldJob = worldScope.launch { world.run() }
+        worldLifecycle.start()
+    }
+
+    override suspend fun awaitTermination() {
+        worldLifecycle.awaitTermination()
     }
 
     override suspend fun reserve(principal: AuthenticatedPrincipal): ReservationDecision {
-        if (!started.get()) return ReservationDecision.Rejected(ReservationRejection.UNAVAILABLE)
+        if (!worldLifecycle.isRunning) return ReservationDecision.Rejected(ReservationRejection.UNAVAILABLE)
         return admissions.reserve(principal)
     }
 
@@ -69,7 +69,7 @@ class BoundedGameServer(
     }
 
     override suspend fun play(read: ByteReadChannel, write: ByteWriteChannel, handoff: ConnectionHandoff) {
-        check(started.get()) { "game server has not started" }
+        check(worldLifecycle.isRunning) { "game server is not running" }
         val player = admissions.take(handoff.reservation.token)
         if (player == null) {
             world.release(handoff.reservation.token)
@@ -108,8 +108,7 @@ class BoundedGameServer(
     }
 
     override suspend fun stop() {
-        worldJob?.cancelAndJoin()
-        worldJob = null
+        worldLifecycle.stop()
     }
 
     override fun close() {
