@@ -1,8 +1,8 @@
 package emu.game.chat
 
-/** One content action for an admitted chat input. */
+/** One non-suspending content action for an admitted chat input. */
 fun interface ChatAction<T : ChatInput> {
-    suspend fun handle(input: T)
+    fun handle(input: T)
 }
 
 /** Immutable, declarative chat-input dispatch table analogous to the interface button registry. */
@@ -10,7 +10,7 @@ class ChatActionRegistry internal constructor(
     private val publicMessage: ChatAction<PublicChatInput>?,
     private val filterSettings: ChatAction<ChatFilterInput>?,
 ) {
-    suspend fun dispatch(input: ChatInput): Boolean =
+    fun dispatch(input: ChatInput): Boolean =
         when (input) {
             is PublicChatInput -> publicMessage?.let { it.handle(input); true } ?: false
             is ChatFilterInput -> filterSettings?.let { it.handle(input); true } ?: false

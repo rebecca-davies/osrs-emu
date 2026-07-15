@@ -1,7 +1,6 @@
 package emu.game.pathfinding
 
 import emu.game.cycle.GameCycle
-import emu.game.runSuspending
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -24,9 +23,9 @@ class PlayerRouteRequestQueueTest {
         requests.submit(1, 0, keyCombination = 0)
         requests.submit(3, 0, keyCombination = 0)
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
         assertEquals(Tile(1, 0), movement.position)
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(Tile(2, 0), movement.position)
     }
@@ -38,7 +37,7 @@ class PlayerRouteRequestQueueTest {
         val cycle = GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses())
         requests.submit(1, 0, keyCombination = 0)
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(Tile(1, 0, plane = 2), movement.position)
     }
@@ -50,7 +49,7 @@ class PlayerRouteRequestQueueTest {
         val cycle = GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses())
         requests.submit(3, 0, keyCombination = 1)
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(Tile(2, 0), movement.position)
         assertFalse(movement.runEnabled)
@@ -63,7 +62,7 @@ class PlayerRouteRequestQueueTest {
         val cycle = GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses())
         requests.submit(0x4000, 0, keyCombination = 0)
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(Tile(0, 0), movement.position)
     }

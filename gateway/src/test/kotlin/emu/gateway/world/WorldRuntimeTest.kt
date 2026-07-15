@@ -94,7 +94,7 @@ class WorldRuntimeTest {
     ) : WorldParticipant {
         val ticks = mutableListOf<Long>()
 
-        override suspend fun cycle(worldTick: Long): WorldParticipantResult {
+        override fun cycle(worldTick: Long): WorldParticipantResult {
             ticks += worldTick
             if (worldTick == failOnTick) error("participant failure")
             return WorldParticipantResult.KEEP

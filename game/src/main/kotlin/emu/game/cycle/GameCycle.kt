@@ -1,9 +1,12 @@
 package emu.game.cycle
 
-/** A small unit of work assigned to one fixed [phase] of the world cycle. */
+/**
+ * A small, deliberately non-suspending unit of work assigned to one fixed [phase]. External IO
+ * must cross a bounded asynchronous boundary before or after the authoritative world cycle.
+ */
 class CycleProcess(
     val phase: CyclePhase,
-    val process: suspend (tick: Long) -> Unit,
+    val process: (tick: Long) -> Unit,
 )
 
 /**
@@ -22,14 +25,14 @@ class GameCycle(processes: Iterable<CycleProcess> = emptyList()) {
         private set
 
     /** Executes one complete cycle using the next local tick. Primarily useful in focused tests. */
-    suspend fun tick(): Long = tick(currentTick)
+    fun tick(): Long = tick(currentTick)
 
     /**
      * Executes one complete cycle using the server-owned [worldTick]. A participant may join after
      * tick zero, but an already-processed tick can never be replayed. The clock advances only after
      * every phase succeeds.
      */
-    suspend fun tick(worldTick: Long): Long {
+    fun tick(worldTick: Long): Long {
         require(worldTick >= currentTick) {
             "world tick $worldTick precedes next accepted tick $currentTick"
         }

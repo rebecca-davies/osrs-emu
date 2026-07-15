@@ -131,7 +131,7 @@ internal class GameLoop(
     }
 
     /** Advances this player exactly once using the world's authoritative tick number. */
-    override suspend fun cycle(worldTick: Long): WorldParticipantResult {
+    override fun cycle(worldTick: Long): WorldParticipantResult {
         if (processedCycles >= maxCycles) return WorldParticipantResult.REMOVE
         cycle.tick(worldTick)
         processedCycles++
@@ -147,7 +147,7 @@ internal class GameLoop(
         return if (remove) WorldParticipantResult.REMOVE else WorldParticipantResult.KEEP
     }
 
-    override suspend fun reportCycleProfile(snapshot: CycleProfileSnapshot) = onProfileReport(snapshot)
+    override fun reportCycleProfile(snapshot: CycleProfileSnapshot) = onProfileReport(snapshot)
 }
 
 /** Keeps protocol-specific direction encoding outside the game simulation module. */

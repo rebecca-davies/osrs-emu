@@ -3,7 +3,6 @@ package emu.game.pathfinding
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
 import emu.game.cycle.GameCycle
-import emu.game.runSuspending
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -99,7 +98,7 @@ class PlayerMovementTest {
                     },
             )
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertIs<MovementUpdate.Walk>(observed[0].second)
         assertIs<MovementUpdate.Walk>(observed[1].second)
