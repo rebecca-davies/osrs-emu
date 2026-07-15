@@ -26,11 +26,9 @@ import emu.compression.HuffmanCodec
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
-import emu.protocol.osrs239.js5.js5Module
+import emu.protocol.osrs239.game.buildGameCodecRepository
+import emu.protocol.osrs239.js5.buildJs5CodecRepository
 import emu.protocol.osrs239.js5.prot.Js5Prot
-import emu.protocol.osrs239.login.loginModule
 import emu.protocol.osrs239.login.prot.LoginProt
 import emu.persistence.AccountService
 import emu.persistence.AuthenticationResult
@@ -83,11 +81,7 @@ internal val HANDSHAKE_TIMEOUT: Duration = 15.seconds
  * cipher, the socket) is created inside [handleConnection]; everything built here ([codecs], the
  * RSA keypair, [koin]) is immutable and shared read-only across every connection.
  *
- * Koin is started once here with every domain's codec module plus [gatewayModule] (CLAUDE.md §5a
- * addendum) — `net-core` never sees Koin; only this service layer and `protocol-osrs239` do. Each
- * `CodecRepository` is then assembled by COLLECTING the codecs Koin holds
- * ([emu.protocol.osrs239.buildCodecRepository]) rather than a `bindDecoder(...).bindEncoder(...)`
- * chain.
+ * Koin is limited to service dependencies. Protocol repositories are immutable domain values.
  */
 fun main() = runBlocking {
     val startupStarted = System.nanoTime()
@@ -98,7 +92,7 @@ fun main() = runBlocking {
     val rsaKeyPair = loadServerRsaKeyPair()
     val bootstrapReady = System.nanoTime()
     val koinApplication = startKoin {
-        modules(js5Module, loginModule, gameModule, persistenceModule, gatewayModule(store, rsaKeyPair))
+        modules(persistenceModule, gatewayModule(store, rsaKeyPair))
     }
     val koin = koinApplication.koin
     val database = koin.get<PostgresDatabase>()
@@ -354,26 +348,3 @@ private fun loadServerRsaKeyPair(): RsaKeyPair? = try {
     }
     null
 }
-
-/**
- * The immutable JS5 decoder/encoder registry, built once and shared by every connection —
- * unlike the per-connection [XorStreamCipher], it holds no connection state.
- *
- * Assembled by COLLECTING every codec [js5Module] declared into a standalone Koin instance scoped
- * to just that module (CLAUDE.md §5a addendum) — not the shared [main] instance, so this registry
- * never accidentally picks up a login/game encoder. Includes a decoder for every
- * [Js5Prot.CONTROL_OPCODES] entry: the client interleaves these control frames with group requests,
- * and although the gateway ignores their payload (see `emu.gateway.js5.handler.Js5ControlHandler`),
- * the pipeline must still be able to decode and consume them — an unbound opcode drops the socket,
- * which the client reports as `error_game_js5io`.
- */
-private fun buildJs5CodecRepository(): CodecRepository = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
-
-/**
- * The immutable game-domain encoder registry, built once and shared by every connection — the
- * same hoist-at-startup convention as [buildJs5CodecRepository], scoped to just [gameModule] so it
- * never picks up a JS5/login codec. [emu.gateway.login.runGameStage] gives it to each connection's
- * isolated outbound writer; the repository itself holds no per-connection state, unlike the ISAAC
- * cipher and bounded mailbox each authenticated game login owns.
- */
-private fun buildGameCodecRepository(): CodecRepository = koinApplication { modules(gameModule) }.koin.buildCodecRepository()

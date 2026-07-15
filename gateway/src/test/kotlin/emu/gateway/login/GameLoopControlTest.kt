@@ -13,8 +13,7 @@ import emu.gateway.game.GameOutputBatch
 import emu.gateway.game.GameOutputSink
 import emu.gateway.game.playerButtonActions
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameServerProt
 import emu.gateway.world.WorldParticipantResult
 import io.ktor.utils.io.ByteChannel
@@ -22,7 +21,6 @@ import io.ktor.utils.io.close
 import io.ktor.utils.io.readRemaining
 import kotlinx.io.readByteArray
 import kotlinx.coroutines.runBlocking
-import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -49,7 +47,7 @@ class GameLoopControlTest {
 
     @Test fun `logout button sends clean logout packet and ends the cycle loop`() = runBlocking {
         val output = ByteChannel(autoFlush = true)
-        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val codecs = buildGameCodecRepository()
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val buttons = PlayerButtonQueue()
@@ -81,7 +79,7 @@ class GameLoopControlTest {
 
     @Test fun `run button publishes the changed account varp before world output`() = runBlocking {
         val output = ByteChannel(autoFlush = true)
-        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val codecs = buildGameCodecRepository()
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val buttons = PlayerButtonQueue()

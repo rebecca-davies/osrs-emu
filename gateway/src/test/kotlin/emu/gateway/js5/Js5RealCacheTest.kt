@@ -5,8 +5,7 @@ import emu.crypto.XorStreamCipher
 import emu.gateway.gatewayModule
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.js5.js5Module
+import emu.protocol.osrs239.js5.buildJs5CodecRepository
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -30,7 +29,7 @@ class Js5RealCacheTest {
         if (!File(root, "cache/255/255.dat").isFile) {
             println("SKIP: no cache-data — run :tools:cache-fetch:run first"); return@runBlocking
         }
-        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
+        val codecs = buildJs5CodecRepository()
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
