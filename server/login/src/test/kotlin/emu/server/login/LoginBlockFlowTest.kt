@@ -51,7 +51,7 @@ class LoginBlockFlowTest {
 
     @Test fun `fresh login completes only after admission supplies a player index`() = runBlocking {
         val keyPair = Rsa.generateKeyPair(1024)
-        val loginServer = BoundedLoginServer(keyPair, LoginAuthenticator(::acceptTestLogin))
+        val loginServer = LoginServer(keyPair, LoginAuthenticator(::acceptTestLogin))
 
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))

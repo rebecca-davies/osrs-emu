@@ -72,7 +72,7 @@ class ReconnectLoginTest {
             authenticate = ::acceptTestLogin,
         )
         assertNotNull(authenticated, "login block should be accepted")
-        BoundedLoginServer(keyPair, LoginAuthenticator(::acceptTestLogin)).use { loginServer ->
+        LoginServer(keyPair, LoginAuthenticator(::acceptTestLogin)).use { loginServer ->
             loginServer.complete(write, authenticated, AuthenticationCompletion.Accepted(playerIndex = 1))
         }
         write.close()

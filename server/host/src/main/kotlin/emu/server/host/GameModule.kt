@@ -4,9 +4,9 @@ import emu.compression.HuffmanCodec
 import emu.game.pathfinding.CollisionMap
 import emu.persistence.character.CharacterStore
 import emu.persistence.chat.ChatAuditSink
-import emu.server.world.InProcessWorldServer
-import emu.server.world.WorldServer
-import emu.server.world.WorldServerDispatchers
+import emu.server.world.GameServer
+import emu.server.world.GameService
+import emu.server.world.GameServerDispatchers
 import emu.server.world.admission.GameAdmission
 import emu.server.world.config.GameExecutionConfig
 import emu.server.world.runtime.WorldLifecycle
@@ -16,8 +16,8 @@ import kotlinx.coroutines.withContext
 import org.koin.dsl.onClose
 import org.koin.dsl.module
 
-/** Defines the world service graph from host-owned runtime capabilities. */
-internal fun worldModule(
+/** Defines the game service graph from host-owned runtime capabilities. */
+internal fun gameModule(
     codecs: CodecRepository,
     collision: CollisionMap,
     huffman: HuffmanCodec,
@@ -28,21 +28,21 @@ internal fun worldModule(
     single { huffman }
     single { config }
     single { config.connection }
-    single { WorldServerDispatchers(config.ioWorkerThreads) } onClose { it?.close() }
+    single { GameServerDispatchers(config.ioWorkerThreads) } onClose { it?.close() }
     single { WorldRuntime(maxPlayerIndex = config.maxConcurrentSessions) }
     single {
         val runtime = get<WorldRuntime>()
-        WorldLifecycle(get<WorldServerDispatchers>().world, runtime::run)
+        WorldLifecycle(get<GameServerDispatchers>().world, runtime::run)
     }
     single {
         val characters = get<CharacterStore>()
-        val dispatchers = get<WorldServerDispatchers>()
+        val dispatchers = get<GameServerDispatchers>()
         GameAdmission(get<WorldRuntime>(), config.maxConcurrentSessions) { accountId ->
             withContext(dispatchers.io) { characters.load(accountId) }
         }
     }
-    single<WorldServer> {
-        InProcessWorldServer(
+    single<GameService> {
+        GameServer(
             codecs = get(),
             characterSaves = get(),
             chatAudit = get<ChatAuditSink>(),

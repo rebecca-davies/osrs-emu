@@ -7,7 +7,7 @@ import emu.persistence.character.CharacterSaveSink
 import emu.persistence.character.PlayerRecord
 import emu.persistence.character.PlayerSessionSave
 import emu.persistence.chat.ChatAuditSink
-import emu.server.world.WorldServer
+import emu.server.world.GameService
 import emu.server.world.config.GameExecutionConfig
 import emu.transport.codec.CodecRepositoryBuilder
 import kotlin.test.Test
@@ -15,7 +15,7 @@ import kotlin.test.assertSame
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
 
-class WorldWiringTest {
+class GameWiringTest {
     @Test
     fun `host resolves one world service from explicit capabilities`() {
         val dependencies =
@@ -29,7 +29,7 @@ class WorldWiringTest {
                 allowOverride(false)
                 modules(
                     dependencies,
-                    worldModule(
+                    gameModule(
                         codecs = CodecRepositoryBuilder().build(),
                         collision = OpenCollisionMap,
                         huffman = HuffmanCodec(ByteArray(256) { 8 }),
@@ -38,9 +38,9 @@ class WorldWiringTest {
                 )
             }
 
-        val world = application.koin.get<WorldServer>()
+        val world = application.koin.get<GameService>()
 
-        assertSame(world, application.koin.get<WorldServer>())
+        assertSame(world, application.koin.get<GameService>())
         application.close()
     }
 

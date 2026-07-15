@@ -130,12 +130,21 @@ class CompositionBoundaryTest {
     }
 
     @Test
-    fun `host owns the world object graph`() {
+    fun `host owns every service object graph`() {
         val application = root.resolve("server/host/src/main/kotlin/emu/server/host/ServerApplication.kt").readText()
-        val wiring = root.resolve("server/host/src/main/kotlin/emu/server/host/WorldModule.kt").readText()
+        val js5Wiring = root.resolve("server/host/src/main/kotlin/emu/server/host/Js5Module.kt").readText()
+        val loginWiring = root.resolve("server/host/src/main/kotlin/emu/server/host/LoginModule.kt").readText()
+        val gameWiring = root.resolve("server/host/src/main/kotlin/emu/server/host/GameModule.kt").readText()
 
-        assertTrue(application.contains("worldModule("))
-        assertTrue(wiring.contains("single<WorldServer>"))
+        assertTrue(application.contains("js5Module("))
+        assertTrue(application.contains("loginModule("))
+        assertTrue(application.contains("gameModule("))
+        assertTrue(js5Wiring.contains("single<Js5Service>"))
+        assertTrue(loginWiring.contains("single<LoginService>"))
+        assertTrue(gameWiring.contains("single<GameService>"))
+        assertFalse(application.contains("Js5Server("))
+        assertFalse(application.contains("LoginServer("))
+        assertFalse(application.contains("GameServer("))
         assertFalse(application.contains("createWorldServer("))
         assertFalse(root.resolve("server/world/src/main/kotlin/emu/server/world/CreateWorldServer.kt").toFile().exists())
     }

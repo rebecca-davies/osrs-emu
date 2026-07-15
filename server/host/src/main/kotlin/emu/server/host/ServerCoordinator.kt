@@ -1,10 +1,10 @@
 package emu.server.host
 
-import emu.server.world.WorldServer
+import emu.server.world.GameService
 import emu.server.gateway.GatewayRouteHandler
 import emu.server.gateway.GatewayRoutes
-import emu.server.js5.Js5Server
-import emu.server.login.LoginServer
+import emu.server.js5.Js5Service
+import emu.server.login.LoginService
 import emu.protocol.osrs239.js5.prot.Js5Prot
 import emu.protocol.osrs239.login.prot.LoginProt
 import emu.server.session.AuthenticationCompletion
@@ -18,9 +18,9 @@ import kotlinx.coroutines.withTimeout
 
 /** Coordinates stage handoffs without placing peer-service knowledge in the gateway. */
 class ServerCoordinator(
-    private val js5: Js5Server,
-    private val login: LoginServer,
-    private val world: WorldServer,
+    private val js5: Js5Service,
+    private val login: LoginService,
+    private val world: GameService,
     private val config: CoordinatorConfig,
 ) {
     fun gatewayRoutes(): GatewayRoutes =

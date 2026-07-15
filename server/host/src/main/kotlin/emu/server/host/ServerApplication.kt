@@ -3,23 +3,20 @@ package emu.server.host
 import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
 import emu.server.gateway.GatewayService
-import emu.server.js5.BoundedJs5Server
-import emu.server.js5.handler.Js5RequestHandler
-import emu.server.login.BoundedLoginServer
-import emu.server.login.auth.AccountAuthenticator
-import emu.server.login.auth.BcryptPasswordHasher
-import emu.persistence.account.AccountStore
+import emu.server.js5.Js5Service
+import emu.server.login.LoginService
 import emu.persistence.postgres.character.CharacterSaveWriterConfig
 import emu.persistence.postgres.database.PostgresMigrator
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
-import emu.server.world.WorldServer
+import emu.server.world.GameService
 import emu.server.world.map.CacheCollisionMap
 import emu.server.world.network.loadHuffmanCodec
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -46,7 +43,9 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
                     config.database,
                     CharacterSaveWriterConfig(capacity = config.world.maxConcurrentSessions),
                 ),
-                worldModule(buildGameCodecRepository(), collision, huffman, config.world),
+                js5Module(assets.store, buildJs5CodecRepository(), config.js5),
+                loginModule(assets.rsaKeyPair, config.login, config.authentication),
+                gameModule(buildGameCodecRepository(), collision, huffman, config.world),
             )
         }
     val koin = koinApplication.koin
@@ -54,50 +53,40 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
         withContext(Dispatchers.IO) { koin.get<PostgresMigrator>().migrate() }
         val persistenceReady = System.nanoTime()
 
-        val authenticator = AccountAuthenticator(koin.get<AccountStore>(), BcryptPasswordHasher(config.authentication))
-        val js5 =
-            BoundedJs5Server(
-                codecs = buildJs5CodecRepository(),
-                requests = Js5RequestHandler(assets.store),
-                config = config.js5,
-            )
-        val login =
-            BoundedLoginServer(
-                rsaKeyPair = assets.rsaKeyPair,
-                authenticator = authenticator,
-                config = config.login,
-            )
-        val world = koin.get<WorldServer>()
+        val js5 = koin.get<Js5Service>()
+        val login = koin.get<LoginService>()
+        val world = koin.get<GameService>()
         world.start()
-        val coordinator = ServerCoordinator(js5, login, world, config.coordinator)
-        val listener = GatewayService(config.gateway, coordinator.gatewayRoutes()).bind()
-        val listening = System.nanoTime()
-        val stop = CompletableDeferred<Unit>()
-        val shutdownHook = Thread({ stop.complete(Unit) }, "server-shutdown")
-        Runtime.getRuntime().addShutdownHook(shutdownHook)
-        val gatewayJob = launch { listener.run() }
-        val worldMonitor = launch {
-            world.awaitTermination()
-            error("world server stopped unexpectedly")
-        }
-        logger.info {
-            "server listening on ${listener.localAddress}; startup total=${millis(startupStarted, listening)}ms " +
-                "(assets=${millis(startupStarted, assetsReady)}ms, " +
-                "persistence=${millis(assetsReady, persistenceReady)}ms, " +
-                "services+bind=${millis(persistenceReady, listening)}ms)"
-        }
+        var shutdownHook: Thread? = null
+        var gatewayJob: Job? = null
+        var worldMonitor: Job? = null
+        val listener =
+            try {
+                val coordinator = ServerCoordinator(js5, login, world, config.coordinator)
+                GatewayService(config.gateway, coordinator.gatewayRoutes()).bind()
+            } catch (failure: Throwable) {
+                withContext(NonCancellable) { world.stop() }
+                throw failure
+            }
         try {
+            val listening = System.nanoTime()
+            val stop = CompletableDeferred<Unit>()
+            shutdownHook = Thread({ stop.complete(Unit) }, "server-shutdown")
+            Runtime.getRuntime().addShutdownHook(shutdownHook)
+            gatewayJob = launch { listener.run() }
+            worldMonitor = launch {
+                world.awaitTermination()
+                error("world server stopped unexpectedly")
+            }
+            logger.info {
+                "server listening on ${listener.localAddress}; startup total=${millis(startupStarted, listening)}ms " +
+                    "(assets=${millis(startupStarted, assetsReady)}ms, " +
+                    "persistence=${millis(assetsReady, persistenceReady)}ms, " +
+                    "services+bind=${millis(persistenceReady, listening)}ms)"
+            }
             stop.await()
         } finally {
-            worldMonitor.cancel()
-            gatewayJob.cancel()
-            listener.close()
-            worldMonitor.cancelAndJoin()
-            gatewayJob.cancelAndJoin()
-            world.stop()
-            login.close()
-            js5.close()
-            runCatching { Runtime.getRuntime().removeShutdownHook(shutdownHook) }
+            shutdownServer(world, listener, gatewayJob, worldMonitor, shutdownHook)
         }
     } finally {
         koinApplication.close()

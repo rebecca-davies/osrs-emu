@@ -25,7 +25,7 @@ class Js5ServerTimeoutTest {
         File(root, "cache/255/255.dat").also { it.parentFile.mkdirs() }
             .writeBytes(byteArrayOf(0, 0, 0, 0, 1, 7))
         val service =
-            BoundedJs5Server(
+            Js5Server(
                 buildJs5CodecRepository(),
                 Js5RequestHandler(FlatFileStore(root)),
                 Js5ExecutionConfig(

@@ -7,8 +7,8 @@ import emu.server.session.ReservationDecision
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 
-/** Character admission, connection handoff, and lifecycle operations owned by the world service. */
-interface WorldServer {
+/** Game admission, connection handoff, and lifecycle operations exposed to the host coordinator. */
+interface GameService {
     fun start()
 
     /** Suspends for the server lifetime and propagates an unexpected world failure. */

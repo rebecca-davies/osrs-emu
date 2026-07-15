@@ -1,8 +1,8 @@
 package emu.server.host
 
-import emu.server.world.WorldServer
-import emu.server.js5.Js5Server
-import emu.server.login.LoginServer
+import emu.server.world.GameService
+import emu.server.js5.Js5Service
+import emu.server.login.LoginService
 import emu.server.session.AccountPrivilege
 import emu.server.session.AuthenticatedPrincipal
 import emu.server.session.AuthenticatedSession
@@ -72,7 +72,7 @@ class ServerCoordinatorTest {
         private val events: MutableList<String>,
         private val completionAccepted: Boolean = true,
         private val failCompletion: Boolean = false,
-    ) : LoginServer {
+    ) : LoginService {
         var completion: AuthenticationCompletion? = null
 
         override suspend fun authenticate(read: ByteReadChannel, write: ByteWriteChannel): AuthenticatedSession {
@@ -97,7 +97,7 @@ class ServerCoordinatorTest {
     private class FakeWorld(
         private val events: MutableList<String>,
         private val decision: ReservationDecision,
-    ) : WorldServer {
+    ) : GameService {
         var played = false
         var releaseCount = 0
 
@@ -123,7 +123,7 @@ class ServerCoordinatorTest {
         override suspend fun stop() = Unit
     }
 
-    private object FakeJs5 : Js5Server {
+    private object FakeJs5 : Js5Service {
         override suspend fun serve(read: ByteReadChannel, write: ByteWriteChannel) = Unit
 
         override fun close() = Unit

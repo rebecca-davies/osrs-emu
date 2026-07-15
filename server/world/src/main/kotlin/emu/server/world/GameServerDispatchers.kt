@@ -5,8 +5,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 
-/** Owns the isolated tick and connection executors for an in-process world service. */
-class WorldServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
+/** Owns the game server's isolated world-tick and connection executors. */
+class GameServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
     private val closed = AtomicBoolean(false)
 
     init {

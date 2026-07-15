@@ -24,8 +24,8 @@ import kotlinx.coroutines.withContext
 
 private val logger = KotlinLogging.logger {}
 
-/** In-process world service for prepared character sessions. */
-class InProcessWorldServer(
+/** Owns prepared game sessions and the authoritative world lifecycle. */
+class GameServer(
     private val codecs: CodecRepository,
     private val characterSaves: CharacterSaveSink,
     private val chatAudit: ChatAuditSink,
@@ -35,8 +35,8 @@ class InProcessWorldServer(
     private val huffman: HuffmanCodec,
     private val admissions: GameAdmission,
     private val worldLifecycle: WorldLifecycle,
-    private val dispatchers: WorldServerDispatchers,
-) : WorldServer {
+    private val dispatchers: GameServerDispatchers,
+) : GameService {
     private val started = AtomicBoolean(false)
 
     override fun start() {
