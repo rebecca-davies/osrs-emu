@@ -1,8 +1,7 @@
 package emu.cache.def
 
 /**
- * A varbit/varplayer-driven appearance switch, shared by objects (opcodes 77/92) and npcs
- * (opcodes 106/118) — recon doc §4a/§4b.
+ * Varbit/varplayer-driven transform shared by objects (opcodes 77/92) and NPCs (106/118).
  *
  * [configChangeDest] holds the `length + 1` explicitly-written destination ids (each `0xFFFF`
  * decoded to `-1`). The loader stores a trailing slot too: opcodes 92/118 fill it with an extra

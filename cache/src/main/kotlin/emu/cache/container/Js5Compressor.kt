@@ -8,10 +8,7 @@ import org.apache.commons.compress.compressors.gzip.GzipParameters
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 
-/**
- * Headerless-bzip2 and deterministic-gzip codecs matching Jagex's on-disk container payloads
- * (recon doc §1/§6).
- */
+/** Headerless-bzip2 and deterministic-gzip codecs for Jagex container payloads. */
 internal object Js5Compressor {
     /** The 4-byte bzip2 stream magic (`BZh1`, 100 KB block size) that Jagex's payload omits. */
     private val BZIP2_MAGIC = byteArrayOf('B'.code.toByte(), 'Z'.code.toByte(), 'h'.code.toByte(), '1'.code.toByte())

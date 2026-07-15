@@ -29,13 +29,7 @@ private class OutboundSessionScriptedCipher(private val values: List<Int>) : Str
     override fun nextInt(): Int = values[i++]
 }
 
-/**
- * [OutboundSession] must reuse [writePacket] and [emu.netcore.codec.CodecRepository] verbatim —
- * these tests pin exactly the same opcode-ISAAC-adjustment/body-encoding contract
- * [OutboundWriterTest] proves for the lower-level function, but driven through the
- * higher-level per-connection wrapper the game stage (and, later, the tick-loop outbound queue)
- * will actually call.
- */
+/** Verifies registry lookup and ISAAC framing through the per-connection [OutboundSession]. */
 class OutboundSessionTest {
     @Test fun `send encodes via the codec registry and ISAAC-adjusts the opcode under a real cipher`() = runBlocking {
         val codecs = CodecRepositoryBuilder().bindEncoder(OutboundSessionTestEncoder).build()

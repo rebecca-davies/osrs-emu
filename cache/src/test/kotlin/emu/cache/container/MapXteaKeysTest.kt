@@ -13,7 +13,7 @@ import kotlin.test.assertTrue
  * Keys are revision-stable but must still be verified per group.
  */
 class MapXteaKeysTest {
-    /** The confirmed build-236 `l50_50` (mapsquare 12850) key — see the research doc appendix. */
+    /** Build-236 `l50_50` key for mapsquare 12850. */
     private val lumbridgeKey = XteaKey(2039325142, -1035995824, -1400488441, -1475825849)
 
     /** A minimal keys.json fixture in the OpenRS2 array schema, incl. the Lumbridge `l50_50` entry. */
@@ -47,8 +47,7 @@ class MapXteaKeysTest {
     }
 
     @Test fun `borrowed key decrypts the real encrypted l50_50 loc container`() {
-        // Guarded: cache-data (vendored keys.json + l50_50 container) is gitignored and absent in CI
-        // (skip, passing). Both are fetched by tools/cache-fetch.
+        // Real-cache fixtures are optional and absent in CI.
         val keysFile = File("../cache-data/xtea/keys.json")
         val containerFile = File("../cache-data/xtea/l50_50.dat")
         if (!keysFile.isFile || !containerFile.isFile) return
@@ -60,12 +59,11 @@ class MapXteaKeysTest {
 
         val encrypted = containerFile.readBytes()
 
-        // The right key must XTEA-decrypt + decompress the loc group to a non-empty payload
-        // (Container.decode gunzips, which throws on a bad key — the classic trial-decrypt check).
+        // Decompression acts as the key-validity check.
         val decoded = Container.decode(encrypted, key)
         assertTrue(decoded.data.isNotEmpty(), "l50_50 loc group decoded to a non-empty payload under the borrowed key")
 
-        // Negative control: the zero key (what a keyless build-239 cache carries) must NOT decode.
+        // The encrypted fixture must not decode with the plaintext sentinel key.
         assertFailsWith<Exception>("zero key must fail to decrypt the encrypted loc group") {
             Container.decode(encrypted, XteaKey.ZERO)
         }

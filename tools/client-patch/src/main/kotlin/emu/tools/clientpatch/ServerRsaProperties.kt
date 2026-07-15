@@ -7,7 +7,7 @@ import java.util.Properties
 
 /**
  * Persists/loads the server's RSA keypair as a flat `key=hexvalue` properties file.
- * The gateway (Task 6) reads the same file to decrypt real client login blocks.
+ * The gateway reads the same file to decrypt client login blocks.
  */
 object ServerRsaProperties {
     private const val MODULUS = "modulus"

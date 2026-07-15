@@ -11,19 +11,9 @@ import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 
 /**
- * The thin composition point that replaces god-object "session" classes: a session is just
- * `ProtocolStage(codecs, handlers)`. Reads one opcode-framed message at a time, decodes it, routes
- * it through the type-keyed [handlers] repository, and encodes/writes whatever messages a handler
- * emits via [HandlerContext.write].
- *
- * [readOpcode]/[readPayload] keep this stage agnostic to how a protocol frames its
- * opcode/length (e.g. JS5's fixed 4-byte requests vs game var-byte packets), so the same
- * stage drives every protocol.
- *
- * [findProt] normally resolves through the decoder registry, preserving fail-closed behavior for
- * an unknown opcode. A revision may instead supply its complete opcode/size table: packets that
- * have a declared [Prot] but no implemented decoder are then framed and discarded, keeping the
- * stream cipher aligned without forcing placeholder message types into the registry.
+ * Frames, decodes, and dispatches inbound packets using injected protocol framing functions.
+ * Unknown opcodes end the stage. Known packets without a decoder are framed and discarded so the
+ * stream remains aligned.
  */
 class ProtocolStage(
     private val codecs: CodecRepository,
@@ -38,11 +28,7 @@ class ProtocolStage(
         run(read) { message -> emit(message, write) }
     }
 
-    /**
-     * Runs this stage with an injected outbound boundary. Game sessions use this overload to put
-     * handler replies into their per-connection mailbox, keeping the reader away from the socket's
-     * writer and outbound ISAAC state.
-     */
+    /** Runs with an injected output boundary instead of writing directly to a channel. */
     suspend fun run(read: ByteReadChannel, emit: suspend (OutgoingMessage) -> Unit) {
         val ctx = object : HandlerContext {
             override suspend fun write(message: OutgoingMessage) = emit(message)

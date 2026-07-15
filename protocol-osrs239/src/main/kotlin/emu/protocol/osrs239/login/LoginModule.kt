@@ -7,12 +7,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-/**
- * Declares the login domain's two positional (pre-ISAAC) reply encoders as Koin singletons bound
- * to [MessageEncoder], collected the same way as [emu.protocol.osrs239.js5.js5Module] (CLAUDE.md
- * §5a addendum). Login has no [emu.netcore.codec.MessageDecoder]s — opcodes 14/16/18 are hand-rolled
- * positional reads (see `emu.gateway.login`), not opcode-dispatched via `CodecRepository`.
- */
+/** Positional pre-ISAAC login response encoders. */
 val loginModule = module {
     single(named("login.serverSessionKey")) { ServerSessionKeyEncoder } bind MessageEncoder::class
     single(named("login.response")) { LoginResponseEncoder } bind MessageEncoder::class

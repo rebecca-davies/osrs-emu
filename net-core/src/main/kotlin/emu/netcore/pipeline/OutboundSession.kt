@@ -9,15 +9,8 @@ import emu.netcore.prot.Prot
 import io.ktor.utils.io.ByteWriteChannel
 
 /**
- * A small, reusable per-connection outbound wrapper around [writePacket]: looks the encoder up in
- * [codecs] by the message's runtime class, then writes it through the single shared write path.
- * [send] publishes one packet; [sendBatch] preserves packet order and flushes only at the batch
- * boundary. Both reuse the registry lookup and ISAAC-opcode-adjustment contract instead of
- * re-deriving it per call site.
- *
- * Deliberately holds no other state: [codecs] is shared/immutable across connections, [cipher] and
- * [write] are per-connection, and [writeOpcode] mirrors the protocol's own convention (game packets
- * true, JS5 false — see [writePacket]'s keystream-ordering doc).
+ * Per-connection packet writer using runtime message-type lookup. [sendBatch] preserves order and
+ * flushes only after the final packet.
  */
 class OutboundSession(
     private val codecs: CodecRepository,
@@ -31,11 +24,7 @@ class OutboundSession(
         writePacket(write, encoder, message, cipher, writeOpcode)
     }
 
-    /**
-     * Writes an already-ordered logical batch with a single final flush. A game connection gives
-     * exclusive ownership of this method (and therefore its ISAAC cipher and socket) to its
-     * outbound writer coroutine.
-     */
+    /** Writes an ordered batch with one final flush. Callers must serialize access to this session. */
     suspend fun sendBatch(messages: List<OutgoingMessage>) {
         messages.forEachIndexed { index, message ->
             val encoder = encoderFor(message)

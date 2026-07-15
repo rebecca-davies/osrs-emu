@@ -6,9 +6,7 @@ import emu.crypto.Xtea
 import java.math.BigInteger
 
 /**
- * Pure parser for an op-16/18 login block **payload** — the bytes after the opcode byte and the
- * outer u16 frame length have already been stripped by the caller (see [performLoginBlock] /
- * `Main.kt`). No sockets, no I/O; a `ByteArray` in, a [Result] out.
+ * Parses an op-16/18 login payload after the opcode and outer u16 frame length.
  *
  * Wire layout:
  * ```
@@ -18,24 +16,19 @@ import java.math.BigInteger
  * [XTEA-encrypted tail beginning with the username C-string]
  * ```
  *
- * RSA plaintext, after decrypting the ciphertext block with our private key (§2):
+ * RSA plaintext after private-key decryption:
  * `[1 magic][seed0 int][seed1 int][seed2 int][seed3 int][serverKey long][auth token][marker
  * byte][password C-string]`. A fresh login's auth token is one method byte followed by four bytes
  * of method-specific data (or reserved zeroes); a reconnect's token is four ints (16 bytes).
  *
- * **Header-offset uncertainty (empirical stance, see the plan/design docs):** the exact size of
- * the cleartext header before the RSA block was derived from the decompile (§5: 4+4+4+1+1+1 = 15
- * bytes) but not yet confirmed against a real captured client packet — that confirmation is
- * Task 7's job. [CLEARTEXT_HEADER_SIZE] is a single named constant so it is trivial to retune
- * without touching parsing logic. If the magic-byte check fails, [parse] returns [Result.BadMagic]
- * with the attempted header size, but never retains or logs credential-bearing packet bytes.
+ * The cleartext header is 15 bytes: three ints followed by three flag bytes. A failed RSA magic
+ * check returns [Result.BadMagic] without retaining credential-bearing packet bytes.
  *
- * The four-byte fresh-login auth payload is structurally fixed even though its contents vary by
- * method: the decompiled case-2 path writes an int, cases 1/4 write a medium and reserve one byte,
- * and case 0 reserves four bytes. We deliberately skip it without retaining authentication data.
+ * Fresh-login auth methods all occupy four payload bytes. The parser skips those bytes without
+ * retaining the authentication token.
  */
 object LoginBlockParser {
-    /** See the class doc: revision(4) + subversion(4) + build/flags(4) + 3 flag bytes. */
+    /** Three 4-byte fields followed by three flag bytes. */
     const val CLEARTEXT_HEADER_SIZE = 15
 
     /** Disposable login credentials plus the ISAAC seed material needed after authentication. */

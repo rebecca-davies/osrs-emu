@@ -21,15 +21,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
-/**
- * Locks in the COLLECTION idiom [buildCodecRepository] relies on (CLAUDE.md §5a addendum): every
- * codec each domain module (`js5Module`/`loginModule`/`gameModule`) declares as a Koin `single ...
- * bind MessageDecoder::class`/`bind MessageEncoder::class` must actually come back out of
- * `koin.getAll<...>()` and end up in the assembled [emu.netcore.codec.CodecRepository]. An
- * incomplete collection (e.g. a qualifier collision silently dropping one of the five
- * [Js5Prot.CONTROL_OPCODES] decoders) would otherwise only surface as a mysterious dropped
- * connection at runtime — this test catches it at build time instead.
- */
+/** Verifies that every domain codec is collected into the assembled registry. */
 class CodecRepositoriesTest {
     private val repository = koinApplication { modules(js5Module, loginModule, gameModule) }.koin.buildCodecRepository()
 
@@ -39,7 +31,6 @@ class CodecRepositoriesTest {
         for (opcode in Js5Prot.CONTROL_OPCODES) {
             assertNotNull(repository.decoder(opcode), "control decoder for opcode $opcode")
         }
-        // Sanity: an opcode no domain declares a decoder for is absent, not silently matched.
         assertNull(repository.decoder(999))
     }
 
@@ -57,8 +48,7 @@ class CodecRepositoriesTest {
     }
 
     @Test fun `collected decoder count matches the number of opcodes every domain module declares`() {
-        // 2 group requests + 5 JS5 controls + 2 game inputs. Pinned as an explicit list so a future
-        // qualifier collision shows up here rather than only as a dropped packet at runtime.
+        // Explicit opcodes expose missing or colliding qualified decoder bindings.
         val expectedOpcodes = listOf(Js5Prot.GROUP_REQUEST.opcode, Js5Prot.GROUP_REQUEST_PREFETCH.opcode) +
             Js5Prot.CONTROL_OPCODES.toList() +
             listOf(

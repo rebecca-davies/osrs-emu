@@ -4,8 +4,7 @@ import emu.buffer.JagexBuffer
 import emu.cache.def.codec.DefWriter
 
 /**
- * A single `params` entry value (opcode 249). The wire type tag selects the payload: `1` = string,
- * `2` = long, anything else = i32 (recon doc §4, `InputStream.readParams`).
+ * Opcode-249 parameter value. Wire tag 1 selects string, 2 selects long, and all others select i32.
  */
 sealed interface ParamValue {
     data class IntValue(val value: Int) : ParamValue

@@ -5,8 +5,7 @@ package emu.game.pathfinding
  *
  * It searches a 128x128 window centred on the source, prevents diagonal corner cutting, falls back
  * to the closest visited tile within ten tiles of an unreachable destination, and compresses the
- * result to at most 25 direction-change waypoints. Players are one tile wide, so the size-two and
- * size-N branches from the general Blurite library are intentionally outside this class.
+ * result to at most 25 direction-change waypoints. Supports size-one actors only.
  */
 class BfsPathfinder(
     private val collisionMap: CollisionMap,

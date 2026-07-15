@@ -13,9 +13,7 @@ import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
  * Encodes [PlayerInfo] (opcode 28) as the rev-239 OSRS "GPI" bit stream for the current case: only
- * the local player is present and nobody else is added. Verified against
- * the rev-239 client's own reference GPI decoder (rsprot `osrs-239` `PlayerInfoClient.decodeBitCodes`)
- * and driven against the running client 2026-07-14 (it reaches LOGGED_IN and holds).
+ * the local player is present and nobody else is added.
  *
  * **Structure — the rev-239 GPI is four byte-aligned bit sections, in this order** (client
  * `decodeBitCodes`; the server encoder is rsprot `PlayerInfo.pBitcodes`):
@@ -36,17 +34,13 @@ import emu.protocol.osrs239.game.prot.GameServerProt
  * non-empty ones are byte-identical, so **the wire body is the same every tick**: a stationary local
  * player followed by a single stationary run skipping the remaining 2045 low-resolution slots.
  *
- * **Local player = a stationary run, NOT an active update.** Emitting the local player as `active=1`
- * with movement-opcode 0 and no extended info makes the client's `getHighResolutionPlayerPosition`
- * hit `if (opcode == 0) ... else if (localIndex == idx) throw` and drop the connection instantly —
- * the milestone-4→5 disconnect. Encoding it as `active=0` (a stationary run of length 0) is the
- * correct no-movement update.
+ * A stationary local player is encoded as an inactive stationary run of length zero. The client
+ * rejects an active local update with movement opcode zero and no extended information.
  *
  * **Extended-info / appearance:** when present, the appearance flag and serialized sub-buffer are
  * appended after the four bit sections. Steady-state cycles omit it and retain the initial model.
  *
- * Per [emu.netcore.pipeline.writePacket]'s keystream-ordering contract, the opcode's own ISAAC
- * adjustment is applied by the pipeline, not here — this method never touches [cipher].
+ * The pipeline applies the opcode's ISAAC adjustment; this encoder does not consume [cipher].
  */
 object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     override val prot: Prot = GameServerProt.PLAYER_INFO

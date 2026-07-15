@@ -5,10 +5,8 @@ import java.io.ByteArrayOutputStream
 
 /**
  * A growable, big-endian byte writer for definition encoders. [emu.buffer.JagexBuffer] requires a
- * pre-sized backing array, but a definition's encoded length is only known after every present
- * field has been emitted, so encoders accumulate into this writer instead (recon doc §4). It also
- * carries the Jagex "smart" integer encodings that the definition wire format uses but the leaf
- * buffer module deliberately does not know about.
+ * pre-sized backing array, while a definition's encoded length is known only after its fields are
+ * emitted. This writer also provides the definition format's smart integers.
  */
 internal class DefWriter {
     private val out = ByteArrayOutputStream()
@@ -70,9 +68,7 @@ internal class DefWriter {
  * Accumulates a definition's fields as `(opcode, payload)` fragments, then emits them in ascending
  * opcode order (a stable sort preserves insertion order among equal opcodes) terminated by opcode 0.
  *
- * Emitting by fragment rather than linearly is what keeps the output ascending even when a field's
- * opcode depends on a value (e.g. an item model uses opcode 47 wide vs. 78 narrow) — the order the
- * client's own tooling writes, and which the order-tolerant loader accepts (recon doc §4).
+ * Fragment sorting keeps output ascending when a field's opcode depends on its value.
  */
 internal class FragmentWriter {
     private val fragments = mutableListOf<Pair<Int, ByteArray>>()
@@ -108,7 +104,7 @@ internal class FragmentWriter {
 internal fun JagexBuffer.readSignedShort(): Int = readUShort().toShort().toInt()
 
 /**
- * Peek-based i32/u16 "big smart" with a `-1` sentinel (recon doc §4b, `InputStream.readBigSmart2`):
+ * Peek-based i32/u16 big smart with a `-1` sentinel:
  * a set top bit means a masked i32; otherwise a u16 where `32767` means `-1`.
  */
 internal fun JagexBuffer.readBigSmart2(): Int {
@@ -119,7 +115,7 @@ internal fun JagexBuffer.readBigSmart2(): Int {
 }
 
 /**
- * Peek-based short-smart minus one (recon doc §4b, `InputStream.readUnsignedShortSmartMinusOne`):
+ * Peek-based short-smart minus one:
  * a leading byte `< 128` is `u8 - 1`; otherwise `u16 - 0x8001`.
  */
 internal fun JagexBuffer.readUnsignedShortSmartMinusOne(): Int {

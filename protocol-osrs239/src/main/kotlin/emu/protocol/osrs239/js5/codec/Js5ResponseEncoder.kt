@@ -13,10 +13,8 @@ import emu.protocol.osrs239.js5.prot.Js5Prot
  * connection's JS5 obfuscation key (control opcode 4; a key of 0 / [emu.crypto.NopStreamCipher]
  * leaves the bytes untouched).
  *
- * `message.prefetch` is intentionally not read here — prefetch and urgent responses are
- * byte-identical on the wire for rev 239. It is kept on the message as a meaningful request
- * attribute for potential future bandwidth prioritization (rsprot-style), not because encoding
- * needs it.
+ * Prefetch and urgent responses are byte-identical in rev 239, so [Js5GroupResponse.prefetch] does
+ * not affect encoding.
  */
 object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
     override val prot: Prot = Js5Prot.GROUP_RESPONSE
@@ -47,10 +45,8 @@ object Js5ResponseEncoder : MessageEncoder<Js5GroupResponse> {
      * A stored JS5 container is `[compression:1][compressedLength:4][payload][optional
      * version:2]`. The client sizes each group from its header — `compressedLength + 5`
      * (uncompressed) or `+ 9` (compressed: 4 extra bytes for the decompressed length) — and reads
-     * exactly that, never the 2-byte version trailer. This returns that exact slice (dropping the
-     * trailer) so the client's 512-byte block-read stays aligned with what we actually sent;
-     * serving the trailer would leave 2 stray bytes that desync the next group. Index groups
-     * (archive 255) have no trailer, so served == size and nothing is dropped.
+     * exactly that, never the 2-byte version trailer. Returns that slice so block reads remain
+     * aligned. Index groups have no trailer.
      */
     private fun servedBytes(c: ByteArray): ByteArray {
         if (c.size < 5) return c

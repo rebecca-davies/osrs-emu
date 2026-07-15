@@ -4,8 +4,7 @@ import emu.buffer.JagexBuffer
 import emu.crypto.Xtea
 
 /**
- * A decoded JS5 container: the decompressed payload plus the envelope metadata ([compression],
- * [revision]) needed to re-encode it (recon doc §1, `fs/Container.java`).
+ * Decompressed JS5 payload and the envelope metadata needed to re-encode it.
  */
 class Container(
     val data: ByteArray,
@@ -28,7 +27,7 @@ class Container(
     override fun toString(): String = "Container(compression=$compression, revision=$revision, size=${data.size})"
 
     companion object {
-        /** Sentinel meaning "no version trailer" (recon doc §1: revision == -1 means absent). */
+        /** Sentinel for an absent version trailer. */
         const val NO_REVISION: Int = -1
 
         /**

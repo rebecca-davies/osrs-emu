@@ -11,7 +11,7 @@ enum class RouteRequestAdmission {
     REJECTED,
 }
 
-/** Monotonic input counters; snapshots may be sampled by future world metrics. */
+/** Monotonic route-input counters. */
 data class RouteRequestMetrics(
     val submitted: Long,
     val replaced: Long,

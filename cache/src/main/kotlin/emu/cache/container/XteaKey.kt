@@ -3,9 +3,8 @@ package emu.cache.container
 /**
  * A 4-word XTEA key used to encrypt/decrypt [Container] payloads.
  *
- * Config groups (objects/npcs/items) are never encrypted, so callers pass [ZERO] — decode/encode
- * treat a zero key as identity (recon doc §1/§6). Only map-region groups (index 5) use a non-zero
- * key, sourced externally per region.
+ * Container encoding treats [ZERO] as identity. Map-region groups may use an externally supplied
+ * non-zero key.
  */
 data class XteaKey(val k0: Int, val k1: Int, val k2: Int, val k3: Int) {
     /** True when every word is zero — the identity key used for unencrypted (config) groups. */

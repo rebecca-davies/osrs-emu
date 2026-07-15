@@ -1,7 +1,7 @@
 package emu.cache.def
 
 /**
- * A decoded rev-239 npc definition: index 2, group 9, `fileId == id` (recon doc §4b, `NpcLoader`).
+ * Decoded rev-239 NPC definition from index 2, group 9, where `fileId == id`.
  *
  * As with [ObjectDefinition], every property maps to one opcode (family) and is null/empty when
  * absent; derived post-load defaults (`footprintSize`) are never stored. rev-239 gates: head icons

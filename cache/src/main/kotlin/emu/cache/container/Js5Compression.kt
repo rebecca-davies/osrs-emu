@@ -1,9 +1,6 @@
 package emu.cache.container
 
-/**
- * The compression scheme stamped in byte 0 of every [Container] (recon doc §1,
- * `fs/jagex/CompressionType.java`).
- */
+/** Compression scheme stored in byte zero of a [Container]. */
 enum class Js5Compression(val id: Int) {
     NONE(0),
     BZIP2(1),

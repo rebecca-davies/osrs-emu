@@ -4,8 +4,8 @@ import emu.buffer.JagexBuffer
 import emu.cache.def.EntityOps
 
 /**
- * Decodes and encodes the shared [EntityOps] structure onto a definition-type-specific opcode set
- * (recon doc §4, `EntityOpsLoader`). Plain ops always use opcodes 30-34; the sub/conditional op
+ * Decodes and encodes [EntityOps] with a definition-specific opcode set. Plain operations use
+ * opcodes 30-34; the sub/conditional operation
  * opcodes vary (objects 100-102, items 200-202, npcs 251-253) and are passed in per call.
  */
 internal object EntityOpsCodec {

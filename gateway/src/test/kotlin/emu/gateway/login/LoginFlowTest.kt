@@ -14,18 +14,14 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-// Proves the opcode-14 exchange over a real loopback socket, mirroring how Main.kt dispatches:
-// read the first opcode byte, and on 14 (LoginProt.INIT, no payload) reply with the server session
-// key as [1 status byte == 0][8-byte server session key (big-endian long)].
+/** Verifies the opcode-14 status and session-key reply over loopback. */
 class LoginFlowTest {
     @Test fun `opcode 14 replies status 0 then the 8-byte server session key`() = runBlocking {
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
 
-        // ProtocolStage isn't involved here — opcode 14 has no payload and no follow-up in this
-        // stage (opcodes 16/18 arrive later, in Task 6), so this mirrors Main.kt's raw dispatch
-        // directly rather than driving a full stage loop.
+        // Opcode 14 is dispatched directly because login framing precedes the protocol stage.
         val serverJob = launch {
             val conn = server.accept()
             val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)

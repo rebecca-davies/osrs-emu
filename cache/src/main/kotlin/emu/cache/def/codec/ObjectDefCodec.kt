@@ -7,7 +7,7 @@ import emu.cache.def.Params
 import emu.cache.def.VarTransform
 
 /**
- * Byte-exact inverse of RuneLite's `ObjectLoader` for rev 239 (recon doc §4a). [decode] runs the
+ * Rev-239 object definition codec. [decode] runs the
  * tagged opcode loop; [encode] re-emits every present field in ascending opcode order (the order
  * Jagex's own tooling writes, and which the order-tolerant client accepts) terminated by opcode 0.
  *
@@ -287,7 +287,7 @@ object ObjectDefCodec {
     }
 }
 
-/** Emits a [VarTransform] as opcode-77/106 (base) or 92/118 (extended) fragment (recon doc §4a/§4b). */
+/** Emits a [VarTransform] as a base or extended opcode fragment. */
 internal fun writeVarTransform(fw: FragmentWriter, vt: VarTransform, baseOpcode: Int, extendedOpcode: Int) {
     val len = vt.configChangeDest.size - 1
     if (vt.trailingVar != null) {
@@ -308,7 +308,7 @@ internal fun writeVarTransform(fw: FragmentWriter, vt: VarTransform, baseOpcode:
     }
 }
 
-/** Emits a paired find/replace colour or texture array under [opcode] (recon doc §4). */
+/** Emits paired find/replace colour or texture values under [opcode]. */
 internal fun writePairs(fw: FragmentWriter, opcode: Int, find: List<Int>?, replace: List<Int>?) {
     if (find == null || replace == null) return
     fw.field(opcode) {
