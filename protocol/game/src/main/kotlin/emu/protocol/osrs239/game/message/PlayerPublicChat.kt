@@ -13,6 +13,17 @@ data class PlayerPublicChat(
         require(colour in 0..20 && effect in 0..5) { "invalid public-chat style" }
         require(modIcon in 0..255) { "invalid public-chat mod icon" }
         require(encodedText.isNotEmpty() && encodedText.size <= 255) { "invalid Huffman chat payload length" }
-        require(pattern == null || pattern.size in 1..8) { "invalid public-chat pattern" }
+        if (colour in PATTERN_COLOURS) {
+            require(pattern?.size == colour - PATTERN_COLOUR_BASE) {
+                "public-chat colour $colour requires ${colour - PATTERN_COLOUR_BASE} pattern bytes"
+            }
+        } else {
+            require(pattern == null) { "public-chat colours 0..12 cannot carry a pattern" }
+        }
+    }
+
+    private companion object {
+        const val PATTERN_COLOUR_BASE = 12
+        val PATTERN_COLOURS = 13..20
     }
 }

@@ -9,6 +9,7 @@ import emu.protocol.osrs239.game.message.HideLocOps
 import emu.protocol.osrs239.game.message.HideNpcOps
 import emu.protocol.osrs239.game.message.HideObjOps
 import emu.protocol.osrs239.game.message.IfOpenSub
+import emu.protocol.osrs239.game.message.IfCloseSub
 import emu.protocol.osrs239.game.message.IfOpenTop
 import emu.protocol.osrs239.game.message.IfResync
 import emu.protocol.osrs239.game.message.IfSetHide
@@ -31,6 +32,7 @@ import emu.protocol.osrs239.game.message.WorldEntityInfo
 import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 /** Byte vectors are the inverse of rsprox rev-239's reference packet decoders. */
 class InitialCycleEncoderTest {
@@ -54,6 +56,29 @@ class InitialCycleEncoderTest {
             bytes(162 + 128, 0, 165, 0, 2, 0, 1),
             IfOpenSubEncoder.encode(NopStreamCipher, IfOpenSub(165, 2, 162, 1)).toList(),
         )
+    }
+
+    @Test fun `interface close packet uses the rev 239 canonical combined id`() {
+        assertEquals(GameServerProt.IF_CLOSE_SUB, IfCloseSubEncoder.prot)
+        assertEquals(
+            bytes(0, 165, 0, 2),
+            IfCloseSubEncoder.encode(NopStreamCipher, IfCloseSub(165, 2)).toList(),
+        )
+    }
+
+    @Test fun `interface close packet validates both packed component halves`() {
+        assertEquals(
+            bytes(0, 0, 0, 0),
+            IfCloseSubEncoder.encode(NopStreamCipher, IfCloseSub(0, 0)).toList(),
+        )
+        assertEquals(
+            bytes(-1, -1, -1, -1),
+            IfCloseSubEncoder.encode(NopStreamCipher, IfCloseSub(0xFFFF, 0xFFFF)).toList(),
+        )
+        assertFailsWith<IllegalArgumentException> { IfCloseSub(-1, 0) }
+        assertFailsWith<IllegalArgumentException> { IfCloseSub(0, -1) }
+        assertFailsWith<IllegalArgumentException> { IfCloseSub(0x1_0000, 0) }
+        assertFailsWith<IllegalArgumentException> { IfCloseSub(0, 0x1_0000) }
     }
 
     @Test fun `client script body writes its signature then reversed arguments then script id`() {

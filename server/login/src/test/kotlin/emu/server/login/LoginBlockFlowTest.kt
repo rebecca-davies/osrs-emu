@@ -49,7 +49,7 @@ class LoginBlockFlowTest {
         return out.array
     }
 
-    @Test fun `fresh login completes only after admission supplies a player index`() = runBlocking {
+    @Test fun `fresh login completes only after world entry supplies a player index`() = runBlocking {
         val keyPair = Rsa.generateKeyPair(1024)
         val loginServer = LoginServer(keyPair, LoginAuthenticator(::acceptTestLogin))
 

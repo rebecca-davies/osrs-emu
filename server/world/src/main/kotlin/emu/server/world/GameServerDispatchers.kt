@@ -2,15 +2,20 @@ package emu.server.world
 
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
 
-/** Owns the game server's isolated world-tick and connection executors. */
-class GameServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
+/** Owns isolated world-tick, active-connection, and world-entry executors. */
+class GameServerDispatchers(
+    connectionWorkerThreads: Int,
+    entryWorkerThreads: Int,
+) : AutoCloseable {
     private val closed = AtomicBoolean(false)
 
     init {
-        require(ioWorkerThreads > 0) { "world IO worker count must be positive" }
+        require(connectionWorkerThreads > 0) { "game connection worker count must be positive" }
+        require(entryWorkerThreads > 0) { "world entry worker count must be positive" }
     }
 
     val world: ExecutorCoroutineDispatcher =
@@ -18,19 +23,34 @@ class GameServerDispatchers(ioWorkerThreads: Int) : AutoCloseable {
             Thread(task, "world-tick").apply { isDaemon = true }
         }.asCoroutineDispatcher()
 
-    val io: ExecutorCoroutineDispatcher =
+    val connections: ExecutorCoroutineDispatcher =
         runCatching {
-            Executors.newFixedThreadPool(ioWorkerThreads) { task ->
-                Thread(task, "world-io").apply { isDaemon = true }
-            }.asCoroutineDispatcher()
+            fixedDispatcher(connectionWorkerThreads, "world-connection")
         }.getOrElse { failure ->
+            world.close()
+            throw failure
+        }
+
+    val entry: ExecutorCoroutineDispatcher =
+        runCatching {
+            fixedDispatcher(entryWorkerThreads, "world-entry")
+        }.getOrElse { failure ->
+            connections.close()
             world.close()
             throw failure
         }
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        io.close()
+        entry.close()
+        connections.close()
         world.close()
     }
+}
+
+private fun fixedDispatcher(workerThreads: Int, threadPrefix: String): ExecutorCoroutineDispatcher {
+    val sequence = AtomicInteger()
+    return Executors.newFixedThreadPool(workerThreads) { task ->
+        Thread(task, "$threadPrefix-${sequence.incrementAndGet()}").apply { isDaemon = true }
+    }.asCoroutineDispatcher()
 }

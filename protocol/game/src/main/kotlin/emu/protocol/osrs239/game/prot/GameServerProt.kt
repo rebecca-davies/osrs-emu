@@ -51,6 +51,9 @@ object GameServerProt {
     /** Attaches a subinterface to a component (opcode 7, fixed 7). */
     val IF_OPEN_SUB = Prot(7, 7)
 
+    /** Closes the subinterface tree attached to one component (opcode 23, fixed 4). */
+    val IF_CLOSE_SUB = Prot(23, 4)
+
     /** Resynchronizes the complete interface tree (opcode 25, variable short). */
     val IF_RESYNC = Prot(25, Prot.VAR_SHORT)
 

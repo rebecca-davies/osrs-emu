@@ -1,9 +1,10 @@
 package emu.server.host
 
 import emu.compression.HuffmanCodec
-import emu.game.pathfinding.OpenCollisionMap
+import emu.server.world.map.CacheCollisionMap
 import emu.persistence.character.CharacterStore
-import emu.persistence.character.CharacterSaveSink
+import emu.persistence.character.CharacterWriteQueue
+import emu.persistence.character.DurableCharacterWrite
 import emu.persistence.character.PlayerRecord
 import emu.persistence.character.PlayerSessionSave
 import emu.persistence.chat.ChatAuditSink
@@ -21,7 +22,9 @@ class GameWiringTest {
         val dependencies =
             module {
                 single<CharacterStore> { NoCharacters }
-                single<CharacterSaveSink> { CharacterSaveSink { true } }
+                single<CharacterWriteQueue> {
+                    CharacterWriteQueue { DurableCharacterWrite }
+                }
                 single<ChatAuditSink> { ChatAuditSink { true } }
             }
         val application =
@@ -31,9 +34,9 @@ class GameWiringTest {
                     dependencies,
                     gameModule(
                         codecs = CodecRepositoryBuilder().build(),
-                        collision = OpenCollisionMap,
+                        collision = CacheCollisionMap({ _, _ -> null }, { null }),
                         huffman = HuffmanCodec(ByteArray(256) { 8 }),
-                        config = GameExecutionConfig(ioWorkerThreads = 1),
+                        config = GameExecutionConfig(connectionWorkerThreads = 1, entryWorkerThreads = 1),
                     ),
                 )
             }

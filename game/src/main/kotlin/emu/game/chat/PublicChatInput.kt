@@ -1,11 +1,11 @@
 package emu.game.chat
 
-/** A validated public-chat request ready for audit admission and local publication. */
+/** A validated public-chat action ready for audit queuing and local publication. */
 class PublicChatInput(
     val colour: Int,
     val effect: Int,
     val text: String,
-    pattern: ByteArray?,
+    pattern: ByteArray? = null,
 ) : ChatInput {
     private val patternBytes = pattern?.copyOf()
 
@@ -16,7 +16,13 @@ class PublicChatInput(
         require(text.isNotBlank() && text.length <= MAX_CHAT_LENGTH) { "invalid public chat length" }
         require(colour in 0..20) { "invalid public chat colour" }
         require(effect in 0..5) { "invalid public chat effect" }
-        require(patternBytes == null || patternBytes.size in 1..8) { "invalid public chat pattern" }
+        if (colour in PATTERN_COLOURS) {
+            require(patternBytes?.size == colour - PATTERN_COLOUR_BASE) {
+                "public chat colour $colour requires ${colour - PATTERN_COLOUR_BASE} pattern bytes"
+            }
+        } else {
+            require(patternBytes == null) { "public chat colours 0..12 cannot carry a pattern" }
+        }
     }
 
     override fun equals(other: Any?): Boolean =
@@ -27,5 +33,7 @@ class PublicChatInput(
 
     companion object {
         const val MAX_CHAT_LENGTH = 100
+        private const val PATTERN_COLOUR_BASE = 12
+        private val PATTERN_COLOURS = 13..20
     }
 }

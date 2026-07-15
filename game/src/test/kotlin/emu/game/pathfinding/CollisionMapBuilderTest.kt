@@ -23,8 +23,8 @@ class CollisionMapBuilderTest {
 
         assertTrue(collision.flagsAt(3_220, 3_220, 0) and CollisionFlag.WALL_WEST != 0)
         assertTrue(collision.flagsAt(3_219, 3_220, 0) and CollisionFlag.WALL_EAST != 0)
-        assertTrue(!collision.canTravel(Tile(3_220, 3_220), -1, 0))
-        assertTrue(!collision.canTravel(Tile(3_219, 3_220), 1, 0))
+        assertTrue(!collision.canTravel(3_220, 3_220, 0, -1, 0))
+        assertTrue(!collision.canTravel(3_219, 3_220, 0, 1, 0))
     }
 
     @Test

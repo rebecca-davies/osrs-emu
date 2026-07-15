@@ -14,7 +14,7 @@ import emu.server.session.ReservationDecision
 import emu.server.session.ReservationRejection
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Coordinates stage handoffs without placing peer-service knowledge in the gateway. */
 class ServerCoordinator(
@@ -36,17 +36,36 @@ class ServerCoordinator(
         write: ByteWriteChannel,
     ) {
         val session = login.authenticate(read, write) ?: return
-        val reservation = withTimeout(config.admissionTimeout) { world.reserve(session.connection.principal) }
+        val reservation =
+            withTimeoutOrNull(config.worldEntryTimeout) { world.prepare(session.account.accountId) }
+                ?: ReservationDecision.Rejected(ReservationRejection.UNAVAILABLE)
         val completion = reservation.toAuthenticationCompletion()
         val accepted = reservation as? ReservationDecision.Accepted
-        var transferred = false
-        try {
-            if (!login.complete(write, session, completion)) return
-            val slot = accepted ?: return
-            transferred = true
-            world.play(read, write, ConnectionHandoff(session.connection, slot))
-        } finally {
-            if (accepted != null && !transferred) world.release(accepted.token)
+        if (accepted == null) {
+            login.complete(write, session, completion)
+            return
+        }
+        var completionWritten = false
+        val attached =
+            world.play(
+                read,
+                write,
+                ConnectionHandoff(session.account.accountId, session.isaac, accepted),
+            ) { playerIndex ->
+                check(playerIndex == accepted.playerIndex) { "world changed the reserved player index" }
+                completionWritten = true
+                login.complete(
+                    write,
+                    session,
+                    AuthenticationCompletion.Accepted(playerIndex),
+                )
+            }
+        if (!attached && !completionWritten) {
+            login.complete(
+                write,
+                session,
+                AuthenticationCompletion.Rejected(AuthenticationRejection.WORLD_UNAVAILABLE),
+            )
         }
     }
 }
@@ -58,8 +77,8 @@ private fun ReservationDecision.toAuthenticationCompletion(): AuthenticationComp
             AuthenticationCompletion.Rejected(
                 when (reason) {
                     ReservationRejection.DUPLICATE -> AuthenticationRejection.ALREADY_ONLINE
-                    ReservationRejection.CAPACITY,
-                    ReservationRejection.UNAVAILABLE -> AuthenticationRejection.WORLD_FULL
+                    ReservationRejection.CAPACITY -> AuthenticationRejection.WORLD_FULL
+                    ReservationRejection.UNAVAILABLE -> AuthenticationRejection.WORLD_UNAVAILABLE
                 },
             )
     }

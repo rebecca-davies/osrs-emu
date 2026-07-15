@@ -3,14 +3,14 @@ package emu.cache.def.codec
 import emu.buffer.JagexBuffer
 import emu.cache.def.EntityOps
 import emu.cache.def.ObjectDefinition
+import emu.cache.def.ParamValue
 import emu.cache.def.Params
 import emu.cache.def.VarTransform
 
 /**
- * Rev-239 object definition codec. [decode] runs the
- * tagged opcode loop; [encode] re-emits every present field in ascending opcode order (the order
+ * Rev-239 object definition codec. [decode] runs the tagged opcode loop; [encode] re-emits every
+ * present field in ascending opcode order (the order
  * Jagex's own tooling writes, and which the order-tolerant client accepts) terminated by opcode 0.
- *
  * rev-239 gate: `rev220SoundData` is true, so opcodes 78/79 carry the extra `ambientSoundRetain` u8.
  */
 object ObjectDefCodec {
@@ -62,7 +62,7 @@ object ObjectDefCodec {
         var unknown1 = false
         var soundVisibility: Int? = null
         var raise: Int? = null
-        var params: Map<Int, emu.cache.def.ParamValue>? = null
+        var params: Map<Int, ParamValue>? = null
 
         while (true) {
             val opcode = buf.readUByte()

@@ -1,16 +1,5 @@
 # Existing production declaration-layout debt. This file may only shrink as focused cleanup slices
 # land; new entries fail declarationQualityCheck and require architectural review.
-filename|libraries/transport/src/main/kotlin/emu/transport/pipeline/OutboundWriter.kt|WritePacket|function:writePacket
-filename|server/host/src/main/kotlin/emu/server/host/PersistenceWiring.kt|PersistenceModule|function:persistenceModule
-filename|server/host/src/main/kotlin/emu/server/host/ServerApplication.kt|RunServer|function:runServer
-filename|server/host/src/main/kotlin/emu/server/host/ServerEnvironment.kt|LoadServerConfig|function:loadServerConfig
-filename|server/host/src/main/kotlin/emu/server/host/ServerRsaKeyFile.kt|LoadServerRsaKeyPair|function:loadServerRsaKeyPair
-filename|server/world/src/main/kotlin/emu/server/world/network/GameHandlerInstall.kt|InstallGameHandlers|function:installGameHandlers
-filename|server/world/src/main/kotlin/emu/server/world/network/HuffmanLoader.kt|LoadHuffmanCodec|function:loadHuffmanCodec
-filename|server/js5/src/main/kotlin/emu/server/js5/wire/Js5HandlerInstall.kt|InstallJs5Handlers|function:installJs5Handlers
-filename|server/js5/src/main/kotlin/emu/server/js5/wire/Js5Handshake.kt|PerformHandshake|function:performHandshake
-filename|server/login/src/main/kotlin/emu/server/login/wire/LoginHandler.kt|PerformLoginBlock|function:performLoginBlock
-filename|server/login/src/main/kotlin/emu/server/login/wire/LoginHandshake.kt|PerformLoginInit|function:performLoginInit
 filename|tools/client-patch/src/main/kotlin/emu/tools/clientpatch/Verify.kt|Main|function:main
 multiple|cache/src/main/kotlin/emu/cache/def/Params.kt|type:ParamValue,type:Params
 multiple|cache/src/main/kotlin/emu/cache/def/codec/DefIo.kt|type:DefWriter,type:FragmentWriter,function:readSignedShort,function:readBigSmart2,function:readUnsignedShortSmartMinusOne
@@ -20,29 +9,17 @@ multiple|cache/src/main/kotlin/emu/cache/index/Crc32.kt|function:crc32,function:
 multiple|cache/src/main/kotlin/emu/cache/index/Js5Index.kt|type:Js5IndexFlags,type:FileEntry,type:GroupEntry,type:Js5Index
 multiple|libraries/crypto/src/main/kotlin/emu/crypto/Rsa.kt|type:RsaKeyPair,type:Rsa
 multiple|libraries/crypto/src/main/kotlin/emu/crypto/StreamCipher.kt|type:StreamCipher,type:NopStreamCipher
-multiple|game/src/main/kotlin/emu/game/chat/ChatActionRegistry.kt|type:ChatAction,type:ChatActionRegistry,function:chatActions,type:ChatActionRegistryBuilder
 multiple|game/src/main/kotlin/emu/game/cycle/CycleProfiler.kt|type:CycleProfileSnapshot,type:CycleProfileEvent,type:CycleProfiler
 multiple|game/src/main/kotlin/emu/game/cycle/FixedRateTickSchedule.kt|val:GAME_TICK_MILLIS,type:FixedRateTickSchedule
-multiple|game/src/main/kotlin/emu/game/cycle/GameCycle.kt|type:CycleProcess,type:GameCycle
 multiple|game/src/main/kotlin/emu/game/pathfinding/CollisionMap.kt|type:CollisionMap,type:OpenCollisionMap,type:MutableCollisionMap,function:canTravel
-multiple|game/src/main/kotlin/emu/game/pathfinding/PlayerMovement.kt|type:MovementUpdate,type:PlayerMovement
 multiple|game/src/main/kotlin/emu/game/pathfinding/Tile.kt|type:Tile,type:PathRoute
-multiple|game/src/main/kotlin/emu/game/ui/ButtonActionRegistry.kt|type:ButtonAction,type:ButtonActionRegistry,function:buttonActions,type:ButtonActionRegistryBuilder
 multiple|game/src/main/kotlin/emu/game/varp/VarpType.kt|type:VarpScope,type:VarpTransmit,type:VarpType,type:VarbitType,type:VarpValue,type:VarpCatalog
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/Codec.kt|type:MessageDecoder,type:MessageEncoder
 multiple|libraries/transport/src/main/kotlin/emu/transport/codec/CodecRepository.kt|type:CodecRepository,type:CodecRepositoryBuilder
 multiple|libraries/transport/src/main/kotlin/emu/transport/pipeline/HandlerRepository.kt|type:HandlerRepository,type:HandlerRepositoryBuilder
 multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/GameCodecs.kt|type:GameCodecs,function:buildGameCodecRepository
-multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerInfo.kt|type:PlayerInfo,type:PlayerMovement
 multiple|protocol/js5/src/main/kotlin/emu/protocol/osrs239/js5/Js5Codecs.kt|type:Js5Codecs,function:buildJs5CodecRepository
 multiple|protocol/login/src/main/kotlin/emu/protocol/osrs239/login/LoginCodecs.kt|type:LoginCodecs,function:buildLoginCodecRepository
 multiple|server/host/src/main/kotlin/emu/server/host/RuntimeAssets.kt|type:RuntimeAssets,function:loadRuntimeAssets
-multiple|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|val:SPAWN_PLANE,val:SPAWN_X,val:SPAWN_Y,function:runGameStage,function:initialPlayerMovement,function:drainGameInbound
-multiple|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|val:WELCOME_MESSAGE,function:loginNoticeMessages,function:playerAppearance,function:initialStatMessages,function:initialPlayerVarps,function:initialAccountVarps,function:initialChatFilters,function:toProtocolMessage,function:adminCycleReport,function:initialWorldGroup,function:initialFrameSubInterfaces,function:initialFrameMessages,function:initialGameCycle
-multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayConfig.kt|val:DEFAULT_GATEWAY_PORT,type:GatewayConfig
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayRoutes.kt|type:GatewayRouteHandler,type:GatewayRoutes
 multiple|server/login/src/main/kotlin/emu/server/login/wire/LoginSuccessTrailer.kt|val:LOGIN_SUCCESS_TRAILER_LENGTH,val:LOGIN_RIGHTS_TRAILER_OFFSET,val:LOGIN_PLAYER_MOD_TRAILER_OFFSET,function:loginSuccessTrailer
-multiple|server/session/src/main/kotlin/emu/server/session/Authentication.kt|type:AccountPrivilege,type:AuthenticatedPrincipal,type:AuthenticationDecision,type:AuthenticationCompletion,type:AuthenticationRejection
-multiple|server/session/src/main/kotlin/emu/server/session/ConnectionHandoff.kt|type:ConnectionBootstrap,type:AuthenticatedSession,type:ConnectionHandoff
-multiple|server/session/src/main/kotlin/emu/server/session/IsaacBootstrap.kt|type:IsaacBootstrap,function:isaacBootstrap
-multiple|server/session/src/main/kotlin/emu/server/session/Reservation.kt|type:GameSessionToken,type:ReservationRejection,type:ReservationDecision

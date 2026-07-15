@@ -3,6 +3,7 @@ package emu.persistence.postgres
 import emu.persistence.account.PlayerRank
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerSessionSave
+import emu.persistence.character.PlayerChatFiltersRecord
 import emu.persistence.postgres.account.PostgresAccountStore
 import emu.persistence.postgres.account.PostgresAccountRankStore
 import emu.persistence.postgres.character.PostgresCharacterStore
@@ -39,7 +40,7 @@ class PostgresPlayerStoresTest {
     }
 
     @Test
-    fun `save point atomically updates position playtime and sparse varps`() {
+    fun `save point atomically updates position absolute playtime and sparse varps`() {
         migratedTestDatabase().use { database ->
             val accounts = PostgresAccountStore(database)
             val characters = PostgresCharacterStore(database)
@@ -50,16 +51,18 @@ class PostgresPlayerStoresTest {
                 PlayerSessionSave(
                     account.id,
                     PlayerPosition(3200, 3201, 1),
-                    playedSeconds = 42,
+                    playTimeSeconds = 42,
                     dirtyVarps = mapOf(173 to 0, 1055 to Int.MAX_VALUE),
+                    chatFilters = PlayerChatFiltersRecord(3, 1, 2),
                 ),
             )
             characters.save(
                 PlayerSessionSave(
                     account.id,
                     PlayerPosition(3202, 3203, 2),
-                    playedSeconds = 8,
+                    playTimeSeconds = 50,
                     dirtyVarps = mapOf(173 to 1),
+                    chatFilters = PlayerChatFiltersRecord(3, 1, 2),
                 ),
             )
 
@@ -67,6 +70,17 @@ class PostgresPlayerStoresTest {
             assertEquals(PlayerPosition(3202, 3203, 2), loaded.position)
             assertEquals(50, loaded.playTimeSeconds)
             assertEquals(mapOf(173 to 1, 1055 to Int.MAX_VALUE), loaded.varps)
+            assertEquals(PlayerChatFiltersRecord(3, 1, 2), loaded.chatFilters)
+
+            characters.save(
+                PlayerSessionSave(
+                    account.id,
+                    PlayerPosition(3200, 3201, 1),
+                    playTimeSeconds = 42,
+                    dirtyVarps = mapOf(173 to 1),
+                ),
+            )
+            assertEquals(50, requireNotNull(characters.load(account.id)).playTimeSeconds)
 
             characters.save(PlayerSessionSave(account.id, SPAWN, 0, mapOf(173 to 0)))
             assertEquals(mapOf(1055 to Int.MAX_VALUE), requireNotNull(characters.load(account.id)).varps)

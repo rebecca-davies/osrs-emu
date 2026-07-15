@@ -5,8 +5,11 @@ data class PostgresConfig(
     val jdbcUrl: String,
     val username: String,
     val password: String,
-    val pool: PostgresPoolConfig = PostgresPoolConfig(),
+    val loginPool: PostgresPoolConfig = PostgresPoolConfig(maximumSize = 4),
+    val worldPool: PostgresPoolConfig = PostgresPoolConfig(),
+    val operations: PostgresOperationConfig = PostgresOperationConfig(),
 ) {
     override fun toString(): String =
-        "PostgresConfig(jdbcUrl=$jdbcUrl, username=$username, password=<redacted>, pool=$pool)"
+        "PostgresConfig(jdbcUrl=$jdbcUrl, username=$username, password=<redacted>, " +
+            "loginPool=$loginPool, worldPool=$worldPool, operations=$operations)"
 }

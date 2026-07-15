@@ -13,7 +13,6 @@ import emu.protocol.osrs239.login.prot.LoginProt
 import emu.server.session.AuthenticationCompletion
 import emu.server.session.AuthenticationRejection
 import emu.server.session.AuthenticatedSession
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
@@ -28,11 +27,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
-private val logger = KotlinLogging.logger {}
-
 /** Owns login handshakes, attempt limits, authentication, and worker execution. */
 class LoginServer(
-    private val rsaKeyPair: RsaKeyPair?,
+    private val rsaKeyPair: RsaKeyPair,
     private val authenticator: LoginAuthenticator,
     private val config: LoginExecutionConfig = LoginExecutionConfig(),
     private val dispatcher: ExecutorCoroutineDispatcher = loginDispatcher(config.workerThreads),
@@ -40,45 +37,30 @@ class LoginServer(
     private val attempts = Semaphore(config.maxConcurrentAttempts)
 
     override suspend fun authenticate(read: ByteReadChannel, write: ByteWriteChannel): AuthenticatedSession? {
-        if (!attempts.tryAcquire()) {
-            logger.warn { "login attempt limit reached; rejecting connection" }
-            return null
-        }
+        if (!attempts.tryAcquire()) return null
         try {
             return try {
                 withTimeout(config.authenticationTimeout) {
                     withContext(dispatcher) {
                         val serverKey = performLoginInit(write)
-                        when (val opcode = read.readByte().toInt() and 0xFF) {
-                            LoginProt.NEW_LOGIN.opcode, LoginProt.RECONNECT.opcode -> {
-                                val keys = rsaKeyPair
-                                if (keys == null) {
-                                    logger.warn { "rejecting login block: no server RSA keypair loaded" }
-                                    null
-                                } else {
-                                    performLoginBlock(
-                                        read,
-                                        write,
-                                        serverKey,
-                                        keys,
-                                        reconnect = opcode == LoginProt.RECONNECT.opcode,
-                                        authenticate = authenticator::authenticate,
-                                    )
-                                }
+                        when (read.readByte().toInt() and 0xFF) {
+                            LoginProt.NEW_LOGIN.opcode -> {
+                                performLoginBlock(
+                                    read,
+                                    write,
+                                    serverKey,
+                                    rsaKeyPair,
+                                    authenticate = authenticator::authenticate,
+                                )
                             }
 
-                            else -> {
-                                logger.warn { "unexpected opcode $opcode after login init; closing connection" }
-                                null
-                            }
+                            else -> null
                         }
                     }
                 }
             } catch (_: TimeoutCancellationException) {
-                logger.debug { "login authentication timed out" }
                 null
             } catch (_: EOFException) {
-                logger.debug { "login client closed before authentication completed" }
                 null
             } catch (failure: CancellationException) {
                 throw failure
@@ -100,11 +82,12 @@ class LoginServer(
                     when (completion.reason) {
                         AuthenticationRejection.ALREADY_ONLINE -> LoginResponse.ACCOUNT_ONLINE
                         AuthenticationRejection.WORLD_FULL -> LoginResponse.WORLD_FULL
+                        AuthenticationRejection.WORLD_UNAVAILABLE -> LoginResponse.LOGIN_SERVER_OFFLINE
                     }
             }
         write.writeFully(LoginResponseEncoder.encode(NopStreamCipher, LoginResponse(response)))
-        if (completion is AuthenticationCompletion.Accepted && !login.reconnect) {
-            write.writeFully(loginSuccessTrailer(login.connection.principal.privilege, completion.playerIndex))
+        if (completion is AuthenticationCompletion.Accepted) {
+            write.writeFully(loginSuccessTrailer(login.account.privilege, completion.playerIndex))
         }
         write.flush()
         return completion is AuthenticationCompletion.Accepted

@@ -18,8 +18,10 @@ class AccountAuthenticatorTest {
         val created = assertIs<AuthenticationDecision.Authenticated>(
             authenticator.authenticate("Rebecca_Bird", "correct horse".toCharArray()),
         )
-        assertEquals("rebecca bird", created.principal.username)
-        assertEquals("Rebecca_Bird", created.principal.displayName)
+        assertEquals(1, created.account.accountId.value)
+        val stored = requireNotNull(store.findByUsername("rebecca bird"))
+        assertEquals("rebecca bird", stored.account.username)
+        assertEquals("Rebecca_Bird", stored.account.displayName)
 
         assertIs<AuthenticationDecision.Authenticated>(
             authenticator.authenticate("REBECCA BIRD", "correct horse".toCharArray()),

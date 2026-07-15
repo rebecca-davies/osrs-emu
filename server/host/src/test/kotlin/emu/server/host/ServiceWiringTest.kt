@@ -1,6 +1,7 @@
 package emu.server.host
 
 import emu.cache.store.Store
+import emu.crypto.RsaKeyPair
 import emu.persistence.account.AccountStore
 import emu.persistence.account.StoredAccount
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
@@ -13,6 +14,7 @@ import kotlin.test.Test
 import kotlin.test.assertSame
 import org.koin.dsl.koinApplication
 import org.koin.dsl.module
+import java.math.BigInteger
 
 class ServiceWiringTest {
     @Test
@@ -42,9 +44,12 @@ class ServiceWiringTest {
                 modules(
                     accounts,
                     loginModule(
-                        rsaKeyPair = null,
-                        loginConfig = LoginExecutionConfig(workerThreads = 1),
-                        bcryptConfig = BcryptConfig(cost = 4),
+                        rsaKeyPair = TEST_RSA_KEY,
+                        loginConfig =
+                            LoginExecutionConfig(
+                                workerThreads = 1,
+                                authentication = BcryptConfig(cost = 4),
+                            ),
                     ),
                 )
             }
@@ -63,5 +68,14 @@ class ServiceWiringTest {
         override fun findByUsername(username: String): StoredAccount? = null
 
         override fun create(username: String, displayName: String, passwordHash: String): StoredAccount? = null
+    }
+
+    private companion object {
+        val TEST_RSA_KEY =
+            RsaKeyPair(
+                modulus = BigInteger.valueOf(3_233),
+                publicExp = BigInteger.valueOf(17),
+                privateExp = BigInteger.valueOf(2_753),
+            )
     }
 }

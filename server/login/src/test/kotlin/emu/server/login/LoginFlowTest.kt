@@ -24,7 +24,7 @@ class LoginFlowTest {
         val port = (server.localAddress as InetSocketAddress).port
 
         // Login init is a one-byte route discriminator with no payload. The test therefore drives
-        // the login handshake directly; framed login and reconnect blocks are covered separately.
+        // the login handshake directly; framed login blocks are covered separately.
         val serverJob = launch {
             val conn = server.accept()
             val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)

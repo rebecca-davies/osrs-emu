@@ -1,4 +1,4 @@
 package emu.game.chat
 
-/** Input admitted from the network and consumed only by the authoritative game cycle. */
+/** Chat action queued by the network and consumed only by the authoritative world cycle. */
 sealed interface ChatInput

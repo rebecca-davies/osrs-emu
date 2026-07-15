@@ -10,7 +10,7 @@ import emu.transport.message.OutgoingMessage
  */
 data class MessageGame(
     val type: Int,
-    val message: String,
+    val text: String,
     val name: String? = null,
 ) : OutgoingMessage {
     companion object {

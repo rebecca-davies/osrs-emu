@@ -10,8 +10,7 @@ import java.math.BigInteger
  *
  * The payload contains a 15-byte clear header, a u16-length RSA block, and an XTEA-encrypted tail
  * beginning with the username C-string. RSA plaintext contains the magic byte, four ISAAC seeds,
- * echoed server key, authentication token, string marker, and password C-string. Reconnect blocks
- * use a 16-byte authentication token; fresh blocks use a method byte plus four payload bytes.
+ * echoed server key, authentication method payload, string marker, and password C-string.
  *
  * Decrypted temporary arrays are cleared before return. A successful [Parsed] owns the only
  * retained password buffer, which its caller must clear with [Parsed.clearPassword].
@@ -48,7 +47,6 @@ object LoginBlockParser {
         payload: ByteArray,
         modulus: BigInteger,
         privateExp: BigInteger,
-        reconnect: Boolean = false,
     ): Result {
         if (payload.size < CLEARTEXT_HEADER_SIZE + 2) {
             return Result.Malformed(
@@ -75,8 +73,7 @@ object LoginBlockParser {
             }
 
             val pb = JagexBuffer(plain, pos = 1)
-            val authTokenLength = if (reconnect) RECONNECT_AUTH_TOKEN_LENGTH else FRESH_AUTH_TOKEN_LENGTH
-            val minRemaining = 4 * 4 + 8 + authTokenLength + 1 // seeds + key + auth token + marker
+            val minRemaining = 4 * 4 + 8 + FRESH_AUTH_TOKEN_LENGTH + 1
             if (pb.readableBytes() < minRemaining) {
                 return Result.Malformed(
                     "RSA plaintext (${plain.size} bytes) too short for seeds+serverKey+auth token+marker",
@@ -84,8 +81,8 @@ object LoginBlockParser {
             }
             val seeds = IntArray(4) { pb.readInt() }
             val serverKey = pb.readLong()
-            if (!reconnect) pb.readUByte() // auth-method byte; reconnect has only its four saved ints
-            pb.pos += if (reconnect) RECONNECT_AUTH_TOKEN_LENGTH else FRESH_AUTH_PAYLOAD_LENGTH
+            pb.readUByte()
+            pb.pos += FRESH_AUTH_PAYLOAD_LENGTH
             pb.readUByte() // string-type marker byte
             password = pb.readSensitiveCString(MAX_PASSWORD_LENGTH)
 
@@ -133,5 +130,4 @@ object LoginBlockParser {
     private const val MAX_USERNAME_LENGTH = 320
     private const val FRESH_AUTH_PAYLOAD_LENGTH = 4
     private const val FRESH_AUTH_TOKEN_LENGTH = 1 + FRESH_AUTH_PAYLOAD_LENGTH
-    private const val RECONNECT_AUTH_TOKEN_LENGTH = 16
 }

@@ -1,19 +1,8 @@
 package emu.server.session
 
-/** Connection state needed by the game service after login completes. */
-data class ConnectionBootstrap(
-    val isaac: IsaacBootstrap,
-    val principal: AuthenticatedPrincipal,
-)
-
-/** Login-owned authentication context retained until the coordinator finishes admission. */
-data class AuthenticatedSession(
-    val connection: ConnectionBootstrap,
-    val reconnect: Boolean,
-)
-
-/** Authenticated connection and accepted reservation transferred to the game service. */
+/** Exact login-owned values transferred to the game service after world entry is accepted. */
 data class ConnectionHandoff(
-    val connection: ConnectionBootstrap,
+    val accountId: AccountId,
+    val isaac: IsaacBootstrap,
     val reservation: ReservationDecision.Accepted,
 )

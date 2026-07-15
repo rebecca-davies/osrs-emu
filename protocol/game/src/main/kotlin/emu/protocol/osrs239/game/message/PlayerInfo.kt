@@ -2,54 +2,47 @@ package emu.protocol.osrs239.game.message
 
 import emu.transport.message.OutgoingMessage
 
-/**
- * Rev-239 PLAYER_INFO for a single local player, including movement and extended information.
- *
- * @param appearance if non-null, the local player is flagged for an extended-info **appearance**
- *   block so its avatar model draws. If null, this packet carries no appearance update; the client
- *   retains the appearance established during the initial cycle.
- */
+/** Four-section player information update for one observing client. */
 data class PlayerInfo(
-    val appearance: PlayerAppearance? = null,
-    val movement: PlayerMovement? = null,
-    /** Cached movement speed: 0=crawl, 1=walk, 2=run, 127=stationary. */
-    val moveSpeed: Int? = null,
-    /** Per-movement override when the queued step count disagrees with [moveSpeed]. */
-    val temporaryMoveSpeed: Int? = null,
-    val publicChat: PlayerPublicChat? = null,
+    val sections: PlayerInfoSections,
 ) : OutgoingMessage {
-    init {
-        require(moveSpeed == null || moveSpeed in VALID_MOVE_SPEEDS) { "invalid move speed $moveSpeed" }
-        require(temporaryMoveSpeed == null || temporaryMoveSpeed in VALID_MOVE_SPEEDS) {
-            "invalid temporary move speed $temporaryMoveSpeed"
-        }
-    }
+    /** Builds the single-local-player form used during login and protocol-focused callers. */
+    constructor(
+        appearance: PlayerAppearance? = null,
+        movement: PlayerMovement? = null,
+        moveSpeed: Int? = null,
+        temporaryMoveSpeed: Int? = null,
+        publicChat: PlayerPublicChat? = null,
+    ) : this(
+        localSections(appearance, movement, moveSpeed, temporaryMoveSpeed, publicChat),
+    )
 
     private companion object {
-        val VALID_MOVE_SPEEDS = setOf(0, 1, 2, 127)
-    }
-}
+        const val OTHER_PLAYER_SLOTS = 2_046
 
-/** Local-player movement delta encoded by the rev-239 high-resolution GPI bitcode. */
-sealed interface PlayerMovement {
-    val deltaX: Int
-    val deltaY: Int
-
-    /** One-tile movement using the client's three-bit direction table. */
-    data class Walk(override val deltaX: Int, override val deltaY: Int) : PlayerMovement {
-        init {
-            require(deltaX in -1..1 && deltaY in -1..1 && (deltaX != 0 || deltaY != 0)) {
-                "walk delta must be one adjacent tile"
-            }
-        }
-    }
-
-    /** Two-step net movement using the client's four-bit outer-ring delta table. */
-    data class Run(override val deltaX: Int, override val deltaY: Int) : PlayerMovement {
-        init {
-            require(deltaX in -2..2 && deltaY in -2..2 && (kotlin.math.abs(deltaX) == 2 || kotlin.math.abs(deltaY) == 2)) {
-                "run delta must lie on the outer ring of a 5x5 delta grid"
-            }
+        fun localSections(
+            appearance: PlayerAppearance?,
+            movement: PlayerMovement?,
+            moveSpeed: Int?,
+            temporaryMoveSpeed: Int?,
+            publicChat: PlayerPublicChat?,
+        ): PlayerInfoSections {
+            val update =
+                if (appearance != null || moveSpeed != null || temporaryMoveSpeed != null || publicChat != null) {
+                    PlayerInfoUpdate(appearance, moveSpeed, temporaryMoveSpeed, publicChat)
+                } else {
+                    null
+                }
+            val local =
+                if (movement == null && update == null) {
+                    PlayerInfoBitCode.Skip(players = 1)
+                } else {
+                    PlayerInfoBitCode.HighResolution(movement, update)
+                }
+            return PlayerInfoSections(
+                highResolutionActive = listOf(local),
+                lowResolutionActive = listOf(PlayerInfoBitCode.Skip(OTHER_PLAYER_SLOTS)),
+            )
         }
     }
 }

@@ -22,7 +22,7 @@ class ProtocolStage(
     private val readOpcode: suspend (ByteReadChannel) -> Int,
     private val readPayload: suspend (ByteReadChannel, Prot) -> ByteArray,
     private val writeOpcode: Boolean = true,
-    private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot },
+    private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot }
 ) {
     suspend fun run(read: ByteReadChannel, write: ByteWriteChannel) {
         run(read) { message -> emit(message, write) }

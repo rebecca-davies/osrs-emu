@@ -6,7 +6,8 @@ import java.sql.Connection
 
 private const val UPDATE_SESSION_SQL =
     "UPDATE players SET x = ?, y = ?, plane = ?, " +
-        "play_time_seconds = play_time_seconds + ? WHERE id = ?"
+        "play_time_seconds = GREATEST(play_time_seconds, ?), public_chat_mode = ?, " +
+        "private_chat_mode = ?, trade_chat_mode = ? WHERE id = ?"
 private const val DELETE_VARP_SQL = "DELETE FROM player_varps WHERE player_id = ? AND varp = ?"
 private const val UPSERT_VARP_SQL =
     "INSERT INTO player_varps(player_id, varp, value) VALUES (?, ?, ?) " +
@@ -27,8 +28,11 @@ internal class PostgresSessionWriter(private val database: PostgresDatabase) {
             statement.setInt(1, save.position.x)
             statement.setInt(2, save.position.y)
             statement.setInt(3, save.position.plane)
-            statement.setLong(4, save.playedSeconds)
-            statement.setLong(5, save.playerId)
+            statement.setLong(4, save.playTimeSeconds)
+            statement.setInt(5, save.chatFilters.publicMode)
+            statement.setInt(6, save.chatFilters.privateMode)
+            statement.setInt(7, save.chatFilters.tradeMode)
+            statement.setLong(8, save.playerId)
             check(statement.executeUpdate() == 1) { "player ${save.playerId} no longer exists" }
         }
     }

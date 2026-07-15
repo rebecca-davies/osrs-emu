@@ -13,6 +13,7 @@ import emu.protocol.osrs239.game.codec.HideLocOpsEncoder
 import emu.protocol.osrs239.game.codec.HideNpcOpsEncoder
 import emu.protocol.osrs239.game.codec.HideObjOpsEncoder
 import emu.protocol.osrs239.game.codec.IfOpenSubEncoder
+import emu.protocol.osrs239.game.codec.IfCloseSubEncoder
 import emu.protocol.osrs239.game.codec.IfOpenTopEncoder
 import emu.protocol.osrs239.game.codec.IfResyncEncoder
 import emu.protocol.osrs239.game.codec.IfSetHideEncoder
@@ -77,6 +78,7 @@ object GameCodecs {
         UpdateInvFullEncoder,
         IfOpenTopEncoder,
         IfOpenSubEncoder,
+        IfCloseSubEncoder,
         IfResyncEncoder,
         IfSetHideEncoder,
         RunClientScriptEncoder,

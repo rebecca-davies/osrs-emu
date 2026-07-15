@@ -1,0 +1,16 @@
+# Revision-239 RSCM names resolved to cache player-variable ids.
+[varps.option_run]
+id = 173
+scope = "permanent"
+transmit = "on_change"
+
+[varps.display_name_state]
+id = 1737
+scope = "temporary"
+transmit = "on_change"
+
+[varbits.has_display_name]
+id = 8119
+base = "display_name_state"
+least_bit = 31
+most_bit = 31

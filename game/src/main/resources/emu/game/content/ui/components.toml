@@ -1,0 +1,116 @@
+# Revision 239 Jagex interface component names used by bootstrap content.
+[components]
+"orbs:runbutton" = 10485788
+"settings_side:runmode" = 7602206
+"logout:logout" = 11927560
+
+[gameframe]
+top_level = 161
+
+[[gameframe.sub_interfaces]]
+destination = 10551392
+interface = 162
+
+[[gameframe.sub_interfaces]]
+destination = 10551302
+interface = 651
+
+[[gameframe.sub_interfaces]]
+destination = 10551301
+interface = 708
+
+[[gameframe.sub_interfaces]]
+destination = 10551389
+interface = 163
+
+[[gameframe.sub_interfaces]]
+destination = 10551298
+interface = 303
+
+[[gameframe.sub_interfaces]]
+destination = 10551329
+interface = 160
+
+[[gameframe.sub_interfaces]]
+destination = 10551305
+interface = 122
+
+[[gameframe.sub_interfaces]]
+destination = 10551331
+interface = 728
+
+[[gameframe.sub_interfaces]]
+destination = 10551332
+interface = 896
+
+[[gameframe.sub_interfaces]]
+destination = 10551373
+interface = 320
+
+[[gameframe.sub_interfaces]]
+destination = 10551374
+interface = 629
+
+[[gameframe.sub_interfaces]]
+destination = 41222187
+interface = 259
+
+[[gameframe.sub_interfaces]]
+destination = 10551375
+interface = 149
+
+[[gameframe.sub_interfaces]]
+destination = 10551376
+interface = 387
+
+[[gameframe.sub_interfaces]]
+destination = 10551377
+interface = 541
+
+[[gameframe.sub_interfaces]]
+destination = 10551378
+interface = 218
+
+[[gameframe.sub_interfaces]]
+destination = 10551381
+interface = 429
+
+[[gameframe.sub_interfaces]]
+destination = 10551380
+interface = 109
+
+[[gameframe.sub_interfaces]]
+destination = 10551382
+interface = 182
+
+[[gameframe.sub_interfaces]]
+destination = 10551383
+interface = 116
+
+[[gameframe.sub_interfaces]]
+destination = 10551384
+interface = 216
+
+[[gameframe.sub_interfaces]]
+destination = 10551385
+interface = 239
+
+[[gameframe.sub_interfaces]]
+destination = 10551379
+interface = 707
+
+[[gameframe.sub_interfaces]]
+destination = 46333959
+interface = 7
+
+[[gameframe.sub_interfaces]]
+destination = 10551372
+interface = 593
+
+[[gameframe.initial_inventories]]
+component = 64209
+inventory = 93
+
+[[gameframe.initial_inventories]]
+component = 64208
+inventory = 94

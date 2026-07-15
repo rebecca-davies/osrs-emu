@@ -1,5 +1,6 @@
 package emu.server.login.config
 
+import emu.server.login.auth.BcryptConfig
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -11,6 +12,7 @@ data class LoginExecutionConfig(
     val workerThreads: Int = DEFAULT_LOGIN_WORKERS,
     val maxConcurrentAttempts: Int = DEFAULT_LOGIN_ATTEMPTS,
     val authenticationTimeout: Duration = 15.seconds,
+    val authentication: BcryptConfig = BcryptConfig(),
 ) {
     init {
         require(workerThreads > 0) { "login worker count must be positive" }

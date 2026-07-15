@@ -12,9 +12,6 @@ object LoginProt {
     /** New-login block: u16 length + RSA/XTEA payload. */
     val NEW_LOGIN = Prot(16, Prot.VAR_SHORT)
 
-    /** Reconnect block: same framing as [NEW_LOGIN]. */
-    val RECONNECT = Prot(18, Prot.VAR_SHORT)
-
     /**
      * Server->client login replies (`ServerSessionKey`, `LoginResponse`) carry no wire opcode of
      * their own — the client's login state machine reads them positionally, not via opcode-framed

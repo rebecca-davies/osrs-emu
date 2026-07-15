@@ -10,14 +10,17 @@ import org.junit.jupiter.api.Assumptions.assumeTrue
 internal fun migratedTestDatabase(): PostgresDatabase {
     val environment = System.getenv()
     val database =
-        PostgresDatabase(
-            PostgresConfig(
+        PostgresConfig(
                 jdbcUrl = environment["OSRS_DATABASE_URL"] ?: "jdbc:postgresql://127.0.0.1:54330/osrsemu",
                 username = environment["OSRS_DATABASE_USER"] ?: "osrsemu",
                 password = environment["OSRS_DATABASE_PASSWORD"] ?: "osrsemu-dev",
-                pool = PostgresPoolConfig(maximumSize = 2, minimumIdle = 0),
-            ),
-        )
+            ).let { config ->
+                PostgresDatabase(
+                    config,
+                    PostgresPoolConfig(maximumSize = 2, minimumIdle = 0),
+                    "osrsemu-test-postgres",
+                )
+            }
     val reachable =
         try {
             database.connection { it.isValid(2) }

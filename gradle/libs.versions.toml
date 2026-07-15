@@ -10,6 +10,7 @@ koin = "3.5.6"
 hikari = "7.1.0"
 postgresql = "42.7.11"
 bcrypt = "0.10.2"
+tomlj = "1.1.1"
 
 [libraries]
 ktor-network = { module = "io.ktor:ktor-network", version.ref = "ktor" }
@@ -23,6 +24,7 @@ kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = 
 hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 bcrypt = { module = "at.favre.lib:bcrypt", version.ref = "bcrypt" }
+tomlj = { module = "org.tomlj:tomlj", version.ref = "tomlj" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

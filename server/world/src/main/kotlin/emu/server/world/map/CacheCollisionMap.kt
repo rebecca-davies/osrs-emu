@@ -5,14 +5,15 @@ import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
 import emu.cache.map.MapSquare
 import emu.game.pathfinding.CollisionMap
+import emu.game.pathfinding.Tile
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * World collision decoded lazily in 64x64 chunks from the rev-239 cache.
+ * Prepared rev-239 cache collision exposed as non-blocking world lookups.
  *
  * Each chunk includes its eight neighbouring map squares while building, so walls and multi-tile
- * locs crossing a square boundary contribute their flags to the requested centre chunk. Decoded
- * chunks are shared safely by every connection and retained for subsequent path searches.
+ * locs crossing a square boundary contribute their flags to the requested centre chunk. Missing
+ * or unprepared chunks are blocked; cache reads occur only through explicit preparation.
  */
 class CacheCollisionMap(
     private val mapSquare: (Int, Int) -> MapSquare?,
@@ -27,12 +28,32 @@ class CacheCollisionMap(
 
     override fun flagsAt(x: Int, y: Int, plane: Int): Int {
         if (x !in WORLD_COORDINATES || y !in WORLD_COORDINATES || plane !in PLANES) return -1
-        val squareX = x shr MAP_SQUARE_SHIFT
-        val squareY = y shr MAP_SQUARE_SHIFT
-        val chunk = chunks.computeIfAbsent(squareX shl 8 or squareY) {
-            loadChunk(squareX, squareY)
-        }
+        val chunk = chunks[squareKey(x shr MAP_SQUARE_SHIFT, y shr MAP_SQUARE_SHIFT)] ?: return -1
         return chunk.flagsAt(x and MAP_SQUARE_MASK, y and MAP_SQUARE_MASK, plane)
+    }
+
+    internal fun loadAround(position: Tile, radius: Int) {
+        require(radius >= 0) { "collision load radius must not be negative" }
+        val centreX = position.x shr MAP_SQUARE_SHIFT
+        val centreY = position.y shr MAP_SQUARE_SHIFT
+        for (squareX in squareRange(centreX, radius)) {
+            for (squareY in squareRange(centreY, radius)) {
+                chunks.computeIfAbsent(squareKey(squareX, squareY)) {
+                    loadChunk(squareX, squareY)
+                }
+            }
+        }
+    }
+
+    internal fun isLoadedAround(position: Tile, radius: Int): Boolean {
+        require(radius >= 0) { "collision load radius must not be negative" }
+        val centreX = position.x shr MAP_SQUARE_SHIFT
+        val centreY = position.y shr MAP_SQUARE_SHIFT
+        return squareRange(centreX, radius).all { squareX ->
+            squareRange(centreY, radius).all { squareY ->
+                chunks.containsKey(squareKey(squareX, squareY))
+            }
+        }
     }
 
     private fun loadChunk(squareX: Int, squareY: Int): CollisionChunk {
@@ -72,8 +93,14 @@ class CacheCollisionMap(
         const val MAP_SQUARE_SIZE = 1 shl MAP_SQUARE_SHIFT
         const val MAP_SQUARE_MASK = MAP_SQUARE_SIZE - 1
         const val CHUNK_TILE_COUNT = 4 * MAP_SQUARE_SIZE * MAP_SQUARE_SIZE
+        const val MAX_MAP_SQUARE = 255
         val WORLD_COORDINATES = 0..0x3FFF
         val PLANES = 0..3
+
+        fun squareKey(squareX: Int, squareY: Int): Int = squareX shl 8 or squareY
+
+        fun squareRange(centre: Int, radius: Int): IntRange =
+            (centre - radius).coerceAtLeast(0)..(centre + radius).coerceAtMost(MAX_MAP_SQUARE)
 
         fun index(localX: Int, localY: Int, plane: Int): Int =
             (plane * MAP_SQUARE_SIZE + localX) * MAP_SQUARE_SIZE + localY

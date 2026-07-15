@@ -8,12 +8,12 @@ private const val MAX_CHAT_MESSAGE_LENGTH = 100
 data class ChatAuditMessage(
     val playerId: Long,
     val channel: ChatChannel,
-    val message: String,
+    val text: String,
     val createdAt: Instant,
 ) {
     init {
         require(playerId > 0) { "chat audit player id must be positive" }
-        require(message.isNotBlank() && message.length <= MAX_CHAT_MESSAGE_LENGTH) {
+        require(text.isNotBlank() && text.length <= MAX_CHAT_MESSAGE_LENGTH) {
             "invalid audited chat length"
         }
     }

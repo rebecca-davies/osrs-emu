@@ -1,8 +1,7 @@
 package emu.server.host
 
-import emu.server.session.AuthenticatedPrincipal
+import emu.server.session.AccountId
 import emu.server.session.ConnectionHandoff
-import emu.server.session.GameSessionToken
 import emu.server.session.ReservationDecision
 import emu.server.world.GameService
 import io.ktor.utils.io.ByteReadChannel
@@ -32,7 +31,6 @@ class ServerShutdownTest {
                     listener = AutoCloseable { listenerClosed.set(true) },
                     gatewayJob = gatewayJob,
                     worldMonitor = worldMonitor,
-                    shutdownHook = null,
                 )
             }
 
@@ -51,16 +49,15 @@ class ServerShutdownTest {
 
         override suspend fun awaitTermination() = Unit
 
-        override suspend fun reserve(principal: AuthenticatedPrincipal): ReservationDecision =
+        override suspend fun prepare(accountId: AccountId): ReservationDecision =
             error("not used")
-
-        override suspend fun release(token: GameSessionToken) = Unit
 
         override suspend fun play(
             read: ByteReadChannel,
             write: ByteWriteChannel,
             handoff: ConnectionHandoff,
-        ) = Unit
+            beginSession: suspend (Int) -> Boolean,
+        ): Boolean = false
 
         override suspend fun stop() {
             stopCount++

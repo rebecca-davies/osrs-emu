@@ -1,6 +1,5 @@
 package emu.server.gateway
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.ServerSocket
@@ -19,18 +18,16 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Duration
 
-private val logger = KotlinLogging.logger {}
-
 /** Bound gateway socket whose accept loop owns connection routing and closure. */
 class GatewayListener internal constructor(
     private val socket: ServerSocket,
     private val selector: SelectorManager,
     private val routes: GatewayRoutes,
-    maxConnections: Int,
+    maxPendingClassifications: Int,
     private val classificationTimeout: Duration,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
-    private val connections = Semaphore(maxConnections)
+    private val classifications = Semaphore(maxPendingClassifications)
 
     val localAddress: InetSocketAddress
         get() = socket.localAddress as InetSocketAddress
@@ -39,32 +36,34 @@ class GatewayListener internal constructor(
         try {
             while (currentCoroutineContext().isActive) {
                 val connection = socket.accept()
-                if (!connections.tryAcquire()) {
-                    logger.warn { "gateway connection limit reached; rejecting connection" }
+                if (!classifications.tryAcquire()) {
                     connection.close()
                     continue
                 }
                 launch {
+                    var classifying = true
                     try {
                         val read = connection.openReadChannel()
                         val write = connection.openWriteChannel(autoFlush = false)
                         val opcode = withTimeout(classificationTimeout) { read.readByte().toInt() and 0xFF }
-                        when (opcode) {
-                            routes.js5Opcode -> routes.js5.handle(read, write)
-                            routes.loginOpcode -> routes.login.handle(read, write)
-                            else -> logger.warn { "gateway received unknown first opcode $opcode" }
-                        }
+                        val route =
+                            when (opcode) {
+                                routes.js5Opcode -> routes.js5
+                                routes.loginOpcode -> routes.login
+                                else -> null
+                            }
+                        classifications.release()
+                        classifying = false
+                        route?.handle(read, write)
                     } catch (_: TimeoutCancellationException) {
-                        logger.debug { "gateway connection classification timed out" }
                     } catch (_: EOFException) {
-                        logger.debug { "gateway connection closed before classification" }
                     } catch (failure: CancellationException) {
                         throw failure
-                    } catch (failure: Throwable) {
-                        logger.error(failure) { "gateway connection failed" }
+                    } catch (_: Exception) {
+                        // One malformed or reset connection cannot affect the accept loop.
                     } finally {
                         connection.close()
-                        connections.release()
+                        if (classifying) classifications.release()
                     }
                 }
             }

@@ -19,7 +19,7 @@ object MessageGameEncoder : MessageEncoder<MessageGame> {
         val cp1252 = charset("windows-1252")
         val name = message.name
         val nameBytes = name?.toByteArray(cp1252)
-        val messageBytes = message.message.toByteArray(cp1252)
+        val messageBytes = message.text.toByteArray(cp1252)
         val typeSize = if (message.type < 0x80) 1 else 2
         val size = typeSize + 1 + (nameBytes?.let { it.size + 1 } ?: 0) + messageBytes.size + 1
         return JagexBuffer.alloc(size).apply {

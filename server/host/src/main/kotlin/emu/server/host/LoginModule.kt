@@ -4,7 +4,6 @@ import emu.crypto.RsaKeyPair
 import emu.server.login.LoginServer
 import emu.server.login.LoginService
 import emu.server.login.auth.AccountAuthenticator
-import emu.server.login.auth.BcryptConfig
 import emu.server.login.auth.BcryptPasswordHasher
 import emu.server.login.auth.LoginAuthenticator
 import emu.server.login.auth.PasswordHasher
@@ -14,11 +13,10 @@ import org.koin.dsl.module
 
 /** Defines the login service from host-owned key, account, and execution capabilities. */
 internal fun loginModule(
-    rsaKeyPair: RsaKeyPair?,
+    rsaKeyPair: RsaKeyPair,
     loginConfig: LoginExecutionConfig,
-    bcryptConfig: BcryptConfig,
 ) = module {
-    single<PasswordHasher> { BcryptPasswordHasher(bcryptConfig) }
+    single<PasswordHasher> { BcryptPasswordHasher(loginConfig.authentication) }
     single<LoginAuthenticator> { AccountAuthenticator(get(), get()) }
     single<LoginService> { LoginServer(rsaKeyPair, get(), loginConfig) } onClose { it?.close() }
 }

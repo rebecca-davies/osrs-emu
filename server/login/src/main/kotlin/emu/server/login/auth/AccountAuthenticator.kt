@@ -4,8 +4,9 @@ import emu.persistence.account.AccountRecord
 import emu.persistence.account.AccountStore
 import emu.persistence.account.PlayerRank
 import emu.persistence.account.StoredAccount
+import emu.server.session.AccountId
 import emu.server.session.AccountPrivilege
-import emu.server.session.AuthenticatedPrincipal
+import emu.server.session.AuthenticatedAccount
 import emu.server.session.AuthenticationDecision
 
 /** Bcrypt authentication and atomic first-login account creation policy. */
@@ -37,10 +38,8 @@ class AccountAuthenticator(
 
 private fun AccountRecord.authenticatedDecision(): AuthenticationDecision =
     AuthenticationDecision.Authenticated(
-        AuthenticatedPrincipal(
-            accountId = id,
-            username = username,
-            displayName = displayName,
+        AuthenticatedAccount(
+            accountId = AccountId(id),
             privilege = rank.toPrivilege(),
         ),
     )

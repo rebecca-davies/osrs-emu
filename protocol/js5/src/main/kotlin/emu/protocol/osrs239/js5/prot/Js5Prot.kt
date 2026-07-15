@@ -3,9 +3,11 @@ package emu.protocol.osrs239.js5.prot
 import emu.transport.prot.Prot
 
 /**
- * JS5 opcode/size table for OSRS rev 235.
+ * JS5 opcode/size table for OSRS rev 239.
  */
 object Js5Prot {
+    const val REVISION = 239
+
     val HANDSHAKE = Prot(15, 20)
 
     /** Urgent group request: 3-byte payload `[archive u8][group u16]`. */
@@ -31,6 +33,6 @@ object Js5Prot {
     const val CONTROL_INIT = 6
     const val CONTROL_KEEPALIVE = 7
 
-    /** All control opcodes the gateway binds a decoder for; see gateway `Main.kt`. */
+    /** All control opcodes installed by the JS5 service after a successful handshake. */
     val CONTROL_OPCODES = intArrayOf(CONTROL_LOGGED_IN, CONTROL_LOGGED_OUT, CONTROL_XOR_KEY, CONTROL_INIT, CONTROL_KEEPALIVE)
 }

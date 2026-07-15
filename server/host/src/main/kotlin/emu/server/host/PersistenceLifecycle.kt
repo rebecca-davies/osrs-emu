@@ -5,24 +5,30 @@ import emu.persistence.postgres.chat.ChatAuditWriter
 import emu.persistence.postgres.database.PostgresDatabase
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Closes asynchronous persistence writers before their shared database pool. */
+/** Closes asynchronous writers before the isolated world and account database pools. */
 internal class PersistenceLifecycle(
     private val characterSaves: CharacterSaveWriter,
     private val chatAudits: ChatAuditWriter,
-    private val database: PostgresDatabase,
+    private val worldDatabase: PostgresDatabase,
+    private val accountDatabase: PostgresDatabase,
 ) : AutoCloseable {
     private val closed = AtomicBoolean(false)
 
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
-        try {
-            chatAudits.close()
-        } finally {
+        var failure: Throwable? = null
+        fun closeResource(close: () -> Unit) {
             try {
-                characterSaves.close()
-            } finally {
-                database.close()
+                close()
+            } catch (closeFailure: Throwable) {
+                val first = failure
+                if (first == null) failure = closeFailure else first.addSuppressed(closeFailure)
             }
         }
+        closeResource(chatAudits::close)
+        closeResource(characterSaves::close)
+        closeResource(worldDatabase::close)
+        closeResource(accountDatabase::close)
+        failure?.let { throw it }
     }
 }

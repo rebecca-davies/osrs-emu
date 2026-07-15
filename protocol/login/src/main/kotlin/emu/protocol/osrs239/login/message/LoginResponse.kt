@@ -2,16 +2,17 @@ package emu.protocol.osrs239.login.message
 
 import emu.transport.message.OutgoingMessage
 
-/**
- * The single response byte the client reads after sending its login block (`uo2.af()`). Code 2 =
- * success (rev239-login-facts.md §6); sent by `LoginHandler`. Other explicitly handled codes are
- * 15/21/23/29/61/64/69 — anything else falls through to the client's error table.
- */
+/** One unsigned client response code written while processing a login attempt. */
 data class LoginResponse(val code: Int) : OutgoingMessage {
+    init {
+        require(code in 0..0xFF) { "login response code must fit an unsigned byte" }
+    }
+
     companion object {
         const val SUCCESS = 2
         const val INVALID_CREDENTIALS = 3
         const val ACCOUNT_ONLINE = 5
         const val WORLD_FULL = 7
+        const val LOGIN_SERVER_OFFLINE = 8
     }
 }

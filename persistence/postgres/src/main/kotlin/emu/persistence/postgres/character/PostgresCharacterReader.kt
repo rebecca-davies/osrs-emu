@@ -1,6 +1,7 @@
 package emu.persistence.postgres.character
 
 import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerChatFiltersRecord
 import emu.persistence.character.PlayerRecord
 import emu.persistence.postgres.account.PostgresPlayerRankMapper
 import emu.persistence.postgres.database.PostgresDatabase
@@ -8,7 +9,8 @@ import java.sql.Connection
 import java.sql.ResultSet
 
 private const val FIND_CHARACTER_SQL =
-    "SELECT id, username, display_name, x, y, plane, play_time_seconds, rank " +
+    "SELECT id, display_name, x, y, plane, play_time_seconds, rank, " +
+        "public_chat_mode, private_chat_mode, trade_chat_mode " +
         "FROM players WHERE id = ?"
 private const val FIND_VARPS_SQL =
     "SELECT varp, value FROM player_varps WHERE player_id = ? ORDER BY varp"
@@ -39,10 +41,15 @@ internal class PostgresCharacterReader(private val database: PostgresDatabase) {
 private fun ResultSet.toPlayerRecord(varps: Map<Int, Int>): PlayerRecord =
     PlayerRecord(
         id = getLong("id"),
-        username = getString("username"),
         displayName = getString("display_name"),
         position = PlayerPosition(getInt("x"), getInt("y"), getInt("plane")),
         playTimeSeconds = getLong("play_time_seconds"),
         rank = PostgresPlayerRankMapper.fromId(getInt("rank")),
         varps = varps,
+        chatFilters =
+            PlayerChatFiltersRecord(
+                publicMode = getInt("public_chat_mode"),
+                privateMode = getInt("private_chat_mode"),
+                tradeMode = getInt("trade_chat_mode"),
+            ),
     )

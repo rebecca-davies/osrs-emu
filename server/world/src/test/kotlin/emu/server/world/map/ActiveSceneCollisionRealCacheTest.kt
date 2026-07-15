@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
 
 class ActiveSceneCollisionRealCacheTest {
     @Test
-    fun `lazy collision loads a map square beyond the original Lumbridge scene`() {
+    fun `explicit collision preparation loads a map square beyond the original Lumbridge scene`() {
         val cache = File("../cache-data")
         if (!File(cache, "cache/255/5.dat").isFile) {
             println("SKIP: no rev-239 cache-data")
@@ -25,6 +25,7 @@ class ActiveSceneCollisionRealCacheTest {
             CacheMapRepository(store),
             CacheObjectDefinitionRepository(store),
         )
+        collision.loadAround(Tile(52 * 64, 50 * 64), radius = 0)
 
         assertNotEquals(-1, collision.flagsAt(52 * 64, 50 * 64, 0))
     }
@@ -41,6 +42,7 @@ class ActiveSceneCollisionRealCacheTest {
             CacheMapRepository(store),
             CacheObjectDefinitionRepository(store),
         )
+        collision.loadAround(Tile(50 * 64, 50 * 64), radius = 1)
 
         val blockingTileMask = CollisionFlag.OBJECT or CollisionFlag.FLOOR or CollisionFlag.FLOOR_DECORATION
         assertEquals(0, collision.flagsAt(3222, 3218, 0) and blockingTileMask)

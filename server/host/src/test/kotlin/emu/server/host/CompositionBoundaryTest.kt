@@ -39,6 +39,7 @@ class CompositionBoundaryTest {
                 "server-js5",
                 "server-login",
                 "server-world",
+                "game",
                 "transport",
                 "persistence-api",
                 "persistence-postgres",
@@ -131,7 +132,7 @@ class CompositionBoundaryTest {
 
     @Test
     fun `host owns every service object graph`() {
-        val application = root.resolve("server/host/src/main/kotlin/emu/server/host/ServerApplication.kt").readText()
+        val application = root.resolve("server/host/src/main/kotlin/emu/server/host/RunServer.kt").readText()
         val js5Wiring = root.resolve("server/host/src/main/kotlin/emu/server/host/Js5Module.kt").readText()
         val loginWiring = root.resolve("server/host/src/main/kotlin/emu/server/host/LoginModule.kt").readText()
         val gameWiring = root.resolve("server/host/src/main/kotlin/emu/server/host/GameModule.kt").readText()

@@ -14,7 +14,13 @@ class GatewayService(
         val selector = SelectorManager(Dispatchers.IO)
         return try {
             val socket = aSocket(selector).tcp().bind(InetSocketAddress(config.bindHost, config.port))
-            GatewayListener(socket, selector, routes, config.maxConnections, config.classificationTimeout)
+            GatewayListener(
+                socket,
+                selector,
+                routes,
+                config.maxPendingClassifications,
+                config.classificationTimeout,
+            )
         } catch (failure: Throwable) {
             selector.close()
             throw failure

@@ -6,14 +6,24 @@ import java.sql.Connection
 import javax.sql.DataSource
 
 /** Bounded PostgreSQL connection pool. */
-class PostgresDatabase(config: PostgresConfig) : AutoCloseable {
-    private val pool = HikariDataSource(config.toHikariConfig())
+class PostgresDatabase(
+    config: PostgresConfig,
+    poolConfig: PostgresPoolConfig,
+    poolName: String,
+) : AutoCloseable {
+    private val pool = HikariDataSource(config.toHikariConfig(poolConfig, poolName))
 
     val dataSource: DataSource
         get() = pool
 
     val isClosed: Boolean
         get() = pool.isClosed
+
+    val poolName: String
+        get() = pool.poolName
+
+    val maximumPoolSize: Int
+        get() = pool.maximumPoolSize
 
     fun <T> connection(block: (Connection) -> T): T = dataSource.connection.use(block)
 
@@ -31,18 +41,27 @@ class PostgresDatabase(config: PostgresConfig) : AutoCloseable {
     override fun close() = pool.close()
 }
 
-private fun PostgresConfig.toHikariConfig(): HikariConfig =
+private fun PostgresConfig.toHikariConfig(
+    poolConfig: PostgresPoolConfig,
+    poolName: String,
+): HikariConfig =
     HikariConfig().also { hikari ->
         hikari.jdbcUrl = jdbcUrl
         hikari.username = username
         hikari.password = password
-        hikari.poolName = "osrsemu-postgres"
-        hikari.maximumPoolSize = pool.maximumSize
-        hikari.minimumIdle = pool.minimumIdle
-        hikari.connectionTimeout = pool.connectionTimeout.inWholeMilliseconds
-        hikari.validationTimeout = pool.validationTimeout.inWholeMilliseconds
-        hikari.idleTimeout = pool.idleTimeout.inWholeMilliseconds
-        hikari.maxLifetime = pool.maxLifetime.inWholeMilliseconds
+        hikari.poolName = poolName
+        hikari.maximumPoolSize = poolConfig.maximumSize
+        hikari.minimumIdle = poolConfig.minimumIdle
+        hikari.connectionTimeout = poolConfig.connectionTimeout.inWholeMilliseconds
+        hikari.validationTimeout = poolConfig.validationTimeout.inWholeMilliseconds
+        hikari.idleTimeout = poolConfig.idleTimeout.inWholeMilliseconds
+        hikari.maxLifetime = poolConfig.maxLifetime.inWholeMilliseconds
         hikari.initializationFailTimeout = -1
         hikari.addDataSourceProperty("tcpKeepAlive", "true")
+        hikari.addDataSourceProperty("connectTimeout", operations.connectTimeoutSeconds.toString())
+        hikari.addDataSourceProperty("socketTimeout", operations.socketTimeoutSeconds.toString())
+        hikari.addDataSourceProperty(
+            "options",
+            "-c statement_timeout=${operations.statementTimeoutMillis}",
+        )
     }

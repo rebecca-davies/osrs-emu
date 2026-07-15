@@ -22,10 +22,11 @@ class BfsPathfinderTest {
     fun `breadth first route detours around object collision`() {
         val collision = MutableCollisionMap()
         collision.add(3201, 3200, 0, CollisionFlag.OBJECT)
-        val movement = PlayerMovement(Tile(3200, 3200), collision)
+        val movement = PlayerMovement(Tile(3200, 3200))
+        val process = PlayerMovementProcess(collision)
 
-        val route = movement.routeTo(Tile(3202, 3200))
-        repeat(10) { movement.process() }
+        val route = process.routeTo(movement, Tile(3202, 3200))
+        repeat(10) { process.process(movement) }
 
         assertTrue(route.success)
         assertEquals(Tile(3202, 3200), movement.position)

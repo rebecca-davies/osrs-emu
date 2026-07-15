@@ -3,8 +3,13 @@ package emu.protocol.osrs239.game.codec
 import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.PlayerAppearance
+import emu.protocol.osrs239.game.message.PlayerBody
 import emu.protocol.osrs239.game.message.PlayerInfo
+import emu.protocol.osrs239.game.message.PlayerInfoBitCode
+import emu.protocol.osrs239.game.message.PlayerInfoSections
+import emu.protocol.osrs239.game.message.PlayerInfoUpdate
 import emu.protocol.osrs239.game.message.PlayerMovement
+import emu.protocol.osrs239.game.message.PlayerPublicChat
 import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,7 +34,7 @@ class PlayerInfoEncoderTest {
     }
 
     @Test fun `encodes the minimal appearance-less GPI as three bytes`() {
-        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(appearance = null))
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo())
 
         // High-res section (byte-aligned): active=0, stationary selector 0 -> bits 0 00, padded
         //   -> 0b00000000 = 0x00. (The local player is stationary, encoded as a length-0 run.)
@@ -133,8 +138,117 @@ class PlayerInfoEncoderTest {
         assertEquals(body.size - 7, appearanceLength)
     }
 
+    @Test
+    fun `maximal appearance is exactly sized and preserves both Jagex head icons`() {
+        val appearance =
+            PlayerAppearance(
+                gender = PlayerAppearance.GENDER_FEMALE,
+                skullIcon = 2,
+                prayerIcon = 5,
+                body =
+                    PlayerBody(
+                        equipment = List(PlayerAppearance.EQUIPMENT_SLOT_COUNT) { 0x100 + it },
+                        colors = List(PlayerAppearance.COLOR_COUNT) { 0xFF },
+                        animations = List(PlayerAppearance.ANIMATION_COUNT) { 0xFFFF },
+                    ),
+                name = "Å12345678901",
+                combatLevel = 126,
+                skillLevel = 2_277,
+            )
+
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(appearance))
+        val blockSize = (128 - (body[4].toInt() and 0xFF)) and 0xFF
+        val block = body.copyOfRange(5, body.size).map { (it.toInt() - 128).toByte() }
+
+        assertEquals(81, blockSize)
+        assertEquals(blockSize, block.size)
+        assertEquals(PlayerAppearance.GENDER_FEMALE, block[0].toInt())
+        assertEquals(2, block[1].toInt())
+        assertEquals(5, block[2].toInt())
+    }
+
+    @Test
+    fun `appearance rejects values the rev239 decoder cannot consume exactly`() {
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance(gender = 2) }
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance(skullIcon = 128) }
+        assertFailsWith<IllegalArgumentException> {
+            PlayerAppearance(body = PlayerBody(equipment = listOf(0xFFFF) + List(11) { 0 }))
+        }
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance(name = "contains\u0000nul") }
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance(name = "not-cp1252-🙂") }
+    }
+
+    @Test
+    fun `pattern byte count is derived exclusively from public chat colour`() {
+        assertFailsWith<IllegalArgumentException> {
+            PlayerPublicChat(0, 0, 255, byteArrayOf(1), pattern = byteArrayOf(1))
+        }
+        for (colour in 13..20) {
+            PlayerPublicChat(
+                colour,
+                0,
+                255,
+                byteArrayOf(1),
+                pattern = ByteArray(colour - 12),
+            )
+            assertFailsWith<IllegalArgumentException> {
+                PlayerPublicChat(
+                    colour,
+                    0,
+                    255,
+                    byteArrayOf(1),
+                    pattern = ByteArray((colour - 13).coerceAtLeast(0)),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `player info rejects a body that cannot fit its variable short frame`() {
+        val chat = PlayerPublicChat(0, 0, 255, ByteArray(255))
+        val update = PlayerInfoUpdate(publicChat = chat)
+        val section = List(300) { PlayerInfoBitCode.HighResolution(update = update) }
+        val message = PlayerInfo(PlayerInfoSections(highResolutionActive = section))
+
+        assertFailsWith<IllegalArgumentException> {
+            PlayerInfoEncoder.encode(NopStreamCipher, message)
+        }
+    }
+
+    @Test fun `four GPI sections stay byte aligned and extended blocks retain section order`() {
+        val message =
+            PlayerInfo(
+                PlayerInfoSections(
+                    highResolutionActive = listOf(PlayerInfoBitCode.Skip(1)),
+                    highResolutionInactive =
+                        listOf(
+                            PlayerInfoBitCode.HighResolution(
+                                update = PlayerInfoUpdate(moveSpeed = 1),
+                            ),
+                        ),
+                    lowResolutionInactive = listOf(PlayerInfoBitCode.Skip(2)),
+                    lowResolutionActive =
+                        listOf(
+                            PlayerInfoBitCode.Add(
+                                x = 3_210,
+                                y = 3_200,
+                                update = PlayerInfoUpdate(appearance = PlayerAppearance(name = "other")),
+                            ),
+                        ),
+                ),
+            )
+
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, message)
+
+        assertEquals(0x00, body[0].toInt() and 0xFF, "active high-resolution skip")
+        assertEquals(0xC0, body[1].toInt() and 0xFF, "inactive high-resolution update")
+        assertEquals(0x21, body[2].toInt() and 0xFF, "inactive low-resolution two-player skip")
+        assertEquals(listOf(0x08, 0x04, 0xFF), body.slice(7..9).map { it.toInt() and 0xFF })
+        assertEquals(0x20, body[10].toInt() and 0xFF, "new player's appearance follows earlier speed block")
+    }
+
     @Test fun `encode never consumes the cipher`() {
-        val body = PlayerInfoEncoder.encode(PlayerInfoExplodingCipher, PlayerInfo(appearance = null))
+        val body = PlayerInfoEncoder.encode(PlayerInfoExplodingCipher, PlayerInfo())
 
         assertEquals(3, body.size)
     }

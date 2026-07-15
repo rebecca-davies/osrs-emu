@@ -58,20 +58,20 @@ internal object EntityOpsCodec {
      * conditional ops and conditional sub ops at the given type-specific opcodes. [FragmentWriter]'s
      * stable ascending sort interleaves them correctly with the rest of the definition.
      */
-    fun encode(fw: FragmentWriter, ops: EntityOps, subOpcode: Int, condOpcode: Int, condSubOpcode: Int) {
-        for ((index, text) in ops.ops) {
+    fun encode(fw: FragmentWriter, entityOps: EntityOps, subOpcode: Int, condOpcode: Int, condSubOpcode: Int) {
+        for ((index, text) in entityOps.ops) {
             fw.field(30 + index) { writeString(text) }
         }
-        for (s in ops.subOps) {
+        for (s in entityOps.subOps) {
             fw.field(subOpcode) { writeByte(s.index); writeByte(s.subId); writeString(s.text) }
         }
-        for (c in ops.conditionalOps) {
+        for (c in entityOps.conditionalOps) {
             fw.field(condOpcode) {
                 writeByte(c.index); writeShort(c.varp); writeShort(c.varb)
                 writeInt(c.min); writeInt(c.max); writeString(c.text)
             }
         }
-        for (c in ops.conditionalSubOps) {
+        for (c in entityOps.conditionalSubOps) {
             fw.field(condSubOpcode) {
                 writeByte(c.index); writeShort(c.subId); writeShort(c.varp); writeShort(c.varb)
                 writeInt(c.min); writeInt(c.max); writeString(c.text)

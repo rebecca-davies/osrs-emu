@@ -12,6 +12,7 @@ import emu.crypto.RsaKeyPair
 import emu.crypto.Xtea
 import emu.server.session.AccountPrivilege
 import emu.server.session.AuthenticationDecision
+import emu.server.login.auth.LoginAuthenticator
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.writeByte
@@ -23,7 +24,18 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LoginAuthenticationTest {
-    @Test fun `authenticated principal carries administrator privilege into login completion`() = runBlocking {
+    @Test
+    fun `opcode 18 is rejected until token scoped reconnect replacement exists`() = runBlocking {
+        val read = ByteChannel(autoFlush = true)
+        val write = ByteChannel(autoFlush = true)
+        read.writeByte(18)
+
+        LoginServer(Rsa.generateKeyPair(1024), LoginAuthenticator(::acceptTestLogin)).use { server ->
+            assertNull(server.authenticate(read, write))
+        }
+    }
+
+    @Test fun `authenticated account carries administrator privilege into login completion`() = runBlocking {
         val keyPair = Rsa.generateKeyPair(1024)
         val seeds = intArrayOf(11, 22, 33, 44)
         val serverKey = 0x0102030405060708L
@@ -41,13 +53,13 @@ class LoginAuthenticationTest {
             keyPair,
             authenticate = { _, _ ->
                 AuthenticationDecision.Authenticated(
-                    TEST_PRINCIPAL.copy(privilege = AccountPrivilege.ADMINISTRATOR),
+                    TEST_ACCOUNT.copy(privilege = AccountPrivilege.ADMINISTRATOR),
                 )
             },
         )
 
-        assertEquals(AccountPrivilege.ADMINISTRATOR, requireNotNull(login).connection.principal.privilege)
-        val trailer = loginSuccessTrailer(requireNotNull(login).connection.principal.privilege, playerIndex = 1)
+        assertEquals(AccountPrivilege.ADMINISTRATOR, requireNotNull(login).account.privilege)
+        val trailer = loginSuccessTrailer(requireNotNull(login).account.privilege, playerIndex = 1)
         assertEquals(2, trailer[LOGIN_RIGHTS_TRAILER_OFFSET].toInt() and 0xFF)
         assertEquals(1, trailer[LOGIN_PLAYER_MOD_TRAILER_OFFSET].toInt() and 0xFF)
     }

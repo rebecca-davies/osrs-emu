@@ -37,22 +37,22 @@ internal object Params {
     /** Writes the opcode-249 payload: `size u8` then each `{ type u8; paramId u24; value }`. */
     fun encode(writer: DefWriter, params: Map<Int, ParamValue>) {
         writer.writeByte(params.size)
-        for ((paramId, value) in params) {
-            when (value) {
+        for ((paramId, param) in params) {
+            when (param) {
                 is ParamValue.StringValue -> {
                     writer.writeByte(1)
                     writer.writeMedium(paramId)
-                    writer.writeString(value.value)
+                    writer.writeString(param.value)
                 }
                 is ParamValue.LongValue -> {
                     writer.writeByte(2)
                     writer.writeMedium(paramId)
-                    writer.writeLong(value.value)
+                    writer.writeLong(param.value)
                 }
                 is ParamValue.IntValue -> {
                     writer.writeByte(0)
                     writer.writeMedium(paramId)
-                    writer.writeInt(value.value)
+                    writer.writeInt(param.value)
                 }
             }
         }

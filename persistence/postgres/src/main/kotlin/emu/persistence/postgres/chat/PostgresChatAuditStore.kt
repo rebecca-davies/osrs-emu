@@ -17,7 +17,7 @@ class PostgresChatAuditStore(private val database: PostgresDatabase) : ChatAudit
                 for (message in messages) {
                     statement.setLong(1, message.playerId)
                     statement.setInt(2, message.channel.id)
-                    statement.setString(3, message.message)
+                    statement.setString(3, message.text)
                     statement.setTimestamp(4, Timestamp.from(message.createdAt))
                     statement.addBatch()
                 }

@@ -3,11 +3,12 @@ package emu.server.host
 import emu.server.world.GameService
 import emu.server.js5.Js5Service
 import emu.server.login.LoginService
+import emu.server.session.AccountId
 import emu.server.session.AccountPrivilege
-import emu.server.session.AuthenticatedPrincipal
+import emu.server.session.AuthenticatedAccount
 import emu.server.session.AuthenticatedSession
 import emu.server.session.AuthenticationCompletion
-import emu.server.session.ConnectionBootstrap
+import emu.server.session.AuthenticationRejection
 import emu.server.session.ConnectionHandoff
 import emu.server.session.GameSessionToken
 import emu.server.session.IsaacBootstrap
@@ -26,7 +27,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class ServerCoordinatorTest {
     @Test
-    fun `accepted login completes after reservation and then transfers to world`() = runBlocking {
+    fun `accepted login completes after world entry preparation and then transfers`() = runBlocking {
         val events = mutableListOf<String>()
         val login = FakeLogin(events)
         val world = FakeWorld(events, ACCEPTED)
@@ -34,13 +35,14 @@ class ServerCoordinatorTest {
 
         coordinator.gatewayRoutes().login.handle(ByteChannel(), ByteChannel())
 
-        assertEquals(listOf("authenticate", "reserve", "complete", "play"), events)
+        assertEquals(listOf("authenticate", "prepare", "play", "complete"), events)
         assertIs<AuthenticationCompletion.Accepted>(login.completion)
-        assertEquals(0, world.releaseCount)
+        assertEquals(ACCOUNT.accountId, world.handoff?.accountId)
+        assertEquals(SESSION.isaac, world.handoff?.isaac)
     }
 
     @Test
-    fun `rejected reservation completes login rejection without world handoff`() = runBlocking {
+    fun `rejected world entry completes login rejection without handoff`() = runBlocking {
         val events = mutableListOf<String>()
         val login = FakeLogin(events, completionAccepted = false)
         val world = FakeWorld(events, ReservationDecision.Rejected(ReservationRejection.DUPLICATE))
@@ -48,13 +50,26 @@ class ServerCoordinatorTest {
 
         coordinator.gatewayRoutes().login.handle(ByteChannel(), ByteChannel())
 
-        assertEquals(listOf("authenticate", "reserve", "complete"), events)
+        assertEquals(listOf("authenticate", "prepare", "complete"), events)
         assertFalse(world.played)
-        assertEquals(0, world.releaseCount)
     }
 
     @Test
-    fun `failed login completion releases accepted reservation exactly once`() = runBlocking {
+    fun `unavailable world is not reported as a full world`() = runBlocking {
+        val login = FakeLogin(mutableListOf(), completionAccepted = false)
+        val world = FakeWorld(mutableListOf(), ReservationDecision.Rejected(ReservationRejection.UNAVAILABLE))
+        val coordinator = ServerCoordinator(FakeJs5, login, world, CoordinatorConfig(1.seconds))
+
+        coordinator.gatewayRoutes().login.handle(ByteChannel(), ByteChannel())
+
+        assertEquals(
+            AuthenticationCompletion.Rejected(AuthenticationRejection.WORLD_UNAVAILABLE),
+            login.completion,
+        )
+    }
+
+    @Test
+    fun `failed login completion is cleaned by the world after handoff`() = runBlocking {
         val events = mutableListOf<String>()
         val login = FakeLogin(events, failCompletion = true)
         val world = FakeWorld(events, ACCEPTED)
@@ -63,9 +78,24 @@ class ServerCoordinatorTest {
         val failure = runCatching { coordinator.gatewayRoutes().login.handle(ByteChannel(), ByteChannel()) }
 
         assertTrue(failure.isFailure)
-        assertFalse(world.played)
-        assertEquals(1, world.releaseCount)
-        assertEquals(listOf("authenticate", "reserve", "complete", "release"), events)
+        assertTrue(world.played)
+        assertEquals(listOf("authenticate", "prepare", "play", "complete"), events)
+    }
+
+    @Test
+    fun `shutdown attachment rejection never writes login success`() = runBlocking {
+        val events = mutableListOf<String>()
+        val login = FakeLogin(events, completionAccepted = false)
+        val world = FakeWorld(events, ACCEPTED, attach = false)
+        val coordinator = ServerCoordinator(FakeJs5, login, world, CoordinatorConfig(1.seconds))
+
+        coordinator.gatewayRoutes().login.handle(ByteChannel(), ByteChannel())
+
+        assertEquals(listOf("authenticate", "prepare", "play", "complete"), events)
+        assertEquals(
+            AuthenticationCompletion.Rejected(AuthenticationRejection.WORLD_UNAVAILABLE),
+            login.completion,
+        )
     }
 
     private class FakeLogin(
@@ -97,27 +127,32 @@ class ServerCoordinatorTest {
     private class FakeWorld(
         private val events: MutableList<String>,
         private val decision: ReservationDecision,
+        private val attach: Boolean = true,
     ) : GameService {
         var played = false
-        var releaseCount = 0
+        var handoff: ConnectionHandoff? = null
 
         override fun start() = Unit
 
         override suspend fun awaitTermination() = Unit
 
-        override suspend fun reserve(principal: AuthenticatedPrincipal): ReservationDecision {
-            events += "reserve"
+        override suspend fun prepare(accountId: AccountId): ReservationDecision {
+            events += "prepare"
             return decision
         }
 
-        override suspend fun release(token: GameSessionToken) {
-            events += "release"
-            releaseCount++
-        }
-
-        override suspend fun play(read: ByteReadChannel, write: ByteWriteChannel, handoff: ConnectionHandoff) {
+        override suspend fun play(
+            read: ByteReadChannel,
+            write: ByteWriteChannel,
+            handoff: ConnectionHandoff,
+            beginSession: suspend (Int) -> Boolean,
+        ): Boolean {
             events += "play"
             played = true
+            this.handoff = handoff
+            if (!attach) return false
+            val playerIndex = (decision as ReservationDecision.Accepted).playerIndex
+            return beginSession(playerIndex)
         }
 
         override suspend fun stop() = Unit
@@ -132,7 +167,7 @@ class ServerCoordinatorTest {
     private companion object {
         val TOKEN = GameSessionToken("reservation")
         val ACCEPTED = ReservationDecision.Accepted(TOKEN, playerIndex = 1)
-        val PRINCIPAL = AuthenticatedPrincipal(1, "test player", "Test_Player", AccountPrivilege.PLAYER)
-        val SESSION = AuthenticatedSession(ConnectionBootstrap(IsaacBootstrap(1, 2, 3, 4), PRINCIPAL), reconnect = false)
+        val ACCOUNT = AuthenticatedAccount(AccountId(1), AccountPrivilege.PLAYER)
+        val SESSION = AuthenticatedSession(ACCOUNT, IsaacBootstrap(1, 2, 3, 4))
     }
 }

@@ -16,6 +16,6 @@ class GameCodecsTest {
             assertSame(encoder, repository.encoder(encoder.messageType))
         }
         assertEquals(4, GameCodecs.decoders.size)
-        assertEquals(35, GameCodecs.encoders.size)
+        assertEquals(36, GameCodecs.encoders.size)
     }
 }

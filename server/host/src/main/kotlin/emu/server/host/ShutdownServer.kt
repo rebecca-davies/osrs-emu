@@ -11,7 +11,7 @@ internal suspend fun shutdownServer(
     listener: AutoCloseable,
     gatewayJob: Job?,
     worldMonitor: Job?,
-    shutdownHook: Thread?,
+    shutdownHook: Thread? = null,
 ) {
     withContext(NonCancellable) {
         worldMonitor?.cancel()

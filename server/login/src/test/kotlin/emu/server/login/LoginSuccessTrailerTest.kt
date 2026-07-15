@@ -10,7 +10,7 @@ import kotlin.test.assertEquals
  * Pins the login-info trailer's shape against the decompiled rev-239 login state:
  * `[1 advertised span=37][34-byte account-info payload]`,
  * with the 2-byte `di` (local player index) field at offset 7 within the block set to
- * the admitted world's player index and every other account-info byte zero. The first game's three-byte
+ * the attached world's player index and every other account-info byte zero. The first game's three-byte
  * REBUILD_NORMAL header completes the advertised 37-byte span.
  */
 class LoginSuccessTrailerTest {
@@ -21,7 +21,7 @@ class LoginSuccessTrailerTest {
         assertEquals(37, trailer.size - 1 + 3)
     }
 
-    @Test fun `di field encodes the admitted player index big-endian`() {
+    @Test fun `di field encodes the attached player index big-endian`() {
         val trailer = loginSuccessTrailer(PLAYER_RIGHTS, playerIndex = 1_736)
         // Block starts at trailer index 1 (after the length byte); di is at block offset 7 -> trailer index 8.
         val diHi = trailer[8].toInt() and 0xFF

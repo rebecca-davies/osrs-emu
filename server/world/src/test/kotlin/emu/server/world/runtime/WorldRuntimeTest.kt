@@ -1,210 +1,117 @@
 package emu.server.world.runtime
 
-import kotlinx.coroutines.launch
+import emu.server.world.cycle.WorldCycle
+import emu.compression.HuffmanCodec
+import emu.game.pathfinding.OpenCollisionMap
+import emu.game.pathfinding.PlayerMovementProcess
+import emu.game.action.GameInputQueue
+import emu.game.action.GameInputQueueConfig
+import emu.game.content.ui.UiComponentMap
+import emu.game.script.PlayerQueueType
+import emu.game.script.PlayerScriptRepository
+import emu.game.script.PlayerScriptRequest
+import emu.game.script.PlayerScriptRunner
+import emu.persistence.character.PlayerPosition
+import emu.persistence.character.PlayerRecord
+import emu.persistence.character.CharacterWriteQueue
+import emu.persistence.character.DurableCharacterWrite
+import emu.persistence.chat.ChatAuditSink
+import emu.server.world.player.PlayerActionProcess
+import emu.server.world.TestPlayerContent
+import emu.server.world.player.PlayerChatActionProcess
+import emu.server.world.player.PlayerLifecycleProcess
+import emu.server.world.player.PlayerOutputProcess
+import emu.server.world.player.PlayerScriptProcess
+import emu.server.world.player.PlayerTriggerProcess
+import emu.server.world.network.GameOutputSink
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import kotlin.test.assertFalse
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 class WorldRuntimeTest {
     @Test
-    fun `rejects an index range beyond one rev 239 world`() {
+    fun `runtime owns one finite authoritative clock`() = runBlocking {
+        val runtime = WorldRuntime(cycle(), tickInterval = 1.milliseconds)
+
+        runtime.run(maxTicks = 3)
+
+        assertFailsWith<IllegalStateException> { runtime.run(maxTicks = 1) }
+    }
+
+    @Test
+    fun `runtime rejects a sub-millisecond clock`() {
         assertFailsWith<IllegalArgumentException> {
-            WorldRuntime(maxPlayerIndex = PlayerCapacity.PER_WORLD + 1)
+            WorldRuntime(cycle(), tickInterval = 0.milliseconds)
         }
     }
 
     @Test
-    fun `every participant observes the same authoritative world ticks`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds)
-        val first = RecordingParticipant(playerId = 1)
-        val second = RecordingParticipant(playerId = 2)
-        val firstRegistration = runtime.register(first)
-        val secondRegistration = runtime.register(second)
+    fun `shutdown force-removes non-discardable work after the bounded terminal cycle`() = runBlocking {
+        val world = testGameWorld(maxPlayerIndex = 1)
+        val action = PlayerQueueType.unit("never_ready")
+        val scripts =
+            PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {
+                onQueue(action) { }
+            }
+        val runner = PlayerScriptRunner(scripts)
+        val connected =
+            world.addTestPlayer(
+                PlayerRecord(1, "Player1", PlayerPosition(3200, 3200, 0), 0),
+                GameInputQueue(GameInputQueueConfig()),
+                GameOutputSink { true },
+            )
+        world.activateTestPlayer(connected.connection.token)
+        connected.player.actionQueue.add(
+            PlayerScriptRequest(scripts.require(action)),
+            delayTicks = Int.MAX_VALUE,
+        )
+        val runtime = WorldRuntime(cycle(world, runner), tickInterval = 1.milliseconds)
 
-        runtime.run(maxTicks = 3)
+        withTimeout(5.seconds) { runtime.run(maxTicks = 0) }
 
-        assertEquals(1, firstRegistration.playerIndex.await())
-        assertEquals(2, secondRegistration.playerIndex.await())
-        assertNotEquals(firstRegistration.playerIndex.await(), secondRegistration.playerIndex.await())
-        assertEquals(listOf(0L, 1L, 2L), first.ticks)
-        assertEquals(first.ticks, second.ticks)
-        assertTrue(firstRegistration.removed.isCompleted)
-        assertTrue(secondRegistration.removed.isCompleted)
+        assertFalse(world.contains(connected.player.id))
     }
 
-    @Test
-    fun `a duplicate player session is rejected without replacing the admitted session`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds)
-        val admitted = RecordingParticipant(playerId = 7)
-        val duplicate = RecordingParticipant(playerId = 7)
-        val admittedRegistration = runtime.register(admitted)
-        val duplicateRegistration = runtime.register(duplicate)
-
-        runtime.run(maxTicks = 1)
-
-        assertEquals(1, admittedRegistration.playerIndex.await())
-        assertNull(duplicateRegistration.playerIndex.await())
-        assertEquals(listOf(0L), admitted.ticks)
-        assertEquals(emptyList(), duplicate.ticks)
-        assertTrue(duplicateRegistration.removed.isCompleted)
+    private fun cycle(): WorldCycle {
+        val movement = PlayerMovementProcess(OpenCollisionMap)
+        return WorldCycle(
+            testGameWorld(),
+            WorldCommandQueue(capacity = 8),
+            TestPlayerContent.actions(
+                movement,
+                PlayerChatActionProcess(
+                    HuffmanCodec(ByteArray(256) { 8 }),
+                    ChatAuditSink { true },
+                ),
+            ),
+            TestPlayerContent.scripts(),
+            TestPlayerContent.movementCycle(movement),
+            TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
+            PlayerOutputProcess(),
+        )
     }
 
-    @Test
-    fun `one failed participant is removed without stopping the world`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 20.milliseconds)
-        val failed = RecordingParticipant(playerId = 10, failOnTick = 0)
-        val healthy = RecordingParticipant(playerId = 11)
-        val failedRegistration = runtime.register(failed)
-        runtime.register(healthy)
-        lateinit var replacementRegistration: WorldRegistration
-        val replacement = launch {
-            failedRegistration.removed.await()
-            replacementRegistration = runtime.register(RecordingParticipant(playerId = 12))
-        }
-
-        runtime.run(maxTicks = 3)
-
-        replacement.join()
-        assertEquals(listOf(0L), failed.ticks)
-        assertEquals(listOf(0L, 1L, 2L), healthy.ticks)
-        assertTrue(failedRegistration.removed.isCompleted)
-        assertEquals(1, replacementRegistration.playerIndex.await())
-    }
-
-    @Test
-    fun `registration mailbox rejects overflow instead of growing without bound`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds, commandCapacity = 1)
-        val accepted = runtime.register(RecordingParticipant(playerId = 20))
-        val overflow = runtime.register(RecordingParticipant(playerId = 21))
-
-        assertNull(overflow.playerIndex.await())
-        assertTrue(overflow.removed.isCompleted)
-
-        runtime.run(maxTicks = 1)
-        assertEquals(1, accepted.playerIndex.await())
-    }
-
-    @Test
-    fun `player index exhaustion rejects admission without disturbing allocated players`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds, commandCapacity = 2_048)
-        val registrations = (1L..2_048L).map { playerId ->
-            runtime.register(RecordingParticipant(playerId))
-        }
-
-        runtime.run(maxTicks = 1)
-
-        val allocated = registrations.dropLast(1).map { it.playerIndex.await() }
-        assertEquals((1..2_047).toList(), allocated)
-        assertNull(registrations.last().playerIndex.await())
-        assertTrue(registrations.last().removed.isCompleted)
-    }
-
-    @Test
-    fun `a paused admission does not tick until the login stage activates it`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 20.milliseconds)
-        val participant = RecordingParticipant(playerId = 30)
-        val registration = runtime.register(participant, startActive = false)
-        val activation = launch {
-            assertEquals(1, registration.playerIndex.await())
-            runtime.activate(participant.playerId)
-        }
-
-        runtime.run(maxTicks = 3)
-
-        activation.join()
-        assertEquals(listOf(1L, 2L), participant.ticks)
-    }
-
-    @Test
-    fun `released player index is reused in lowest-slot order`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 20.milliseconds)
-        val departing = RecordingParticipant(playerId = 40, removeOnTick = 0)
-        val staying = RecordingParticipant(playerId = 41)
-        val departingRegistration = runtime.register(departing)
-        val stayingRegistration = runtime.register(staying)
-        lateinit var replacementRegistration: WorldRegistration
-        val replacement = launch {
-            departingRegistration.removed.await()
-            replacementRegistration = runtime.register(RecordingParticipant(playerId = 42))
-        }
-
-        runtime.run(maxTicks = 3)
-
-        replacement.join()
-        assertEquals(1, departingRegistration.playerIndex.await())
-        assertEquals(2, stayingRegistration.playerIndex.await())
-        assertEquals(1, replacementRegistration.playerIndex.await())
-    }
-
-    @Test
-    fun `explicit removal releases the player index for the next admission`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 20.milliseconds)
-        val first = RecordingParticipant(playerId = 50)
-        val firstRegistration = runtime.register(first)
-        lateinit var replacementRegistration: WorldRegistration
-        val replacement = launch {
-            assertEquals(1, firstRegistration.playerIndex.await())
-            runtime.remove(first.playerId)
-            firstRegistration.removed.await()
-            replacementRegistration = runtime.register(RecordingParticipant(playerId = 51))
-        }
-
-        runtime.run(maxTicks = 3)
-
-        replacement.join()
-        assertEquals(1, replacementRegistration.playerIndex.await())
-    }
-
-    @Test
-    fun `shutdown removes admitted players and rejects queued admissions without an index`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds)
-        val admitted = runtime.register(RecordingParticipant(playerId = 60))
-
-        runtime.run(maxTicks = 1)
-        val afterShutdown = runtime.register(RecordingParticipant(playerId = 61))
-
-        assertEquals(1, admitted.playerIndex.await())
-        assertTrue(admitted.removed.isCompleted)
-        assertNull(afterShutdown.playerIndex.await())
-        assertTrue(afterShutdown.removed.isCompleted)
-    }
-
-    @Test
-    fun `an overrun yields to activation submitters before the next cycle`() = runBlocking {
-        val runtime = WorldRuntime(tickInterval = 1.milliseconds)
-        val overrun = RecordingParticipant(playerId = 31, cycleDelayMillis = 20)
-        val participant = RecordingParticipant(playerId = 32)
-        runtime.register(overrun)
-        val registration = runtime.register(participant, startActive = false)
-        val activation = launch {
-            assertEquals(2, registration.playerIndex.await())
-            runtime.activate(participant.playerId)
-        }
-
-        runtime.run(maxTicks = 3)
-
-        activation.join()
-        assertEquals(listOf(1L, 2L), participant.ticks)
-    }
-
-    private class RecordingParticipant(
-        override val playerId: Long,
-        private val failOnTick: Long? = null,
-        private val removeOnTick: Long? = null,
-        private val cycleDelayMillis: Long = 0,
-    ) : WorldParticipant {
-        val ticks = mutableListOf<Long>()
-
-        override fun cycle(worldTick: Long): WorldParticipantResult {
-            ticks += worldTick
-            if (cycleDelayMillis > 0) Thread.sleep(cycleDelayMillis)
-            if (worldTick == failOnTick) error("participant failure")
-            return if (worldTick == removeOnTick) WorldParticipantResult.REMOVE else WorldParticipantResult.KEEP
-        }
+    private fun cycle(world: GameWorld, runner: PlayerScriptRunner): WorldCycle {
+        val movement = PlayerMovementProcess(OpenCollisionMap)
+        val triggers = PlayerTriggerProcess(runner)
+        return WorldCycle(
+            world,
+            WorldCommandQueue(capacity = 8),
+            TestPlayerContent.actions(
+                movement,
+                PlayerChatActionProcess(
+                    HuffmanCodec(ByteArray(256) { 8 }),
+                    ChatAuditSink { true },
+                ),
+            ),
+            PlayerScriptProcess(runner, triggers),
+            TestPlayerContent.movementCycle(movement),
+            PlayerLifecycleProcess(CharacterWriteQueue { DurableCharacterWrite }, triggers),
+            PlayerOutputProcess(),
+        )
     }
 }

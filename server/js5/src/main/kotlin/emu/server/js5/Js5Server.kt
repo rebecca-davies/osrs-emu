@@ -8,7 +8,6 @@ import emu.server.js5.wire.performHandshake
 import emu.transport.codec.CodecRepository
 import emu.transport.pipeline.HandlerRepositoryBuilder
 import emu.transport.pipeline.ProtocolStage
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
@@ -23,8 +22,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 
-private val logger = KotlinLogging.logger {}
-
 /** Owns JS5 handshakes, cache requests, connection limits, and worker execution. */
 class Js5Server(
     private val codecs: CodecRepository,
@@ -35,10 +32,7 @@ class Js5Server(
     private val sessions = Semaphore(config.maxConcurrentSessions)
 
     override suspend fun serve(read: ByteReadChannel, write: ByteWriteChannel) {
-        if (!sessions.tryAcquire()) {
-            logger.warn { "JS5 session limit reached; rejecting connection" }
-            return
-        }
+        if (!sessions.tryAcquire()) return
         try {
             try {
                 withContext(dispatcher) {
@@ -61,9 +55,9 @@ class Js5Server(
                     ).run(read, write)
                 }
             } catch (_: TimeoutCancellationException) {
-                logger.debug { "JS5 session timed out waiting for a handshake or frame" }
+                // Expected hostile/idle traffic is bounded by the session semaphore and stays quiet.
             } catch (_: EOFException) {
-                logger.debug { "JS5 client closed the session" }
+                // A client closing a cache stream is an ordinary session boundary.
             } catch (failure: CancellationException) {
                 throw failure
             }

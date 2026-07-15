@@ -37,9 +37,11 @@ class MutableCollisionMap(private val defaultFlag: Int = 0) : CollisionMap {
         (plane.toLong() shl 28) or (x.toLong() shl 14) or y.toLong()
 }
 
-/** Tests a single size-one step with the same destination and corner masks as Blurite. */
+/** Tests one allocation-free size-one step with the same destination and corner masks as Blurite. */
 internal fun CollisionMap.canTravel(
-    position: Tile,
+    x: Int,
+    y: Int,
+    plane: Int,
     deltaX: Int,
     deltaY: Int,
     extraFlag: Int = 0,
@@ -47,11 +49,8 @@ internal fun CollisionMap.canTravel(
     require(deltaX in -1..1 && deltaY in -1..1 && (deltaX != 0 || deltaY != 0)) {
         "step delta must be one adjacent tile"
     }
-    val x = position.x
-    val y = position.y
-    val z = position.plane
     fun clear(atX: Int, atY: Int, mask: Int): Boolean =
-        flagsAt(atX, atY, z) and (mask or extraFlag) == 0
+        flagsAt(atX, atY, plane) and (mask or extraFlag) == 0
 
     return when (deltaX to deltaY) {
         -1 to 0 -> clear(x - 1, y, CollisionFlag.BLOCK_WEST)

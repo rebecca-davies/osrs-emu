@@ -55,7 +55,7 @@ class GatewayServiceTest {
                 GatewayConfig(
                     bindHost = "127.0.0.1",
                     port = 0,
-                    maxConnections = 1,
+                    maxPendingClassifications = 1,
                     classificationTimeout = 50.milliseconds,
                 ),
                 GatewayRoutes(
@@ -79,6 +79,43 @@ class GatewayServiceTest {
 
         idle.close()
         replacement.close()
+        selector.close()
+        listenerJob.cancel()
+        listener.close()
+        listenerJob.cancelAndJoin()
+    }
+
+    @Test
+    fun `an active route does not retain a gateway classification slot`() = runBlocking {
+        val loginStarted = CompletableDeferred<Unit>()
+        val releaseLogin = CompletableDeferred<Unit>()
+        val js5Routed = CompletableDeferred<Unit>()
+        val listener =
+            GatewayService(
+                GatewayConfig(bindHost = "127.0.0.1", port = 0, maxPendingClassifications = 1),
+                GatewayRoutes(
+                    js5Opcode = 15,
+                    loginOpcode = 14,
+                    js5 = GatewayRouteHandler { _, _ -> js5Routed.complete(Unit) },
+                    login = GatewayRouteHandler { _, _ ->
+                        loginStarted.complete(Unit)
+                        releaseLogin.await()
+                    },
+                ),
+            ).bind()
+        val listenerJob = launch { listener.run() }
+        val selector = SelectorManager(Dispatchers.IO)
+        val login = aSocket(selector).tcp().connect(listener.localAddress)
+        login.openWriteChannel(autoFlush = true).writeByte(14)
+        withTimeout(1_000) { loginStarted.await() }
+
+        val js5 = aSocket(selector).tcp().connect(listener.localAddress)
+        js5.openWriteChannel(autoFlush = true).writeByte(15)
+
+        withTimeout(1_000) { js5Routed.await() }
+        releaseLogin.complete(Unit)
+        login.close()
+        js5.close()
         selector.close()
         listenerJob.cancel()
         listener.close()

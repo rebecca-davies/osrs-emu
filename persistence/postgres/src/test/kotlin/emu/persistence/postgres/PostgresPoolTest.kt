@@ -14,23 +14,22 @@ import kotlin.time.Duration.Companion.seconds
 class PostgresPoolTest {
     @Test
     fun `database exposes a bounded lazily started Hikari pool and closes it`() {
-        val database =
-            PostgresDatabase(
-                PostgresConfig(
+        val config =
+            PostgresConfig(
                     jdbcUrl = "jdbc:postgresql://127.0.0.1:1/unreachable",
                     username = "test",
                     password = "test",
-                    pool =
-                        PostgresPoolConfig(
-                            maximumSize = 3,
-                            minimumIdle = 0,
-                            connectionTimeout = 3.seconds,
-                            validationTimeout = 1.seconds,
-                            idleTimeout = 1.minutes,
-                            maxLifetime = 2.minutes,
-                        ),
-                ),
+                )
+        val poolConfig =
+            PostgresPoolConfig(
+                maximumSize = 3,
+                minimumIdle = 0,
+                connectionTimeout = 3.seconds,
+                validationTimeout = 1.seconds,
+                idleTimeout = 1.minutes,
+                maxLifetime = 2.minutes,
             )
+        val database = PostgresDatabase(config, poolConfig, "osrsemu-test-postgres")
         val pool = assertIs<HikariDataSource>(database.dataSource)
 
         assertEquals(3, pool.maximumPoolSize)
@@ -41,6 +40,12 @@ class PostgresPoolTest {
         assertEquals(2.minutes.inWholeMilliseconds, pool.maxLifetime)
         assertEquals(-1, pool.initializationFailTimeout)
         assertEquals("true", pool.dataSourceProperties.getProperty("tcpKeepAlive"))
+        assertEquals("5", pool.dataSourceProperties.getProperty("connectTimeout"))
+        assertEquals("10", pool.dataSourceProperties.getProperty("socketTimeout"))
+        assertEquals(
+            "-c statement_timeout=5000",
+            pool.dataSourceProperties.getProperty("options"),
+        )
 
         database.close()
         database.close()

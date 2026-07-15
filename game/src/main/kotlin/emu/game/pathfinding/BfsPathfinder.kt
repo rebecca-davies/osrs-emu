@@ -1,5 +1,7 @@
 package emu.game.pathfinding
 
+import kotlin.math.abs
+
 /**
  * Size-one, eight-direction BFS port of Blurite's RuneScape pathfinder.
  *
@@ -13,6 +15,12 @@ class BfsPathfinder(
     private val moveNear: Boolean = true,
     private val maxTurns: Int = DEFAULT_MAX_TURNS,
 ) {
+    private val area = searchMapSize * searchMapSize
+    private val directions = IntArray(area)
+    private val distances = IntArray(area)
+    private val queueX = IntArray(area)
+    private val queueY = IntArray(area)
+
     init {
         require(searchMapSize >= 2 && searchMapSize % 2 == 0) { "search map size must be even and at least two" }
         require(maxTurns > 0) { "max turns must be positive" }
@@ -21,11 +29,8 @@ class BfsPathfinder(
     /** Finds a shortest route from [source] to [destination], or a move-near alternative. */
     fun findPath(source: Tile, destination: Tile): PathRoute {
         if (source.plane != destination.plane) return PathRoute.Failed
-        val area = searchMapSize * searchMapSize
-        val directions = IntArray(area)
-        val distances = IntArray(area) { UNREACHED_DISTANCE }
-        val queueX = IntArray(area)
-        val queueY = IntArray(area)
+        directions.fill(0)
+        distances.fill(UNREACHED_DISTANCE)
         val baseX = source.x - searchMapSize / 2
         val baseY = source.y - searchMapSize / 2
         val sourceX = source.x - baseX
@@ -60,32 +65,41 @@ class BfsPathfinder(
                 pathFound = true
                 break
             }
-            val world = Tile(currentX + baseX, currentY + baseY, source.plane)
-            if (currentX > 0 && collisionMap.canTravel(world, -1, 0)) {
+            val worldX = currentX + baseX
+            val worldY = currentY + baseY
+            if (currentX > 0 && collisionMap.canTravel(worldX, worldY, source.plane, -1, 0)) {
                 visit(currentX, currentY, currentX - 1, currentY, EAST)
             }
-            if (currentX < searchMapSize - 1 && collisionMap.canTravel(world, 1, 0)) {
+            if (currentX < searchMapSize - 1 && collisionMap.canTravel(worldX, worldY, source.plane, 1, 0)) {
                 visit(currentX, currentY, currentX + 1, currentY, WEST)
             }
-            if (currentY > 0 && collisionMap.canTravel(world, 0, -1)) {
+            if (currentY > 0 && collisionMap.canTravel(worldX, worldY, source.plane, 0, -1)) {
                 visit(currentX, currentY, currentX, currentY - 1, NORTH)
             }
-            if (currentY < searchMapSize - 1 && collisionMap.canTravel(world, 0, 1)) {
+            if (currentY < searchMapSize - 1 && collisionMap.canTravel(worldX, worldY, source.plane, 0, 1)) {
                 visit(currentX, currentY, currentX, currentY + 1, SOUTH)
             }
-            if (currentX > 0 && currentY > 0 && collisionMap.canTravel(world, -1, -1)) {
+            if (currentX > 0 && currentY > 0 && collisionMap.canTravel(worldX, worldY, source.plane, -1, -1)) {
                 visit(currentX, currentY, currentX - 1, currentY - 1, NORTH_EAST)
             }
-            if (currentX < searchMapSize - 1 && currentY > 0 && collisionMap.canTravel(world, 1, -1)) {
+            if (
+                currentX < searchMapSize - 1 &&
+                currentY > 0 &&
+                collisionMap.canTravel(worldX, worldY, source.plane, 1, -1)
+            ) {
                 visit(currentX, currentY, currentX + 1, currentY - 1, NORTH_WEST)
             }
-            if (currentX > 0 && currentY < searchMapSize - 1 && collisionMap.canTravel(world, -1, 1)) {
+            if (
+                currentX > 0 &&
+                currentY < searchMapSize - 1 &&
+                collisionMap.canTravel(worldX, worldY, source.plane, -1, 1)
+            ) {
                 visit(currentX, currentY, currentX - 1, currentY + 1, SOUTH_EAST)
             }
             if (
                 currentX < searchMapSize - 1 &&
                 currentY < searchMapSize - 1 &&
-                collisionMap.canTravel(world, 1, 1)
+                collisionMap.canTravel(worldX, worldY, source.plane, 1, 1)
             ) {
                 visit(currentX, currentY, currentX + 1, currentY + 1, SOUTH_WEST)
             }
@@ -127,8 +141,8 @@ class BfsPathfinder(
                 if (x !in valid || y !in valid) continue
                 val distance = distances[y * searchMapSize + x]
                 if (distance >= MAX_ALTERNATIVE_DISTANCE) continue
-                val dx = kotlin.math.abs(x - destinationX)
-                val dy = kotlin.math.abs(y - destinationY)
+                val dx = abs(x - destinationX)
+                val dy = abs(y - destinationY)
                 val cost = dx * dx + dy * dy
                 if (cost < lowestCost || cost == lowestCost && distance < shortestPath) {
                     lowestCost = cost
