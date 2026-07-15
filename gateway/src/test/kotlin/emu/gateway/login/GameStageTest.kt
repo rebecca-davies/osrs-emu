@@ -7,8 +7,7 @@ import emu.crypto.RsaKeyPair
 import emu.gateway.world.WorldParticipant
 import emu.gateway.world.WorldParticipantResult
 import emu.gateway.world.WorldRuntime
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameServerProt
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
@@ -27,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -99,7 +97,7 @@ class GameStageTest {
 
     @Test fun `after admission the server writes its allocated index then an ISAAC-adjusted login rebuild`() = runBlocking {
         val keyPair = loadRealOrSkip() ?: return@runBlocking
-        val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val gameCodecs = buildGameCodecRepository()
 
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))

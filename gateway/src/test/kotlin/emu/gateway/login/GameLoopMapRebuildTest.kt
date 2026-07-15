@@ -13,19 +13,17 @@ import emu.gateway.game.GameOutputBatch
 import emu.gateway.game.GameOutputSink
 import emu.gateway.game.playerButtonActions
 import emu.netcore.pipeline.OutboundSession
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readFully
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlinx.coroutines.runBlocking
-import org.koin.dsl.koinApplication
 
 class GameLoopMapRebuildTest {
     @Test
     fun `crossing the scene boundary sends the six byte rebuild before the world update group`() = runBlocking {
-        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val codecs = buildGameCodecRepository()
         val output = ByteChannel(autoFlush = true)
         val movement = PlayerMovement(Tile(3255, 3218), OpenCollisionMap)
         val routeRequests = PlayerRouteRequestQueue()

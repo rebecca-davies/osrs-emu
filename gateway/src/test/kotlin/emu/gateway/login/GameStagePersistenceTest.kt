@@ -4,15 +4,13 @@ import emu.crypto.IsaacCipher
 import emu.gateway.world.WorldRuntime
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRecord
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.cancelAndJoin
-import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -22,7 +20,7 @@ import kotlin.time.Duration.Companion.seconds
 class GameStagePersistenceTest {
     @Test
     fun `restores the persisted tile and flushes it once when the session exits`() = runBlocking {
-        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val codecs = buildGameCodecRepository()
         val player =
             PlayerRecord(
                 id = 42,

@@ -6,8 +6,7 @@ import emu.crypto.XorStreamCipher
 import emu.gateway.gatewayModule
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.js5.js5Module
+import emu.protocol.osrs239.js5.buildJs5CodecRepository
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
 import emu.protocol.osrs239.js5.prot.Js5Prot
 import emu.protocol.osrs239.js5.codec.Js5ResponseEncoder
@@ -52,7 +51,7 @@ class Js5FlowTest {
 
     @Test fun `handshake then pipeline serves the group`() = runBlocking {
         val store = store()
-        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
+        val codecs = buildJs5CodecRepository()
         // The control handler and encoder share one connection-local cipher.
         val cipher = XorStreamCipher()
         val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
@@ -97,7 +96,7 @@ class Js5FlowTest {
         File(root, "cache/5/1.dat").also { it.parentFile.mkdirs() }.writeBytes(big)
         val store = FlatFileStore(root)
 
-        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
+        val codecs = buildJs5CodecRepository()
         val cipher = XorStreamCipher()
         val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
         val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, cipher).build()
@@ -150,7 +149,7 @@ class Js5FlowTest {
 
     @Test fun `revision mismatch replies 6 and closes the connection`() = runBlocking {
         val store = store()
-        val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
+        val codecs = buildJs5CodecRepository()
         val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
         val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, XorStreamCipher()).build()
         val selector = SelectorManager(Dispatchers.IO)

@@ -7,14 +7,12 @@ import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.PlayerButtonQueue
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameClientProt
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.writeByte
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
@@ -25,7 +23,7 @@ class GameInboundTest {
         val seeds = intArrayOf(11, 22, 33, 44)
         val clientCipher = IsaacCipher(seeds)
         val serverCipher = IsaacCipher(seeds)
-        val codecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val codecs = buildGameCodecRepository()
         val input = ByteChannel(autoFlush = true)
         val requests = PlayerRouteRequestQueue()
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)

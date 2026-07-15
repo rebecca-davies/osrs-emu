@@ -5,8 +5,7 @@ import emu.crypto.IsaacCipher
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
 import emu.gateway.world.WorldRuntime
-import emu.protocol.osrs239.buildCodecRepository
-import emu.protocol.osrs239.game.gameModule
+import emu.protocol.osrs239.game.buildGameCodecRepository
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -26,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail
@@ -122,7 +120,7 @@ class GameStreamOracleTest {
             return@runBlocking
         }
         val keyPair = ServerRsaKeyFile.load(keyFile)
-        val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
+        val gameCodecs = buildGameCodecRepository()
         val seeds = intArrayOf(0x1234, 0x5678, -0x1AB5F00D, 0x0C0FFEE)
 
         val selector = SelectorManager(Dispatchers.IO)
