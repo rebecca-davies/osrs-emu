@@ -1,0 +1,42 @@
+# Keep the build context lean AND ensure gitignored/secret/large assets can never enter
+# the image (CLAUDE.md §12/§12a/§14). The runtime image gets ONLY compiled gateway code.
+# NOTE: .dockerignore does not support trailing inline comments — each pattern is its own
+# line, comments are whole lines only.
+
+# VCS + CI metadata
+.git
+.github
+
+# Gradle / Kotlin build state (rebuilt inside the image)
+.gradle
+.kotlin
+**/build
+
+# RuneLite client tree — must never be shipped or launched (CLAUDE.md §12a)
+client
+
+# 500M+ cache dump — bind-mounted read-only at runtime instead of baked in
+cache-data
+cache-out
+content/items
+content/npcs
+content/objects
+
+# Gateway RSA private key — secret, bind-mounted at runtime, never in an image layer (§14)
+server-rsa.properties
+
+# Deploy / CI / meta files — not needed to compile, and kept out so editing them does not
+# bust the (expensive) source COPY + compile layer.
+Dockerfile
+.dockerignore
+compose.yml
+scripts
+.gitignore
+gradlew.bat
+CLAUDE.md
+
+# Editor / docs / local tooling not needed to build
+.idea
+docs
+.actrc
+.git-pat

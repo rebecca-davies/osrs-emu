@@ -1,0 +1,37 @@
+name: CI
+
+# Build + test on every push and pull request. This is the gate: it compiles all
+# modules and runs the full test suite via `./gradlew build`. Tests that require the
+# gitignored runtime assets (the cache dump, server-rsa.properties) skip themselves
+# when those are absent, which is the expected state in CI — see CI.md.
+#
+# Runs locally under nektos/act (`act push -j build` / `act pull_request`) exactly as
+# it does on GitHub-hosted runners; see CI.md for the exact commands.
+on:
+  push:
+  pull_request:
+
+# A newer push to the same ref cancels an in-flight run for that ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          # Caches ~/.gradle (deps + wrapper dist) across runs on GitHub-hosted
+          # runners. Under act this degrades gracefully to a no-op (the cache
+          # backend is absent) without failing the job.
+          cache: gradle
+
+      - name: Build and test
+        run: ./gradlew build --no-daemon --stacktrace

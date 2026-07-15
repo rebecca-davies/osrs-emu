@@ -1,3 +1,10 @@
+# Local single-host stack: Postgres (persistence) + the gateway server.
+#
+# `name:` fixes the Compose PROJECT name, so every `docker compose` command scoped to this
+# file only ever touches this project's containers — it can NOT affect the unrelated Postgres
+# stacks on this box (rotmgemu / uber_scraper / uber-tracker).
+name: osrsemu
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -14,6 +21,43 @@ services:
       retries: 30
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: osrsemu-gateway:latest
+    container_name: osrsemu-gateway
+    # Survive host reboots / daemon restarts, but do not fight a manual `stop`.
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "43594:43594"
+    environment:
+      OSRS_CACHE_DIR: /data/cache-data
+      OSRS_SERVER_RSA_PROPERTIES: /data/server-rsa.properties
+      # Reach Postgres by its compose service name on the INTERNAL port (not the host 54330).
+      OSRS_DATABASE_URL: jdbc:postgresql://postgres:5432/osrsemu
+      OSRS_DATABASE_USER: osrsemu
+      OSRS_DATABASE_PASSWORD: osrsemu-dev
+    volumes:
+      # The gitignored runtime assets, bind-mounted READ-ONLY from the host — never baked into
+      # the image. Sources MUST be absolute host paths when deploying via act (the host Docker
+      # daemon resolves them); scripts/deploy.sh sets these to the real host paths and validates them.
+      - ${OSRS_CACHE_DIR:-./cache-data}:/data/cache-data:ro
+      - ${OSRS_SERVER_RSA_PROPERTIES:-./server-rsa.properties}:/data/server-rsa.properties:ro
+    healthcheck:
+      # Passively confirm the gateway holds a LISTEN socket on 43594 (0xAA4A) by reading the
+      # kernel socket tables (state 0A = LISTEN, remote all-zeros). Checks /proc/net/tcp and
+      # /proc/net/tcp6 (the gateway binds an IPv6 wildcard). Deliberately does NOT open a client
+      # connection — a bare connect-then-close would make the gateway log a read-EOF ERROR each probe.
+      test: ["CMD-SHELL", "grep -qiE '^[[:space:]]*[0-9]+:[[:space:]]+[0-9A-F]+:AA4A[[:space:]]+[0-9A-F]+:0000[[:space:]]+0A' /proc/net/tcp /proc/net/tcp6"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   postgres-data:
