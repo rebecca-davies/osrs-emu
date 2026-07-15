@@ -9,5 +9,8 @@ val persistenceModule =
         single { PasswordHasher() }
         single { PostgresDatabase(get()) }
         single { PlayerRepository(get()) }
+        single { ChatRepository(get()) }
+        single { ChatAuditWriter(get<ChatRepository>()::appendBatch) }
+        single<ChatAuditSink> { get<ChatAuditWriter>() }
         single { AccountService(get(), get()) }
     }

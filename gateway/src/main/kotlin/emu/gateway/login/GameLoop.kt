@@ -15,8 +15,11 @@ import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonActionRegistry
 import emu.game.ui.PlayerButtonQueue
+import emu.game.chat.ChatActionRegistry
+import emu.game.chat.PlayerChatQueue
 import emu.game.varp.PlayerVarps
 import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.PlayerChatState
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.Logout
@@ -60,6 +63,9 @@ internal class GameLoop(
     private val buttonClicks: PlayerButtonQueue,
     buttonActions: ButtonActionRegistry,
     private val playerVarps: PlayerVarps,
+    private val chatInputs: PlayerChatQueue = PlayerChatQueue(),
+    chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
+    private val chatState: PlayerChatState = PlayerChatState(),
     private val sessionControl: PlayerSessionControl,
     private val profileLabel: String = "connection",
     private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
@@ -70,6 +76,7 @@ internal class GameLoop(
     private val cycle =
         GameCycle(
             buttonClicks.cycleProcesses(buttonActions) +
+                chatInputs.cycleProcesses(chatActions) +
                 routeRequests.cycleProcesses(playerMovement) +
                 cycleProcesses +
                 playerMovement.cycleProcesses() +
@@ -100,7 +107,10 @@ internal class GameLoop(
                     "${buildArea.centreZoneX},${buildArea.centreZoneY} at tile ${position.x},${position.y}"
             }
         }
-        val playerInfo = playerInfoState.next(playerMovement.update, playerMovement.runEnabled)
+        val playerInfo =
+            playerInfoState
+                .next(playerMovement.update, playerMovement.runEnabled)
+                .copy(publicChat = chatState.takePublicChat())
         sendPacketGroup(
             session,
             listOf(

@@ -19,6 +19,7 @@ data class PlayerInfo(
     val moveSpeed: Int? = null,
     /** Per-movement override when the queued step count disagrees with [moveSpeed]. */
     val temporaryMoveSpeed: Int? = null,
+    val publicChat: PlayerPublicChat? = null,
 ) : OutgoingMessage {
     init {
         require(moveSpeed == null || moveSpeed in VALID_MOVE_SPEEDS) { "invalid move speed $moveSpeed" }

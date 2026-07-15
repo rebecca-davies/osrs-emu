@@ -8,6 +8,7 @@ import emu.netcore.prot.Prot
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.PlayerMovement
+import emu.protocol.osrs239.game.message.PlayerPublicChat
 import emu.protocol.osrs239.game.prot.GameServerProt
 
 /**
@@ -64,11 +65,12 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
      * writes the flag word as a single byte.
      */
     private const val APPEARANCE_FLAG = 0x20
+    private const val CHAT_FLAG = 0x100
+    private const val EXTENDED_SHORT_FLAG = 0x8
 
     /** Cached and per-movement speed flags from rev-239's extended-info decoder. */
     private const val MOVE_SPEED_FLAG = 0x400
     private const val TEMP_MOVE_SPEED_FLAG = 0x1000
-    private const val EXTENDED_SHORT_FLAG = 0x8
 
     /** Signed-byte sentinel `-1` (`0xFF`) for the appearance's skull/overhead icon "none" fields. */
     private const val ICON_NONE = 0xFF
@@ -77,8 +79,10 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
         val bits = BitBuf()
         val appearance = message.appearance
         val movement = message.movement
+        val publicChat = message.publicChat
         val hasExtendedInfo =
-            appearance != null || message.moveSpeed != null || message.temporaryMoveSpeed != null
+            appearance != null || publicChat != null ||
+                message.moveSpeed != null || message.temporaryMoveSpeed != null
 
         // High-resolution section: the sole high-res player is the local avatar. Its byte layout is
         // identical whether the client reads it in the "active-last-cycle" (cycle 0) or
@@ -121,29 +125,46 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
 
         var flags = 0
         if (appearance != null) flags = flags or APPEARANCE_FLAG
+        if (publicChat != null) flags = flags or CHAT_FLAG
         if (message.moveSpeed != null) flags = flags or MOVE_SPEED_FLAG
         if (message.temporaryMoveSpeed != null) flags = flags or TEMP_MOVE_SPEED_FLAG
         if (flags ushr 8 != 0) flags = flags or EXTENDED_SHORT_FLAG
 
         // Extended-info pass: low flag byte first and a high byte when 0x8 is set. Rev 239 decodes
-        // cached speed before temporary speed and appearance, irrespective of numeric flag order.
-        val block = appearance?.let(::buildAppearanceBlock)
+        // cached speed, chat, temporary speed, then appearance, irrespective of numeric flag order.
+        val appearanceBlock = appearance?.let(::buildAppearanceBlock)
+        val chatBlock = publicChat?.let(::buildChatBlock)
         val flagBytes = if (flags and EXTENDED_SHORT_FLAG != 0) 2 else 1
         val out = JagexBuffer.alloc(
             gpi.size + flagBytes +
                 (if (message.moveSpeed != null) 1 else 0) +
+                (chatBlock?.size ?: 0) +
                 (if (message.temporaryMoveSpeed != null) 1 else 0) +
-                (block?.let { 1 + it.size } ?: 0),
+                (appearanceBlock?.let { 1 + it.size } ?: 0),
         )
         out.writeBytes(gpi)
         out.writeByte(flags)
         if (flags and EXTENDED_SHORT_FLAG != 0) out.writeByte(flags ushr 8)
         message.moveSpeed?.let(out::writeByteAlt2)
+        if (chatBlock != null) out.writeBytes(chatBlock)
         message.temporaryMoveSpeed?.let(out::writeByte)
-        if (block != null) {
-            out.writeByteAlt3(block.size)
-            for (byte in block) out.writeByte(byte.toInt() + 128)
+        if (appearanceBlock != null) {
+            out.writeByteAlt3(appearanceBlock.size)
+            for (byte in appearanceBlock) out.writeByte(byte.toInt() + 128)
         }
+        return out.array
+    }
+
+    /** Serializes rev-239's CHAT extended-info block in the client's positional decode order. */
+    private fun buildChatBlock(chat: PlayerPublicChat): ByteArray {
+        val patternSize = chat.pattern?.size ?: 0
+        val out = JagexBuffer.alloc(5 + chat.encodedText.size + patternSize)
+        out.writeShortAlt2((chat.colour shl 8) or chat.effect)
+        out.writeByteAlt2(chat.modIcon)
+        out.writeByteAlt1(if (chat.autotyper) 1 else 0)
+        out.writeByteAlt2(chat.encodedText.size)
+        for (index in chat.encodedText.indices.reversed()) out.writeByte(chat.encodedText[index].toInt())
+        chat.pattern?.forEach { out.writeByteAlt2(it.toInt()) }
         return out.array
     }
 

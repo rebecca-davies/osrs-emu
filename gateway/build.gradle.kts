@@ -17,6 +17,7 @@ dependencies {
     implementation(project(":protocol-osrs239"))
     implementation(project(":cache"))
     implementation(project(":crypto"))
+    implementation(project(":compression"))
     implementation(project(":buffer"))
     implementation(libs.ktor.network)
     implementation(libs.kotlin.logging)

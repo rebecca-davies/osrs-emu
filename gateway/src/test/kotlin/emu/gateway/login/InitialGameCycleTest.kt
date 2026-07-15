@@ -13,6 +13,8 @@ import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
 import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.VarpSmall
 import emu.protocol.osrs239.game.message.VarpLarge
+import emu.protocol.osrs239.game.message.ChatFilterSettings
+import emu.protocol.osrs239.game.message.ChatFilterPrivate
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.WorldEntityInfo
@@ -23,6 +25,14 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class InitialGameCycleTest {
+    @Test fun `persisted sparse chat settings are restored through dedicated filter packets`() {
+        val varps = initialPlayerVarps(mapOf(65533 to 3, 65534 to 1, 65535 to 2))
+
+        assertEquals(
+            listOf(ChatFilterSettings(publicFilter = 3, tradeFilter = 2), ChatFilterPrivate(privateFilter = 1)),
+            initialChatFilters(varps),
+        )
+    }
     @Test fun `fresh account starts walking and can still use unlimited run`() {
         val varps = initialPlayerVarps()
         val movement = initialPlayerMovement(PlayerPosition(3222, 3218, 0), runEnabled = false)

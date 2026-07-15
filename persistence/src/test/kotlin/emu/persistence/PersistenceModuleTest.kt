@@ -14,5 +14,7 @@ class PersistenceModuleTest {
         assertNotNull(koin.get<PasswordHasher>())
         assertNotNull(koin.get<PlayerRepository>())
         assertNotNull(koin.get<AccountService>())
+        assertNotNull(koin.get<ChatRepository>())
+        koin.get<ChatAuditWriter>().close()
     }
 }

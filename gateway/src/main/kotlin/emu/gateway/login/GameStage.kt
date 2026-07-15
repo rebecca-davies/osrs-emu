@@ -7,10 +7,15 @@ import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.PlayerButtonQueue
+import emu.game.chat.PlayerChatQueue
+import emu.compression.HuffmanCodec
+import emu.persistence.ChatAuditSink
 import emu.gateway.game.PlayerSessionControl
 import emu.gateway.game.PlayerVarpTypes
 import emu.gateway.game.playerButtonActions
 import emu.gateway.game.installGameHandlers
+import emu.gateway.game.PlayerChatState
+import emu.gateway.game.playerChatActions
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.OutboundSession
@@ -87,6 +92,8 @@ suspend fun runGameStage(
     tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
+    huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
+    chatAudit: ChatAuditSink = ChatAuditSink { true },
 ): Unit {
     val sessionStarted = System.nanoTime()
     val session = OutboundSession(gameCodecs, outboundCipher, write)
@@ -99,8 +106,11 @@ suspend fun runGameStage(
         )
     val routeRequests = PlayerRouteRequestQueue()
     val buttonClicks = PlayerButtonQueue()
+    val chatInputs = PlayerChatQueue()
+    val chatState = PlayerChatState()
     val sessionControl = PlayerSessionControl()
     val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
+    val chatActions = playerChatActions(player.id, player.rank, playerVarps, chatState, chatAudit, huffman)
     val gameLoop = GameLoop(
         session,
         tickInterval,
@@ -109,6 +119,9 @@ suspend fun runGameStage(
         buttonClicks = buttonClicks,
         buttonActions = buttonActions,
         playerVarps = playerVarps,
+        chatInputs = chatInputs,
+        chatActions = chatActions,
+        chatState = chatState,
         sessionControl = sessionControl,
         profileLabel = "player ${player.id}",
         onProfileReport = { snapshot ->
@@ -128,6 +141,7 @@ suspend fun runGameStage(
                 localPlayerIndex = LOCAL_PLAYER_INDEX,
                 appearance = appearance,
                 accountVarps = initialAccountVarps(playerVarps),
+                chatFilters = initialChatFilters(playerVarps),
             )
             playerVarps.markClientSynchronized()
 
@@ -137,13 +151,13 @@ suspend fun runGameStage(
             val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
             if (skipTicks) {
                 logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout, chatInputs, huffman)
                 return@coroutineScope
             }
 
             val tickJob = launch { gameLoop.run(maxTicks) }
             val readJob = launch {
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout)
+                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout, chatInputs, huffman)
                 // The client is gone / idle: stop the heartbeat so this connection can close.
                 tickJob.cancel()
             }
@@ -193,8 +207,10 @@ internal suspend fun drainGameInbound(
     routeRequests: PlayerRouteRequestQueue,
     buttonClicks: PlayerButtonQueue,
     idleTimeout: Duration,
+    chatInputs: PlayerChatQueue = PlayerChatQueue(),
+    huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
 ) {
-    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests, buttonClicks).build()
+    val handlers = HandlerRepositoryBuilder().installGameHandlers(routeRequests, buttonClicks, chatInputs, huffman).build()
     val stage =
         ProtocolStage(
             gameCodecs,

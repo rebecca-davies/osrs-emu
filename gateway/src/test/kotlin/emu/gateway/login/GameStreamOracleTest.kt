@@ -190,7 +190,7 @@ class GameStreamOracleTest {
 
         val expected = buildList {
             add(49 to 4614)
-            addAll(listOf(67 to 1, 124 to 2, 75 to 1, 21 to 1, 73 to 1, 44 to 0, 97 to 3))
+            addAll(listOf(67 to 1, 124 to 2, 5 to 1, 75 to 1, 21 to 1, 73 to 1, 44 to 0, 97 to 3))
             add(12 to 6) // HAS_DISPLAY_NAME's high-bit base varp requires VARP_LARGE.
             add(93 to 2)
             add(47 to 3)

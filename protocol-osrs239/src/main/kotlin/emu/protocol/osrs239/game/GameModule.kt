@@ -6,6 +6,7 @@ import emu.protocol.osrs239.game.codec.AmbienceStopEncoder
 import emu.protocol.osrs239.game.codec.CamResetEncoder
 import emu.protocol.osrs239.game.codec.CamTargetPlayerEncoder
 import emu.protocol.osrs239.game.codec.ChatFilterSettingsEncoder
+import emu.protocol.osrs239.game.codec.ChatFilterPrivateEncoder
 import emu.protocol.osrs239.game.codec.HideLocOpsEncoder
 import emu.protocol.osrs239.game.codec.HideNpcOpsEncoder
 import emu.protocol.osrs239.game.codec.HideObjOpsEncoder
@@ -18,6 +19,8 @@ import emu.protocol.osrs239.game.codec.LogoutEncoder
 import emu.protocol.osrs239.game.codec.MessageGameEncoder
 import emu.protocol.osrs239.game.codec.MinimapToggleEncoder
 import emu.protocol.osrs239.game.codec.MoveGameClickDecoder
+import emu.protocol.osrs239.game.codec.MessagePublicDecoder
+import emu.protocol.osrs239.game.codec.SetChatFilterSettingsDecoder
 import emu.protocol.osrs239.game.codec.NpcInfoEncoder
 import emu.protocol.osrs239.game.codec.PacketGroupStartEncoder
 import emu.protocol.osrs239.game.codec.PlayerInfoEncoder
@@ -50,9 +53,12 @@ import org.koin.dsl.module
 val gameModule = module {
     single(named("game.moveGameClick")) { MoveGameClickDecoder } bind MessageDecoder::class
     single(named("game.ifButtonX")) { IfButtonXDecoder } bind MessageDecoder::class
+    single(named("game.messagePublic")) { MessagePublicDecoder } bind MessageDecoder::class
+    single(named("game.setChatFilterSettings")) { SetChatFilterSettingsDecoder } bind MessageDecoder::class
     single(named("game.logout")) { LogoutEncoder } bind MessageEncoder::class
     single(named("game.siteSettings")) { SiteSettingsEncoder } bind MessageEncoder::class
     single(named("game.chatFilterSettings")) { ChatFilterSettingsEncoder } bind MessageEncoder::class
+    single(named("game.chatFilterPrivate")) { ChatFilterPrivateEncoder } bind MessageEncoder::class
     single(named("game.hideNpcOps")) { HideNpcOpsEncoder } bind MessageEncoder::class
     single(named("game.hideLocOps")) { HideLocOpsEncoder } bind MessageEncoder::class
     single(named("game.hideObjOps")) { HideObjOpsEncoder } bind MessageEncoder::class

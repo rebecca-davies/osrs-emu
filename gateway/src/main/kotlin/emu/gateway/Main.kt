@@ -20,6 +20,8 @@ import emu.gateway.login.performLoginBlock
 import emu.gateway.login.performLoginInit
 import emu.gateway.login.runGameStage
 import emu.gateway.map.CacheCollisionMap
+import emu.gateway.game.loadHuffmanCodec
+import emu.compression.HuffmanCodec
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.ProtocolStage
@@ -34,6 +36,8 @@ import emu.persistence.AuthenticationResult
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRepository
 import emu.persistence.PostgresDatabase
+import emu.persistence.ChatAuditSink
+import emu.persistence.ChatAuditWriter
 import emu.persistence.persistenceModule
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.network.selector.SelectorManager
@@ -88,6 +92,7 @@ fun main() = runBlocking {
     val startupStarted = System.nanoTime()
     val store = FlatFileStore(cacheDir())
     val collisionMap = loadCollisionMap(store)
+    val huffman = loadHuffmanCodec(store)
     val cacheReady = System.nanoTime()
     val rsaKeyPair = loadServerRsaKeyPair()
     val bootstrapReady = System.nanoTime()
@@ -99,6 +104,9 @@ fun main() = runBlocking {
     val databaseReady = System.nanoTime()
     val accounts = koin.get<AccountService>()
     val players = koin.get<PlayerRepository>()
+    val chatAuditWriter = koin.get<ChatAuditWriter>()
+    val chatAudit: ChatAuditSink = chatAuditWriter
+    Runtime.getRuntime().addShutdownHook(Thread(chatAuditWriter::close, "chat-audit-shutdown"))
     val codecs = buildJs5CodecRepository()
     val gameCodecs = buildGameCodecRepository()
 
@@ -131,6 +139,8 @@ fun main() = runBlocking {
                     )
                 },
                 saveSession = players::saveSession,
+                huffman = huffman,
+                chatAudit = chatAudit,
             )
         }
     }
@@ -180,6 +190,8 @@ internal suspend fun handleConnection(
         AuthenticationResult.InvalidCredentials
     },
     saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit = { _, _, _, _ -> },
+    huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
+    chatAudit: ChatAuditSink = ChatAuditSink { true },
 ) {
     try {
         val r = conn.openReadChannel()
@@ -202,6 +214,8 @@ internal suspend fun handleConnection(
                     gameCodecs,
                     player = next.login.player,
                     saveSession = saveSession,
+                    huffman = huffman,
+                    chatAudit = chatAudit,
                     idleTimeout = gameIdleTimeout,
                     collisionMap = collisionMap,
                 )
