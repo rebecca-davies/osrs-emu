@@ -28,6 +28,31 @@ class CompositionBoundaryTest {
     }
 
     @Test
+    fun `host declares only direct capability dependencies`() {
+        val build = root.resolve("server/host/build.gradle.kts").readText()
+        val projectDependencies = PROJECT_DEPENDENCY.findAll(build).map { it.groupValues[1] }.toSet()
+
+        assertEquals(
+            setOf(
+                "server-gateway",
+                "server-session",
+                "server-js5",
+                "server-login",
+                "server-world",
+                "net-core",
+                "persistence-api",
+                "persistence-postgres",
+                "protocol-login",
+                "protocol-js5",
+                "protocol-game",
+                "cache",
+                "crypto",
+            ),
+            projectDependencies,
+        )
+    }
+
+    @Test
     fun `server host is the only executable runtime module`() {
         val builds = modules.associateWith { root.resolve("server/$it/build.gradle.kts").readText() }
 
@@ -122,3 +147,4 @@ class CompositionBoundaryTest {
 
 private val MAIN_FUNCTION = Regex("""\bfun\s+main\s*\(""")
 private val GATEWAY_PACKAGE = Regex("""^package\s+emu\.server\.gateway(?:\s|$)""", RegexOption.MULTILINE)
+private val PROJECT_DEPENDENCY = Regex("""project\(":([^"]+)"\)""")
