@@ -9,17 +9,17 @@
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 COPY . .
-# installDist produces server/app/build/install/server-app/{bin,lib}. We skip tests here — the
+# installDist produces server/host/build/install/server-host/{bin,lib}. We skip tests here — the
 # CI/CD `build` job already ran the full `./gradlew build` (tests) as the deploy gate;
 # this stage is packaging only.
-RUN ./gradlew :server-app:installDist --no-daemon --stacktrace
+RUN ./gradlew :server-host:installDist --no-daemon --stacktrace
 
 # ---- runtime stage ----
 FROM eclipse-temurin:21-jre AS runtime
 # Run as an unprivileged user (CLAUDE.md §9 hardening). 43594 is unprivileged so no root needed.
 RUN groupadd --system server && useradd --system --gid server --home-dir /opt/server server
 WORKDIR /opt/server
-COPY --from=build /src/server/app/build/install/server-app/ ./
+COPY --from=build /src/server/host/build/install/server-host/ ./
 
 # Point the server at the bind-mount locations. ServerConfig reads these env vars and falls
 # back to relative paths otherwise; here they must be absolute container paths.
@@ -28,4 +28,4 @@ ENV OSRS_CACHE_DIR=/data/cache-data \
 
 EXPOSE 43594
 USER server
-ENTRYPOINT ["/opt/server/bin/server-app"]
+ENTRYPOINT ["/opt/server/bin/server-host"]

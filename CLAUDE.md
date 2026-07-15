@@ -17,12 +17,12 @@ review.
    - `cache` — layered: `Store` leaf → `Container`(decompress/XTEA) → `Js5Index` → `Definition`.
      Each layer a small pure/testable unit, not one god-class. Build upper layers as needed (YAGNI).
    - `protocol/{login,js5,game}` — owns the rev-239 opcode/size tables and per-packet codecs.
-   - `server/gateway`, `server/login`, `server/js5`, `server/game` — peer services with no peer
+   - `server/gateway`, `server/login`, `server/js5`, `server/world` — peer services with no peer
      dependencies. Gateway accepts and routes sockets; each protocol service owns its stage.
    - Login owns authentication policy and bcrypt under `server/login/auth`; do not create a separate
      identity service. Persistence owns storage, not authentication decisions.
    - `server/session` — framework-free handoff contracts shared by the peer services.
-   - `server/app` — the only composition root, process entry point, DI owner and environment reader.
+   - `server/host` — the only composition root, process entry point, DI owner and environment reader.
    - Dependencies point *down* the stack; leaves never depend on services.
 4. **Codec-registry pattern** for packets: immutable message data classes + tiny
    `MessageDecoder`/`MessageEncoder` units bound into an immutable registry. Moving revisions =
@@ -41,7 +41,7 @@ review.
     so it scales to hundreds of packets.
 5c. **Registration is explicit and framework-free.** Protocols expose named repository factories;
     services constructor-inject handlers and connection-local state. Koin and environment reads
-    live only in `server/app`; peer services and `net-core` use ordinary Kotlin constructors.
+    live only in `server/host`; peer services and `net-core` use ordinary Kotlin constructors.
 5d. **Cohesion is enforced.** One primary responsibility per file. Reusable or independently
     changing logic gets a named subpackage and its own file. Never create `Util`, `Common`, or
     unrelated config companion-object dumps. Keep wire, handler, domain, persistence and

@@ -17,7 +17,7 @@ tasks.register("architectureCheck") {
                         ":protocol-login",
                     ),
                 ":server-js5" to setOf(":cache", ":crypto", ":net-core", ":protocol-js5"),
-                ":server-game" to
+                ":server-world" to
                     setOf(
                         ":server-session",
                         ":game",
@@ -99,7 +99,7 @@ tasks.register("architectureCheck") {
         val loginAuthForbidden =
             Regex(
                 "^import (java\\.sql|javax\\.sql|com\\.zaxxer|org\\.koin|emu\\.protocol|" +
-                    "emu\\.server\\.(game|js5|gateway)|emu\\.persistence\\.postgres)",
+                    "emu\\.server\\.(world|js5|gateway)|emu\\.persistence\\.postgres)",
                 RegexOption.MULTILINE,
             )
         loginAuth.walkTopDown()
@@ -116,7 +116,7 @@ tasks.register("architectureCheck") {
                 ":server-gateway" to "emu.server.gateway",
                 ":server-login" to "emu.server.login",
                 ":server-js5" to "emu.server.js5",
-                ":server-game" to "emu.server.game",
+                ":server-world" to "emu.server.world",
             )
         for ((path, ownPackage) in servicePackages) {
             val service = requireNotNull(findProject(path))
@@ -143,10 +143,10 @@ tasks.register("architectureCheck") {
                 check(!text.contains("package emu.server.gateway")) {
                     "gateway package is owned by :server-gateway: $source"
                 }
-                if (subproject.path != ":server-app" && !subproject.path.startsWith(":tools:")) {
-                    check(!text.contains("org.koin")) { "Koin is owned by :server-app: $source" }
+                if (subproject.path != ":server-host" && !subproject.path.startsWith(":tools:")) {
+                    check(!text.contains("org.koin")) { "Koin is owned by :server-host: $source" }
                     check(!text.contains("System.getenv")) {
-                        "environment reads are owned by :server-app: $source"
+                        "environment reads are owned by :server-host: $source"
                     }
                 }
             }
