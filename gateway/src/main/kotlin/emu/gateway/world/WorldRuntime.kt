@@ -21,11 +21,11 @@ private val logger = KotlinLogging.logger {}
 internal interface WorldParticipant {
     val playerId: Long
 
-    /** Runs this participant's work for [worldTick] on the world coroutine. */
-    suspend fun cycle(worldTick: Long): WorldParticipantResult
+    /** Runs non-suspending participant work for [worldTick] on the world coroutine. */
+    fun cycle(worldTick: Long): WorldParticipantResult
 
     /** Publishes the world's shared 30-second timing report to eligible participants. */
-    suspend fun reportCycleProfile(snapshot: CycleProfileSnapshot) = Unit
+    fun reportCycleProfile(snapshot: CycleProfileSnapshot) = Unit
 }
 
 internal enum class WorldParticipantResult {
@@ -159,7 +159,7 @@ internal class WorldRuntime(
         }
     }
 
-    private suspend fun runParticipantCycles(
+    private fun runParticipantCycles(
         active: MutableMap<Long, ActiveParticipant>,
         worldTick: Long,
     ) {
@@ -180,7 +180,7 @@ internal class WorldRuntime(
         removals.forEach { removeParticipant(active, it) }
     }
 
-    private suspend fun publishProfile(
+    private fun publishProfile(
         active: MutableMap<Long, ActiveParticipant>,
         worldTick: Long,
         cycleDurationNanos: Long,

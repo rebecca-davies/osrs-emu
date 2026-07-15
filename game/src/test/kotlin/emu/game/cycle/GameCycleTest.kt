@@ -1,6 +1,5 @@
 package emu.game.cycle
 
-import emu.game.runSuspending
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -15,7 +14,7 @@ class GameCycleTest {
                 .map { phase -> CycleProcess(phase) { tick -> calls += "$tick:$phase" } }
         val cycle = GameCycle(processes)
 
-        val processedTick = runSuspending { cycle.tick() }
+        val processedTick = cycle.tick()
 
         assertEquals(0L, processedTick)
         assertEquals(
@@ -36,7 +35,7 @@ class GameCycleTest {
                 ),
             )
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(listOf("first", "second"), calls)
     }
@@ -51,7 +50,7 @@ class GameCycleTest {
                 },
             )
 
-        val processedTick = runSuspending { cycle.tick(731L) }
+        val processedTick = cycle.tick(731L)
 
         assertEquals(731L, processedTick)
         assertEquals(List(CyclePhase.entries.size) { 731L }, observedTicks)
@@ -71,7 +70,7 @@ class GameCycleTest {
                 },
             )
 
-        assertFailsWith<IllegalStateException> { runSuspending { cycle.tick() } }
+        assertFailsWith<IllegalStateException> { cycle.tick() }
         assertEquals(CyclePhase.entries.takeWhile { it != CyclePhase.PLAYER }, calls)
         assertEquals(0L, cycle.currentTick)
     }

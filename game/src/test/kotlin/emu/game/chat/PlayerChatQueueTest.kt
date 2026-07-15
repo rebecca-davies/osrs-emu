@@ -1,6 +1,5 @@
 package emu.game.chat
 
-import emu.game.runSuspending
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -18,7 +17,7 @@ class PlayerChatQueueTest {
 
         assertTrue(queue.submit(message))
         assertFalse(queue.submit(ChatFilterInput(0, 0, 0)))
-        runSuspending { queue.cycleProcesses(actions).single().process(0) }
+        queue.cycleProcesses(actions).single().process(0)
 
         assertEquals(listOf<ChatInput>(message), handled)
     }

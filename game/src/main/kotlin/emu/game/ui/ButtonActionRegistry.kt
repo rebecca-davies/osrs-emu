@@ -1,8 +1,8 @@
 package emu.game.ui
 
-/** A game-cycle button action. The complete click is retained for item slots and alternate ops. */
+/** A non-suspending game-cycle action retaining the complete click for slots and alternate ops. */
 fun interface ButtonAction {
-    suspend fun handle(click: ButtonClick)
+    fun handle(click: ButtonClick)
 }
 
 /**
@@ -15,7 +15,7 @@ fun interface ButtonAction {
 class ButtonActionRegistry internal constructor(
     private val actions: Map<Int, ButtonAction>,
 ) {
-    suspend fun dispatch(click: ButtonClick): Boolean {
+    fun dispatch(click: ButtonClick): Boolean {
         val action = actions[click.packedComponent] ?: return false
         action.handle(click)
         return true

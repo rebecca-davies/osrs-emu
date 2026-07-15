@@ -1,7 +1,6 @@
 package emu.game.ui
 
 import emu.game.cycle.GameCycle
-import emu.game.runSuspending
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,7 +20,7 @@ class ButtonActionRegistryTest {
         assertFalse(clicks.submit(click), "full mailbox must apply back-pressure")
         assertTrue(handled.isEmpty(), "the network coroutine must not execute game actions")
 
-        runSuspending { cycle.tick() }
+        cycle.tick()
 
         assertEquals(listOf(click), handled)
     }
@@ -33,7 +32,7 @@ class ButtonActionRegistryTest {
         }
         val click = ButtonClick(149, 0, sub = 4, obj = 995, op = 5)
 
-        assertTrue(runSuspending { actions.dispatch(click) })
+        assertTrue(actions.dispatch(click))
 
         assertEquals(listOf(click), handled)
     }
@@ -41,7 +40,7 @@ class ButtonActionRegistryTest {
     @Test fun `unregistered components are rejected and duplicate registrations fail`() {
         val actions = buttonActions { onButton(182, 8) {} }
 
-        assertFalse(runSuspending { actions.dispatch(ButtonClick(182, 9, -1, -1, 1)) })
+        assertFalse(actions.dispatch(ButtonClick(182, 9, -1, -1, 1)))
         kotlin.test.assertFailsWith<IllegalArgumentException> {
             buttonActions {
                 onButton(182, 8) {}
