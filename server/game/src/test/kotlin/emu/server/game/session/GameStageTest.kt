@@ -65,7 +65,7 @@ class GameStageTest {
                     outboundCipher = IsaacCipher(IntArray(seeds.size) { seeds[it] + 50 }),
                     gameCodecs = buildGameCodecRepository(),
                     player = TEST_PLAYER,
-                    worldRuntime = world,
+                    worldSessions = world,
                     saveSession = {},
                     idleTimeout = 2.seconds,
                     maxTicks = 1,

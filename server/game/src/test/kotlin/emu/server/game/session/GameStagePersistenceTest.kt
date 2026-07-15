@@ -49,7 +49,7 @@ class GameStagePersistenceTest {
             outboundCipher = IsaacCipher(intArrayOf(51, 52, 53, 54)),
             gameCodecs = codecs,
             player = player,
-            worldRuntime = worldRuntime,
+            worldSessions = worldRuntime,
             saveSession = saves::add,
             idleTimeout = 1.seconds,
             maxTicks = 0,

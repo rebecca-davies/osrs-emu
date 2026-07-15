@@ -4,51 +4,23 @@ import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.CycleProfiler
 import emu.game.cycle.FixedRateTickSchedule
 import emu.game.cycle.GAME_TICK_MILLIS
+import emu.server.session.GameSessionToken
+import emu.server.session.ReservationDecision
+import emu.server.session.ReservationRejection
 import io.github.oshai.kotlinlogging.KotlinLogging
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
-import java.util.concurrent.atomic.AtomicBoolean
-import emu.server.session.ReservationRejection
-import emu.server.session.ReservationDecision
-import emu.server.session.GameSessionToken
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = KotlinLogging.logger {}
 private const val DEFAULT_MAX_PLAYER_INDEX = 2_047
-
-/** One logged-in player that is advanced by the server-owned [WorldRuntime]. */
-internal interface WorldParticipant {
-    val playerId: Long
-
-    /** Runs non-suspending participant work for [worldTick] on the world coroutine. */
-    fun cycle(worldTick: Long): WorldParticipantResult
-
-    /** Publishes the world's shared 30-second timing report to eligible participants. */
-    fun reportCycleProfile(snapshot: CycleProfileSnapshot) = Unit
-}
-
-internal enum class WorldParticipantResult {
-    KEEP,
-    REMOVE,
-}
-
-/**
- * Admission and removal signals for one submitted world participant.
- *
- * [playerIndex] completes with the atomically reserved index once the world owns the participant,
- * or null when admission is rejected. [removed] completes after an admitted index is released, or
- * immediately for a rejected registration.
- */
-internal class WorldRegistration internal constructor(
-    internal val playerIndex: Deferred<Int?>,
-    internal val removed: Deferred<Unit>,
-)
+private const val DEFAULT_COMMAND_CAPACITY = 1_024
 
 /**
  * The game service's single authoritative world clock.
@@ -63,7 +35,7 @@ internal class WorldRuntime(
     commandCapacity: Int = DEFAULT_COMMAND_CAPACITY,
     private val maxPlayerIndex: Int = DEFAULT_MAX_PLAYER_INDEX,
     private val profiler: CycleProfiler = CycleProfiler(),
-) {
+) : WorldReservationService, WorldSessionRegistry {
     private val intervalMillis = tickInterval.inWholeMilliseconds
     private val commands: Channel<Command>
     private val started = AtomicBoolean(false)
@@ -79,9 +51,9 @@ internal class WorldRuntime(
      * Submits [participant] for admission without allowing an unbounded producer backlog. A full
      * or closed mailbox rejects the registration immediately and completes both lifecycle signals.
      */
-    fun register(
+    override fun register(
         participant: WorldParticipant,
-        startActive: Boolean = true,
+        startActive: Boolean,
     ): WorldRegistration {
         val playerIndex = CompletableDeferred<Int?>()
         val removal = CompletableDeferred<Unit>()
@@ -95,22 +67,22 @@ internal class WorldRuntime(
     }
 
     /** Reserves a duplicate-checked player slot before login success is written. */
-    fun reserve(
+    override suspend fun reserve(
         playerId: Long,
         token: GameSessionToken,
-    ): Deferred<ReservationDecision> {
+    ): ReservationDecision {
         val result = CompletableDeferred<ReservationDecision>()
         if (commands.trySend(Command.Reserve(playerId, token, result)).isFailure) {
             result.complete(ReservationDecision.Rejected(ReservationRejection.UNAVAILABLE))
         }
-        return result
+        return result.await()
     }
 
     /** Attaches the game participant to a previously accepted reservation. */
-    fun attach(
+    override fun attach(
         token: GameSessionToken,
         participant: WorldParticipant,
-        startActive: Boolean = false,
+        startActive: Boolean,
     ): WorldRegistration {
         val playerIndex = CompletableDeferred<Int?>()
         val removal = CompletableDeferred<Unit>()
@@ -122,7 +94,7 @@ internal class WorldRuntime(
     }
 
     /** Releases a reservation that did not reach the game stage. */
-    suspend fun release(token: GameSessionToken) {
+    override suspend fun release(token: GameSessionToken) {
         try {
             commands.send(Command.Release(token))
         } catch (_: ClosedSendChannelException) {
@@ -131,7 +103,7 @@ internal class WorldRuntime(
     }
 
     /** Requests removal at the next world command boundary. */
-    suspend fun remove(playerId: Long) {
+    override suspend fun remove(playerId: Long) {
         try {
             commands.send(Command.Remove(playerId))
         } catch (_: ClosedSendChannelException) {
@@ -140,7 +112,7 @@ internal class WorldRuntime(
     }
 
     /** Makes a paused, admitted participant eligible for the next cycle. */
-    suspend fun activate(playerId: Long) {
+    override suspend fun activate(playerId: Long) {
         try {
             commands.send(Command.Activate(playerId))
         } catch (_: ClosedSendChannelException) {
@@ -404,34 +376,6 @@ internal class WorldRuntime(
         val playerId: Long,
         val playerIndex: Int,
     )
-
-    private companion object {
-        const val DEFAULT_COMMAND_CAPACITY = 1_024
-    }
-}
-
-/** Deterministically owns the bounded set of non-zero rev-239 player-array indexes. */
-private class PlayerIndexAllocator(maxPlayerIndex: Int) {
-    private val allocated = BooleanArray(maxPlayerIndex + 1)
-
-    /** Reserves and returns the lowest available player index, or null when every slot is in use. */
-    fun allocate(): Int? {
-        for (playerIndex in 1 until allocated.size) {
-            if (!allocated[playerIndex]) {
-                allocated[playerIndex] = true
-                return playerIndex
-            }
-        }
-        return null
-    }
-
-    /** Returns a previously reserved player index to the available set. */
-    fun release(playerIndex: Int) {
-        check(playerIndex in 1 until allocated.size && allocated[playerIndex]) {
-            "player index $playerIndex is not allocated"
-        }
-        allocated[playerIndex] = false
-    }
 }
 
 private fun millis(nanos: Long): Double = nanos / 1_000_000.0
