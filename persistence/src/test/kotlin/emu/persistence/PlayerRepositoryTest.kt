@@ -2,11 +2,19 @@ package emu.persistence
 
 import java.sql.SQLException
 import java.util.UUID
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 
 class PlayerRepositoryTest {
+    private var database: PostgresDatabase? = null
+
+    @AfterTest
+    fun closeDatabase() {
+        database?.close()
+    }
+
     @Test
     fun `first login creates an account and later logins authenticate case insensitively`() {
         val fixture = fixtureOrNull() ?: return
@@ -105,6 +113,7 @@ class PlayerRepositoryTest {
 
     private fun fixtureOrNull(): Fixture? {
         val database = PostgresDatabase(PostgresConfig.fromEnvironment())
+        this.database = database
         try {
             if (!database.connection { it.isValid(2) }) return null
         } catch (_: SQLException) {

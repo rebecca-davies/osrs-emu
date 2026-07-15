@@ -3,10 +3,11 @@ kotlin = "2.0.21"
 ktor = "3.0.1"
 commons-compress = "1.27.1"
 kotlinx-serialization = "1.7.3"
-slf4j = "2.0.16"
+slf4j = "2.0.17"
 logback = "1.5.12"
 kotlin-logging = "7.0.3"
 koin = "3.5.6"
+hikari = "7.1.0"
 postgresql = "42.7.11"
 bcrypt = "0.10.2"
 
@@ -19,6 +20,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
+hikari = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 bcrypt = { module = "at.favre.lib:bcrypt", version.ref = "bcrypt" }
 

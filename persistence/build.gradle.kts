@@ -1,5 +1,6 @@
 dependencies {
     implementation(libs.bcrypt)
+    implementation(libs.hikari)
     implementation(libs.koin.core)
     implementation(libs.kotlin.logging)
     implementation(libs.postgresql)
