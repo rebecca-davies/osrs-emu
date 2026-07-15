@@ -1,5 +1,6 @@
 package emu.server.session
 
+/** Opaque key joining login reservation and world handoff. */
 @JvmInline
 value class GameSessionToken(val value: String) {
     init {
@@ -7,6 +8,7 @@ value class GameSessionToken(val value: String) {
     }
 }
 
+/** Reason a world reservation was rejected. */
 enum class ReservationRejection {
     DUPLICATE,
     CAPACITY,

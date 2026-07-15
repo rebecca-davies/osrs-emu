@@ -6,11 +6,13 @@ import emu.transport.message.IncomingMessage
 import emu.transport.message.OutgoingMessage
 import emu.transport.prot.Prot
 
+/** Decodes one framed inbound protocol message. */
 interface MessageDecoder<T : IncomingMessage> {
     val prot: Prot
     fun decode(buf: JagexBuffer): T
 }
 
+/** Encodes one outbound protocol message body. */
 interface MessageEncoder<T : OutgoingMessage> {
     val prot: Prot
 

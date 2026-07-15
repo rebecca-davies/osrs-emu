@@ -5,6 +5,7 @@ import java.security.KeyPairGenerator
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 
+/** RSA modulus and exponents used by the login protocol. */
 data class RsaKeyPair(
     val modulus: BigInteger,
     val publicExp: BigInteger,
@@ -15,6 +16,7 @@ data class RsaKeyPair(
         "RsaKeyPair(modulusBits=${modulus.bitLength()}, publicExp=$publicExp, privateExp=<redacted>)"
 }
 
+/** RSA operations required by login block encryption and decryption. */
 object Rsa {
     fun crypt(data: ByteArray, mod: BigInteger, exp: BigInteger): ByteArray =
         BigInteger(1, data).modPow(exp, mod).toByteArray()

@@ -32,6 +32,7 @@ data class VarbitType(
         get() = if (bits.count() == 32) 0xFFFF_FFFFL else (1L shl bits.count()) - 1L
 }
 
+/** One player-variable value ready for synchronization or persistence. */
 data class VarpValue(val id: Int, val value: Int)
 
 /** Immutable set of varps understood by this game revision/content build. */

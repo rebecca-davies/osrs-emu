@@ -1,5 +1,6 @@
 package emu.buffer
 
+/** Mutable byte-array cursor implementing Jagex primitive encodings. */
 class JagexBuffer(val array: ByteArray, var pos: Int = 0) {
 
     fun readableBytes(): Int = array.size - pos

@@ -17,6 +17,7 @@ subprojects {
         dependsOn(
             rootProject.tasks.named("architectureCheck"),
             rootProject.tasks.named("declarationQualityCheck"),
+            rootProject.tasks.named("structuralQualityCheck"),
         )
     }
 

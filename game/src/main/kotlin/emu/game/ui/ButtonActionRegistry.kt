@@ -19,9 +19,11 @@ class ButtonActionRegistry internal constructor(
     }
 }
 
+/** Builds an immutable button-action registry. */
 fun buttonActions(init: ButtonActionRegistryBuilder.() -> Unit): ButtonActionRegistry =
     ButtonActionRegistryBuilder().apply(init).build()
 
+/** Builds a button registry while rejecting duplicate component bindings. */
 class ButtonActionRegistryBuilder {
     private val actions = LinkedHashMap<Int, ButtonAction>()
 

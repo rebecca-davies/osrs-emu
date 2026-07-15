@@ -7,6 +7,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
+/** Cache storage and optional RSA material loaded at process startup. */
 data class RuntimeAssets(
     val store: Store,
     val rsaKeyPair: RsaKeyPair?,

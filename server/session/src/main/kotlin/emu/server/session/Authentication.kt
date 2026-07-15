@@ -1,5 +1,6 @@
 package emu.server.session
 
+/** Privilege established during account authentication. */
 enum class AccountPrivilege {
     PLAYER,
     MODERATOR,
@@ -20,12 +21,14 @@ data class AuthenticatedPrincipal(
     }
 }
 
+/** Result of validating account credentials. */
 sealed interface AuthenticationDecision {
     data class Authenticated(val principal: AuthenticatedPrincipal) : AuthenticationDecision
 
     data object Rejected : AuthenticationDecision
 }
 
+/** Result of reserving the authenticated account in a world. */
 sealed interface AuthenticationCompletion {
     data class Accepted(val playerIndex: Int) : AuthenticationCompletion {
         init {
@@ -36,6 +39,7 @@ sealed interface AuthenticationCompletion {
     data class Rejected(val reason: AuthenticationRejection) : AuthenticationCompletion
 }
 
+/** Client-visible reason an authenticated session cannot enter the world. */
 enum class AuthenticationRejection {
     ALREADY_ONLINE,
     WORLD_FULL,

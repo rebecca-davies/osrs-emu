@@ -6,6 +6,7 @@ import emu.transport.prot.Prot
 import emu.protocol.osrs239.game.message.Logout
 import emu.protocol.osrs239.game.prot.GameServerProt
 
+/** Encodes the empty rev-239 logout packet body. */
 object LogoutEncoder : MessageEncoder<Logout> {
     override val prot: Prot = GameServerProt.LOGOUT
     override val messageType = Logout::class.java

@@ -2,6 +2,7 @@ package emu.transport.codec
 
 import emu.transport.message.OutgoingMessage
 
+/** Resolves immutable protocol codecs by opcode or message type. */
 class CodecRepository internal constructor(
     private val decodersByOpcode: Map<Int, MessageDecoder<*>>,
     private val encodersByType: Map<Class<out OutgoingMessage>, MessageEncoder<*>>,
@@ -10,6 +11,7 @@ class CodecRepository internal constructor(
     fun encoder(type: Class<out OutgoingMessage>): MessageEncoder<*>? = encodersByType[type]
 }
 
+/** Builds a codec repository while rejecting duplicate keys. */
 class CodecRepositoryBuilder {
     private val decoders = HashMap<Int, MessageDecoder<*>>()
     private val encoders = HashMap<Class<out OutgoingMessage>, MessageEncoder<*>>()

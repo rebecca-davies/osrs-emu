@@ -3,6 +3,7 @@ package emu.server.gateway
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 
+/** Handles a connection after first-opcode classification. */
 fun interface GatewayRouteHandler {
     suspend fun handle(read: ByteReadChannel, write: ByteWriteChannel)
 }

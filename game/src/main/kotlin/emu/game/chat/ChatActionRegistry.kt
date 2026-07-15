@@ -21,6 +21,7 @@ class ChatActionRegistry internal constructor(
 fun chatActions(init: ChatActionRegistryBuilder.() -> Unit): ChatActionRegistry =
     ChatActionRegistryBuilder().apply(init).build()
 
+/** Builds a chat registry while rejecting duplicate action bindings. */
 class ChatActionRegistryBuilder {
     private var publicMessage: ChatAction<PublicChatInput>? = null
     private var filterSettings: ChatAction<ChatFilterInput>? = null

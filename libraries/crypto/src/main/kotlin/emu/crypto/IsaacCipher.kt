@@ -1,5 +1,6 @@
 package emu.crypto
 
+/** ISAAC stream cipher used to obfuscate protocol opcodes. */
 class IsaacCipher(seed: IntArray) : StreamCipher {
     private val rsl = IntArray(256)
     private val mem = IntArray(256)

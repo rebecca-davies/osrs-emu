@@ -5,6 +5,7 @@ import emu.game.cycle.CycleProcess
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
+/** Result of submitting a destination to a bounded route mailbox. */
 enum class RouteRequestAdmission {
     QUEUED,
     REPLACED,

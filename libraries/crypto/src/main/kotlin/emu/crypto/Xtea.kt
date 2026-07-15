@@ -1,5 +1,6 @@
 package emu.crypto
 
+/** Applies 32-round XTEA block encryption and decryption. */
 object Xtea {
     private const val DELTA = -0x61c88647 // 0x9E3779B9
     private const val ROUNDS = 32

@@ -1,0 +1,20 @@
+# Existing structural debt. Remove entries as code is improved; never add entries casually.
+constructor-parameters|cache/src/main/kotlin/emu/cache/def/ItemDefinition.kt|ItemDefinition|56>7
+constructor-parameters|cache/src/main/kotlin/emu/cache/def/NpcDefinition.kt|NpcDefinition|44>7
+constructor-parameters|cache/src/main/kotlin/emu/cache/def/ObjectDefinition.kt|ObjectDefinition|48>7
+constructor-parameters|cache/src/main/kotlin/emu/cache/index/Js5Index.kt|GroupEntry|8>7
+constructor-parameters|libraries/transport/src/main/kotlin/emu/transport/pipeline/ProtocolStage.kt|ProtocolStage|8>7
+constructor-parameters|persistence/api/src/main/kotlin/emu/persistence/character/PlayerRecord.kt|PlayerRecord|8>7
+constructor-parameters|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerAppearance.kt|PlayerAppearance|9>7
+constructor-parameters|server/host/src/main/kotlin/emu/server/host/ServerConfig.kt|ServerConfig|10>7
+constructor-parameters|server/world/src/main/kotlin/emu/server/world/InProcessWorldServer.kt|InProcessWorldServer|11>7
+constructor-parameters|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|GameLoop|16>7
+function-parameters|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|runGameStage|16>10
+large-file|cache/src/main/kotlin/emu/cache/def/codec/ObjectDefCodec.kt|319
+large-file|server/world/src/main/kotlin/emu/server/world/runtime/WorldRuntime.kt|382
+session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|6
+session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|9
+session-player-constructions|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|4
+session-player-imports|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|2
+session-player-imports|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|5
+session-player-imports|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|1

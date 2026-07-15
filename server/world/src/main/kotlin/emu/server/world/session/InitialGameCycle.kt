@@ -82,6 +82,7 @@ internal fun initialChatFilters(varps: PlayerVarps = initialPlayerVarps()): List
         ChatFilterPrivate(varps[PlayerVarpTypes.PRIVATE_CHAT_FILTER]),
     )
 
+/** Selects the compact or full rev-239 representation for a player variable. */
 internal fun VarpValue.toProtocolMessage(): OutgoingMessage =
     if (value in Byte.MIN_VALUE..Byte.MAX_VALUE) VarpSmall(id, value) else VarpLarge(id, value)
 
