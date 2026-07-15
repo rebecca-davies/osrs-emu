@@ -1,6 +1,6 @@
 dependencies {
     implementation(project(":server-session"))
-    implementation(project(":game"))
+    api(project(":game"))
     implementation(project(":persistence-api"))
     implementation(project(":transport"))
     implementation(project(":protocol-game"))
