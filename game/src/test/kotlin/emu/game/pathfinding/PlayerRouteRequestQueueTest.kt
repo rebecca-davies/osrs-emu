@@ -4,30 +4,28 @@ import emu.game.cycle.GameCycle
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class PlayerRouteRequestQueueTest {
     @Test
-    fun `bounded mailbox rejects input beyond capacity`() {
-        val requests = PlayerRouteRequestQueue(capacity = 1)
+    fun `size one mailbox replaces an older destination with the latest click`() {
+        val requests = PlayerRouteRequestQueue()
 
-        assertTrue(requests.submit(1, 0, keyCombination = 0))
-        assertFalse(requests.submit(2, 0, keyCombination = 0))
+        assertEquals(RouteRequestAdmission.QUEUED, requests.submit(0, 3, keyCombination = 0))
+        assertEquals(RouteRequestAdmission.REPLACED, requests.submit(3, 0, keyCombination = 0))
+        assertEquals(RouteRequestMetrics(submitted = 2, replaced = 1, rejected = 0, processed = 0), requests.metrics())
     }
 
     @Test
-    fun `route requests drain in client-input before player movement`() {
+    fun `only the latest destination searches once in client-input before movement`() {
         val movement = PlayerMovement(Tile(0, 0), OpenCollisionMap)
-        val requests = PlayerRouteRequestQueue(maxPerCycle = 1)
+        val requests = PlayerRouteRequestQueue()
         val cycle = GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses())
-        requests.submit(1, 0, keyCombination = 0)
+        requests.submit(0, 3, keyCombination = 0)
         requests.submit(3, 0, keyCombination = 0)
 
         cycle.tick()
         assertEquals(Tile(1, 0), movement.position)
-        cycle.tick()
-
-        assertEquals(Tile(2, 0), movement.position)
+        assertEquals(1, requests.metrics().processed)
     }
 
     @Test
@@ -60,10 +58,11 @@ class PlayerRouteRequestQueueTest {
         val movement = PlayerMovement(Tile(0, 0), OpenCollisionMap)
         val requests = PlayerRouteRequestQueue()
         val cycle = GameCycle(requests.cycleProcesses(movement) + movement.cycleProcesses())
-        requests.submit(0x4000, 0, keyCombination = 0)
+        assertEquals(RouteRequestAdmission.REJECTED, requests.submit(0x4000, 0, keyCombination = 0))
 
         cycle.tick()
 
         assertEquals(Tile(0, 0), movement.position)
+        assertEquals(RouteRequestMetrics(submitted = 1, replaced = 0, rejected = 1, processed = 0), requests.metrics())
     }
 }

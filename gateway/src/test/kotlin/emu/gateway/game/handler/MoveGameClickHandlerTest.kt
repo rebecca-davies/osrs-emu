@@ -1,6 +1,7 @@
 package emu.gateway.game.handler
 
 import emu.game.pathfinding.PlayerRouteRequestSink
+import emu.game.pathfinding.RouteRequestAdmission
 import emu.netcore.pipeline.HandlerContext
 import emu.protocol.osrs239.game.message.MoveGameClick
 import kotlinx.coroutines.runBlocking
@@ -13,7 +14,7 @@ class MoveGameClickHandlerTest {
         var received: Triple<Int, Int, Int>? = null
         val sink = PlayerRouteRequestSink { x, z, key ->
             received = Triple(x, z, key)
-            true
+            RouteRequestAdmission.QUEUED
         }
         val handler = MoveGameClickHandler(sink)
 

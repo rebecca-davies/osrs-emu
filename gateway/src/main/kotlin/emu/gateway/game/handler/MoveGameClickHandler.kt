@@ -1,9 +1,13 @@
 package emu.gateway.game.handler
 
 import emu.game.pathfinding.PlayerRouteRequestSink
+import emu.game.pathfinding.RouteRequestAdmission
 import emu.netcore.pipeline.HandlerContext
 import emu.netcore.pipeline.PacketHandler
 import emu.protocol.osrs239.game.message.MoveGameClick
+import io.github.oshai.kotlinlogging.KotlinLogging
+
+private val logger = KotlinLogging.logger {}
 
 /**
  * Admits a decoded click to the bounded network-to-world mailbox.
@@ -15,6 +19,10 @@ class MoveGameClickHandler(
     private val routeRequests: PlayerRouteRequestSink,
 ) : PacketHandler<MoveGameClick> {
     override suspend fun handle(message: MoveGameClick, ctx: HandlerContext) {
-        routeRequests.submit(message.x, message.z, message.keyCombination)
+        when (routeRequests.submit(message.x, message.z, message.keyCombination)) {
+            RouteRequestAdmission.QUEUED -> Unit
+            RouteRequestAdmission.REPLACED -> logger.debug { "coalesced pending player route request" }
+            RouteRequestAdmission.REJECTED -> logger.warn { "rejected player route request outside world bounds" }
+        }
     }
 }
