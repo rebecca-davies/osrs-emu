@@ -17,7 +17,7 @@ class HandlerRepositoryBuilder {
     private val handlers = HashMap<Class<out IncomingMessage>, PacketHandler<*>>()
 
     fun <T : IncomingMessage> bind(type: Class<T>, handler: PacketHandler<T>): HandlerRepositoryBuilder {
-        require(handlers.put(type, handler) == null) { "duplicate handler for $type" }
+        require(handlers.putIfAbsent(type, handler) == null) { "duplicate handler for $type" }
         return this
     }
 

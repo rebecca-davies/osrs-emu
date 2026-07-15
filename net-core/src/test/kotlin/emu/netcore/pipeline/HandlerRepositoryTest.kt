@@ -53,6 +53,19 @@ class HandlerRepositoryTest {
         }
     }
 
+    @Test fun `rejected duplicate leaves the original handler intact`() = runBlocking {
+        val seen = mutableListOf<String>()
+        val builder = HandlerRepositoryBuilder()
+            .bind(Foo::class.java) { message, _ -> seen += "original:${message.n}" }
+
+        assertFailsWith<IllegalArgumentException> {
+            builder.bind(Foo::class.java) { message, _ -> seen += "replacement:${message.n}" }
+        }
+
+        builder.build().dispatch(Foo(7), RecordingContext())
+        assertEquals(listOf("original:7"), seen)
+    }
+
     @Test fun `a handler can write output through the context`() = runBlocking {
         val repo = HandlerRepositoryBuilder()
             .bind(Foo::class.java, PacketHandler<Foo> { message, ctx -> ctx.write(Echo(message.n * 2)) })

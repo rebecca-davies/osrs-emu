@@ -8,6 +8,7 @@ import emu.netcore.message.OutgoingMessage
 import emu.netcore.prot.Prot
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 
@@ -18,10 +19,19 @@ private object PingDecoder : MessageDecoder<Ping> {
     override val prot = Prot(7, 1)
     override fun decode(buf: JagexBuffer) = Ping(buf.readUByte())
 }
+private object ReplacementPingDecoder : MessageDecoder<Ping> {
+    override val prot = Prot(7, 1)
+    override fun decode(buf: JagexBuffer) = Ping(buf.readUByte() + 1)
+}
 private object PongEncoder : MessageEncoder<Pong> {
     override val prot = Prot(9, 1)
     override val messageType = Pong::class.java
     override fun encode(cipher: StreamCipher, message: Pong): ByteArray = byteArrayOf(message.n.toByte())
+}
+private object ReplacementPongEncoder : MessageEncoder<Pong> {
+    override val prot = Prot(10, 1)
+    override val messageType = Pong::class.java
+    override fun encode(cipher: StreamCipher, message: Pong): ByteArray = byteArrayOf((message.n + 1).toByte())
 }
 
 class CodecRepositoryTest {
@@ -48,5 +58,25 @@ class CodecRepositoryTest {
         @Suppress("UNCHECKED_CAST")
         val bytes = (repo.encoder(Pong::class.java) as MessageEncoder<Pong>).encode(NopStreamCipher, Pong(5))
         assertEquals(5, bytes[0].toInt())
+    }
+
+    @Test fun `rejected duplicate decoder leaves the original binding intact`() {
+        val builder = CodecRepositoryBuilder().bindDecoder(PingDecoder)
+
+        assertFailsWith<IllegalArgumentException> {
+            builder.bindDecoder(ReplacementPingDecoder)
+        }
+
+        assertSame(PingDecoder, builder.build().decoder(PingDecoder.prot.opcode))
+    }
+
+    @Test fun `rejected duplicate encoder leaves the original binding intact`() {
+        val builder = CodecRepositoryBuilder().bindEncoder(PongEncoder)
+
+        assertFailsWith<IllegalArgumentException> {
+            builder.bindEncoder(ReplacementPongEncoder)
+        }
+
+        assertSame(PongEncoder, builder.build().encoder(Pong::class.java))
     }
 }
