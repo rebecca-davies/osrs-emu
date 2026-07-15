@@ -21,6 +21,7 @@ import emu.gateway.login.performLoginInit
 import emu.gateway.login.runGameStage
 import emu.gateway.map.CacheCollisionMap
 import emu.gateway.game.loadHuffmanCodec
+import emu.gateway.world.WorldRuntime
 import emu.compression.HuffmanCodec
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
@@ -109,6 +110,8 @@ fun main() = runBlocking {
     Runtime.getRuntime().addShutdownHook(Thread(chatAuditWriter::close, "chat-audit-shutdown"))
     val codecs = buildJs5CodecRepository()
     val gameCodecs = buildGameCodecRepository()
+    val worldRuntime = WorldRuntime()
+    launch(Dispatchers.Default) { worldRuntime.run() }
 
     val selector = SelectorManager(Dispatchers.IO)
     val server = aSocket(selector).tcp().bind(InetSocketAddress("0.0.0.0", 43594))
@@ -129,6 +132,7 @@ fun main() = runBlocking {
                 codecs,
                 gameCodecs,
                 rsaKeyPair,
+                worldRuntime,
                 koin = koin,
                 collisionMap = collisionMap,
                 authenticate = { username, password ->
@@ -182,6 +186,7 @@ internal suspend fun handleConnection(
     codecs: CodecRepository,
     gameCodecs: CodecRepository,
     rsaKeyPair: RsaKeyPair?,
+    worldRuntime: WorldRuntime,
     handshakeTimeout: Duration = HANDSHAKE_TIMEOUT,
     gameIdleTimeout: Duration = GAME_IDLE_TIMEOUT,
     koin: Koin = koinApplication { modules(gatewayModule(store, rsaKeyPair)) }.koin,
@@ -213,6 +218,7 @@ internal suspend fun handleConnection(
                     next.login.outbound,
                     gameCodecs,
                     player = next.login.player,
+                    worldRuntime = worldRuntime,
                     saveSession = saveSession,
                     huffman = huffman,
                     chatAudit = chatAudit,

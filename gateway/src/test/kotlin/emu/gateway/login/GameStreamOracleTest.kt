@@ -4,6 +4,7 @@ import emu.buffer.JagexBuffer
 import emu.crypto.IsaacCipher
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
+import emu.gateway.world.WorldRuntime
 import emu.protocol.osrs239.buildCodecRepository
 import emu.protocol.osrs239.game.gameModule
 import io.ktor.network.selector.SelectorManager
@@ -22,6 +23,7 @@ import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
@@ -133,6 +135,8 @@ class GameStreamOracleTest {
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
+        val worldRuntime = WorldRuntime(tickInterval = 1.milliseconds)
+        val worldJob = launch { worldRuntime.run() }
 
         val serverJob = launch {
             val conn = server.accept()
@@ -152,9 +156,9 @@ class GameStreamOracleTest {
                 runGameStage(
                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                     player = ciphers.player,
+                    worldRuntime = worldRuntime,
                     saveSession = { _, _, _, _ -> },
                     idleTimeout = 10.seconds,
-                    tickInterval = 1.milliseconds,
                     maxTicks = ORACLE_TICKS,
                 )
                 w.flush()
@@ -184,6 +188,7 @@ class GameStreamOracleTest {
 
         val stream = readUntilEof(cr)
         serverJob.join()
+        worldJob.cancelAndJoin()
         client.close()
         server.close()
         selector.close()

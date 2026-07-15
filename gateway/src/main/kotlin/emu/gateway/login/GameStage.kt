@@ -16,6 +16,7 @@ import emu.gateway.game.playerButtonActions
 import emu.gateway.game.installGameHandlers
 import emu.gateway.game.PlayerChatState
 import emu.gateway.game.playerChatActions
+import emu.gateway.world.WorldRuntime
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.OutboundSession
@@ -33,6 +34,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,19 +55,20 @@ private val logger = KotlinLogging.logger {}
  */
 val GAME_IDLE_TIMEOUT: Duration = 30.seconds
 
-/** Lumbridge, the fixed milestone-3 spawn tile for every newly logged-in local player. */
+/** Lumbridge, the default tile for a newly created account. */
 internal const val SPAWN_PLANE = 0
 internal const val SPAWN_X = 3222
 internal const val SPAWN_Y = 3218
 
 /**
- * Milestone-5 game stage: puts the client in-world and then keeps it there.
+ * Authenticated game stage: puts the client in-world and keeps its session lifecycle synchronized
+ * with the shared world.
  *
- * On entry it sends [sendInitialGameCycle]: the Lumbridge rebuild plus the capture-shaped atomic
- * entity/player/NPC/zone group and neutral rev-239 frame/account state. It then runs two sibling
- * coroutines for the connection's lifetime — the network↔game split the research doc mandates:
- *  - a **tick loop** ([GameLoop]) that drains route requests, moves the player, and sends an atomic
- *    player/NPC group every 600ms; this steady cycle stream keeps the client in-game.
+ * After inactive world admission it sends [sendInitialGameCycle]: the Lumbridge rebuild plus the
+ * required atomic entity/player/NPC/zone group and neutral rev-239 frame/account state. It then
+ * activates the player while a sibling coroutine drains this connection's inbound protocol stream:
+ *  - the **world runtime** advances [GameLoop] from the same authoritative 600ms clock as every
+ *    other player and sends the atomic player/NPC heartbeat that keeps the client in-game.
  *  - an **inbound protocol stage** ([drainGameInbound]) that frames all rev-239 client packets,
  *    dispatches implemented messages, and enforces the idle timeout.
  *
@@ -77,19 +80,18 @@ internal const val SPAWN_Y = 3218
  * [gameCodecs] registry — so each advances the outbound ISAAC keystream exactly once for its opcode
  * and this function never hand-rolls opcode/body bytes (CLAUDE.md §1/§9).
  *
- * [tickInterval] and [maxTicks] default to production values (600ms, unbounded); tests inject a
- * short interval and a small tick cap to drive a handful of heartbeats without a real-time sleep.
+ * [maxTicks] is a per-session test seam; production leaves it unbounded.
  */
-suspend fun runGameStage(
+internal suspend fun runGameStage(
     read: ByteReadChannel,
     write: ByteWriteChannel,
     inboundCipher: IsaacCipher,
     outboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     player: PlayerRecord,
+    worldRuntime: WorldRuntime,
     saveSession: (Long, PlayerPosition, Long, Map<Int, Int>) -> Unit,
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
-    tickInterval: Duration = TICK_INTERVAL,
     maxTicks: Int = Int.MAX_VALUE,
     collisionMap: CollisionMap = OpenCollisionMap,
     huffman: HuffmanCodec = HuffmanCodec(ByteArray(256) { 8 }),
@@ -112,8 +114,8 @@ suspend fun runGameStage(
     val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
     val chatActions = playerChatActions(player.id, player.rank, playerVarps, chatState, chatAudit, huffman)
     val gameLoop = GameLoop(
-        session,
-        tickInterval,
+        playerId = player.id,
+        session = session,
         playerMovement = movement,
         routeRequests = routeRequests,
         buttonClicks = buttonClicks,
@@ -123,49 +125,59 @@ suspend fun runGameStage(
         chatActions = chatActions,
         chatState = chatState,
         sessionControl = sessionControl,
-        profileLabel = "player ${player.id}",
         onProfileReport = { snapshot ->
             adminCycleReport(player.rank, snapshot)?.let { session.send(it) }
         },
+        maxCycles = maxTicks,
     )
     try {
         coroutineScope {
-            val appearance =
-                if (System.getenv("EMU_NO_APPEARANCE") == "1") null
-                else playerAppearance(player.displayName)
-            sendInitialGameCycle(
-                session = session,
-                spawnPlane = player.position.plane,
-                spawnX = player.position.x,
-                spawnY = player.position.y,
-                localPlayerIndex = LOCAL_PLAYER_INDEX,
-                appearance = appearance,
-                accountVarps = initialAccountVarps(playerVarps),
-                chatFilters = initialChatFilters(playerVarps),
-            )
-            playerVarps.markClientSynchronized()
-
-            // Diagnostic toggle (milestone-5 investigation): EMU_SKIP_TICKS=1 sends the initial scene and
-            // then goes silent (no per-tick PLAYER_INFO), to isolate whether the post-login drop is caused
-            // by a per-tick packet or the login/rebuild itself.
-            val skipTicks = System.getenv("EMU_SKIP_TICKS") == "1"
-            if (skipTicks) {
-                logger.info { "game stage: EMU_SKIP_TICKS=1 — sending scene only, no per-tick heartbeat" }
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout, chatInputs, huffman)
+            val registration = worldRuntime.register(gameLoop, startActive = false)
+            if (!registration.admitted.await()) {
+                logger.warn { "game stage: rejected duplicate or overloaded session for player ${player.id}" }
                 return@coroutineScope
             }
+            try {
+                sendInitialGameCycle(
+                    session = session,
+                    spawnPlane = player.position.plane,
+                    spawnX = player.position.x,
+                    spawnY = player.position.y,
+                    localPlayerIndex = LOCAL_PLAYER_INDEX,
+                    appearance = playerAppearance(player.displayName),
+                    accountVarps = initialAccountVarps(playerVarps),
+                    chatFilters = initialChatFilters(playerVarps),
+                )
+                playerVarps.markClientSynchronized()
+                worldRuntime.activate(player.id)
 
-            val tickJob = launch { gameLoop.run(maxTicks) }
-            val readJob = launch {
-                drainGameInbound(read, write, inboundCipher, gameCodecs, routeRequests, buttonClicks, idleTimeout, chatInputs, huffman)
-                // The client is gone / idle: stop the heartbeat so this connection can close.
-                tickJob.cancel()
+                val readJob = launch {
+                    try {
+                        drainGameInbound(
+                            read,
+                            write,
+                            inboundCipher,
+                            gameCodecs,
+                            routeRequests,
+                            buttonClicks,
+                            idleTimeout,
+                            chatInputs,
+                            huffman,
+                        )
+                    } finally {
+                        if (!registration.removed.isCompleted) {
+                            withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                        }
+                    }
+                }
+
+                registration.removed.await()
+                readJob.cancelAndJoin()
+            } finally {
+                if (!registration.removed.isCompleted) {
+                    withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                }
             }
-
-            // Complete when the heartbeat ends — either the reader cancelled it (client gone / idle) or it
-            // hit its tick cap (tests) — then stop the reader if it is still blocked awaiting a byte.
-            tickJob.join()
-            readJob.cancel()
         }
     } finally {
         val elapsedSeconds = ((System.nanoTime() - sessionStarted) / NANOS_PER_SECOND).coerceAtLeast(0)

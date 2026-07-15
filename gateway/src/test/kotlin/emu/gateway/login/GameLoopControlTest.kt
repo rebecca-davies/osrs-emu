@@ -15,13 +15,12 @@ import emu.protocol.osrs239.game.gameModule
 import emu.protocol.osrs239.game.prot.GameServerProt
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close
-import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.readRemaining
+import kotlinx.io.readByteArray
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.time.Duration.Companion.milliseconds
 
 class GameLoopControlTest {
     @Test fun `logout button sends clean logout packet and ends the cycle loop`() = runBlocking {
@@ -34,8 +33,8 @@ class GameLoopControlTest {
         val actions = playerButtonActions(movement, varps, control)
         val loop =
             GameLoop(
+                playerId = 1,
                 session = OutboundSession(codecs, NopStreamCipher, output),
-                tickInterval = 1.milliseconds,
                 playerMovement = movement,
                 routeRequests = PlayerRouteRequestQueue(),
                 buttonClicks = buttons,
@@ -45,12 +44,12 @@ class GameLoopControlTest {
             )
         buttons.submit(ButtonClick(182, 8, -1, -1, 1))
 
-        loop.run(maxTicks = 5)
+        loop.cycle(worldTick = 0)
         output.close()
 
         assertEquals(
             listOf(GameServerProt.LOGOUT.opcode.toByte()),
-            output.readRemaining().readBytes().toList(),
+            output.readRemaining().readByteArray().toList(),
         )
     }
 
@@ -64,8 +63,8 @@ class GameLoopControlTest {
         val actions = playerButtonActions(movement, varps, control)
         val loop =
             GameLoop(
+                playerId = 1,
                 session = OutboundSession(codecs, NopStreamCipher, output),
-                tickInterval = 1.milliseconds,
                 playerMovement = movement,
                 routeRequests = PlayerRouteRequestQueue(),
                 buttonClicks = buttons,
@@ -75,9 +74,9 @@ class GameLoopControlTest {
             )
         buttons.submit(ButtonClick(160, 28, -1, -1, 1))
 
-        loop.run(maxTicks = 1)
+        loop.cycle(worldTick = 0)
         output.close()
-        val wire = output.readRemaining().readBytes()
+        val wire = output.readRemaining().readByteArray()
 
         assertEquals(
             listOf(GameServerProt.VARP_SMALL.opcode.toByte(), 129.toByte(), 45, 0),

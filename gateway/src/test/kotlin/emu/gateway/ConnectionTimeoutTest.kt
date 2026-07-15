@@ -2,6 +2,7 @@ package emu.gateway
 
 import emu.cache.store.FlatFileStore
 import emu.netcore.codec.CodecRepositoryBuilder
+import emu.gateway.world.WorldRuntime
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -35,7 +36,15 @@ class ConnectionTimeoutTest {
 
         val serverJob = launch {
             val conn = server.accept()
-            handleConnection(conn, store, codecs, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
+            handleConnection(
+                conn,
+                store,
+                codecs,
+                codecs,
+                rsaKeyPair = null,
+                worldRuntime = WorldRuntime(),
+                handshakeTimeout = 100.milliseconds,
+            )
         }
 
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
@@ -62,7 +71,15 @@ class ConnectionTimeoutTest {
 
         val serverJob = launch {
             val conn = server.accept()
-            handleConnection(conn, store, codecs, codecs, rsaKeyPair = null, handshakeTimeout = 100.milliseconds)
+            handleConnection(
+                conn,
+                store,
+                codecs,
+                codecs,
+                rsaKeyPair = null,
+                worldRuntime = WorldRuntime(),
+                handshakeTimeout = 100.milliseconds,
+            )
         }
 
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))

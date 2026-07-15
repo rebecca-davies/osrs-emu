@@ -42,6 +42,23 @@ class GameCycleTest {
     }
 
     @Test
+    fun `an authoritative world tick is passed through to every phase`() {
+        val observedTicks = mutableListOf<Long>()
+        val cycle =
+            GameCycle(
+                CyclePhase.entries.map { phase ->
+                    CycleProcess(phase) { tick -> observedTicks += tick }
+                },
+            )
+
+        val processedTick = runSuspending { cycle.tick(731L) }
+
+        assertEquals(731L, processedTick)
+        assertEquals(List(CyclePhase.entries.size) { 731L }, observedTicks)
+        assertEquals(732L, cycle.currentTick)
+    }
+
+    @Test
     fun `failed phase stops the cycle without advancing its clock`() {
         val calls = mutableListOf<CyclePhase>()
         val cycle =

@@ -18,7 +18,6 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
-import kotlin.time.Duration.Companion.milliseconds
 
 class GameLoopMapRebuildTest {
     @Test
@@ -34,8 +33,8 @@ class GameLoopMapRebuildTest {
         routeRequests.submit(3256, 3218, 0)
 
         GameLoop(
+            playerId = 1,
             session = OutboundSession(codecs, NopStreamCipher, output),
-            tickInterval = 1.milliseconds,
             playerMovement = movement,
             routeRequests = routeRequests,
             buildArea = buildArea,
@@ -43,7 +42,7 @@ class GameLoopMapRebuildTest {
             buttonActions = playerButtonActions(movement, playerVarps, sessionControl),
             playerVarps = playerVarps,
             sessionControl = sessionControl,
-        ).run(maxTicks = 1)
+        ).cycle(worldTick = 0)
 
         val rebuildPacket = ByteArray(9)
         output.readFully(rebuildPacket)

@@ -2,10 +2,7 @@ package emu.gateway.login
 
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
-import emu.game.cycle.CycleProfiler
 import emu.game.cycle.CycleProfileSnapshot
-import emu.game.cycle.FixedRateTickSchedule
-import emu.game.cycle.GAME_TICK_MILLIS
 import emu.game.cycle.GameCycle
 import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.MovementUpdate
@@ -20,6 +17,8 @@ import emu.game.chat.PlayerChatQueue
 import emu.game.varp.PlayerVarps
 import emu.gateway.game.PlayerSessionControl
 import emu.gateway.game.PlayerChatState
+import emu.gateway.world.WorldParticipant
+import emu.gateway.world.WorldParticipantResult
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.Logout
@@ -30,32 +29,23 @@ import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
 import emu.protocol.osrs239.game.message.SetNpcUpdateOrigin
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlinx.coroutines.delay
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.milliseconds
 
 private val logger = KotlinLogging.logger {}
 
 /**
- * The authentic OSRS server cycle length: one game tick is 600ms (LostCity `World.TICKRATE`; see
- * `2026-07-14-lostcity-cycle-queues-blurite-pathfinding.md`).
- */
-val TICK_INTERVAL: Duration = GAME_TICK_MILLIS.milliseconds
-
-/**
- * The per-connection game tick loop — the milestone-5 seed of the multi-player `World` tick.
+ * One player's protocol-facing work within the shared world tick.
  *
  * A freshly logged-in client only stays in-game while the server keeps feeding it a PLAYER_INFO
- * (GPI) packet **every** cycle. [run] fires a cycle immediately and then every [tickInterval],
- * drift-corrected so the average cadence holds even when a cycle runs long.
+ * (GPI) packet **every** cycle. Scheduling belongs exclusively to
+ * [emu.gateway.world.WorldRuntime]; this class cannot create an independent player clock.
  *
- * It is a single-connection slice of the real `World`: [GameCycle] drains bounded client input,
- * advances movement in the player phase, flushes update info in client output, then clears
- * per-cycle state. [session] reuses the shared registry/ISAAC write path verbatim.
+ * [GameCycle] drains this player's bounded input, advances movement in the player phase, flushes
+ * update info in client output, then clears per-cycle state. [session] reuses the shared
+ * registry/ISAAC write path verbatim.
  */
 internal class GameLoop(
+    override val playerId: Long,
     private val session: OutboundSession,
-    private val tickInterval: Duration = TICK_INTERVAL,
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
@@ -67,11 +57,16 @@ internal class GameLoop(
     chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
     private val chatState: PlayerChatState = PlayerChatState(),
     private val sessionControl: PlayerSessionControl,
-    private val profileLabel: String = "connection",
     private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
+    private val maxCycles: Int = Int.MAX_VALUE,
     cycleProcesses: List<CycleProcess> = emptyList(),
-) {
+) : WorldParticipant {
     private val playerInfoState = LocalPlayerInfoState()
+    private var processedCycles = 0
+
+    init {
+        require(maxCycles >= 0) { "maxCycles must be non-negative" }
+    }
 
     private val cycle =
         GameCycle(
@@ -124,62 +119,24 @@ internal class GameLoop(
         logger.debug { "game loop: sent atomic world group + SERVER_TICK_END for tick $tickIndex" }
     }
 
-    /**
-     * Runs one cycle immediately, then re-schedules every [tickInterval] with drift correction
-     * (`delay = interval - work - accumulated_drift`, floored at 0 — the LostCity/void formula): if
-     * a tick blows the budget the next fires immediately rather than letting error accumulate.
-     *
-     * Loops until cancelled (client disconnect / idle timeout stops it from outside — see
-     * [runGameStage]) or until [maxTicks] ticks have run. [maxTicks] exists only so tests can drive
-     * a bounded number of heartbeats without a real-time sleep; production leaves it unbounded.
-     */
-    suspend fun run(maxTicks: Int = Int.MAX_VALUE) {
-        val intervalMs = System.getenv("EMU_TICK_INTERVAL_MS")?.toLongOrNull() ?: tickInterval.inWholeMilliseconds
-        val initialMs = System.getenv("EMU_TICK_INITIAL_MS")?.toLongOrNull() ?: 0L
-        require(maxTicks >= 0) { "maxTicks must be non-negative" }
-        val schedule = FixedRateTickSchedule(intervalMs)
-        val profiler = CycleProfiler()
-        if (initialMs > 0) delay(initialMs)
-        var ticks = 0
-        while (ticks < maxTicks) {
-            val start = System.currentTimeMillis()
-            val profileStart = System.nanoTime()
-            try {
-                cycle.tick()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                logger.warn(e) { "game loop: tick #$ticks send FAILED (server-side write error) — this closes the connection" }
-                throw e
-            }
-            val profileFinished = System.nanoTime()
-            val profile = profiler.record(profileFinished - profileStart, profileFinished)
-            if (profile.lagSpike) {
-                logger.warn {
-                    "game loop: $profileLabel tick #$ticks exceeded ${GAME_TICK_MILLIS}ms budget " +
-                        "(${millis(profileFinished - profileStart)}ms)"
-                }
-            }
-            profile.snapshot?.let { snapshot ->
-                logger.info {
-                    "game loop: $profileLabel ${millis(snapshot.windowNanos)}ms profile: " +
-                        "cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
-                        "max=${millis(snapshot.maxNanos)}ms, lagSpikes=${snapshot.lagSpikes}"
-                }
-                onProfileReport(snapshot)
-            }
-            ticks++
-            if (sessionControl.logoutRequested) break
-            delay(schedule.delayAfterTick(start, System.currentTimeMillis()))
-        }
+    /** Advances this player exactly once using the world's authoritative tick number. */
+    override suspend fun cycle(worldTick: Long): WorldParticipantResult {
+        if (processedCycles >= maxCycles) return WorldParticipantResult.REMOVE
+        cycle.tick(worldTick)
+        processedCycles++
+        val remove = sessionControl.logoutRequested || processedCycles >= maxCycles
         logger.debug {
-            if (sessionControl.logoutRequested) "game loop: logout requested; stopping"
-            else "game loop: reached tick cap $maxTicks; stopping"
+            when {
+                sessionControl.logoutRequested -> "game loop: player $playerId requested logout"
+                processedCycles >= maxCycles -> "game loop: player $playerId reached test cycle cap $maxCycles"
+                else -> "game loop: advanced player $playerId on world tick $worldTick"
+            }
         }
+        return if (remove) WorldParticipantResult.REMOVE else WorldParticipantResult.KEEP
     }
-}
 
-private fun millis(nanos: Long): Double = nanos / 1_000_000.0
+    override suspend fun reportCycleProfile(snapshot: CycleProfileSnapshot) = onProfileReport(snapshot)
+}
 
 /** Keeps protocol-specific direction encoding outside the game simulation module. */
 private fun MovementUpdate.toProtocolMovement(): ProtocolPlayerMovement? =

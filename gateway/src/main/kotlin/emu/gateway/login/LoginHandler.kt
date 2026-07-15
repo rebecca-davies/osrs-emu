@@ -30,11 +30,11 @@ data class AuthenticatedGameLogin(
  * The local player's index into the client's 2048-slot player array (`client.di`,
  * docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §2/§4a). This is the one
  * load-bearing field in the login-info trailer ([LOGIN_SUCCESS_TRAILER]) — the game stage's
- * initial `RebuildLogin`/`PlayerInfo` packets describe this same local player. Milestone-3 has no
- * persisted account/slot table, so every connection is simply assigned index 1 (a valid non-zero
- * slot; index 0 is conventionally reserved).
+ * initial `RebuildLogin`/`PlayerInfo` packets describe this same local player. Until external-player
+ * GPI and a world player-index allocator are implemented, every client uses index 1 for its own
+ * isolated local-player view (index 0 is conventionally reserved).
  */
-val LOCAL_PLAYER_INDEX: Int = System.getenv("EMU_LOCAL_INDEX")?.toIntOrNull() ?: 1
+const val LOCAL_PLAYER_INDEX: Int = 1
 
 /**
  * Value the client requires in the byte after response code 2. This is not the number of account
@@ -65,9 +65,8 @@ private const val DI_OFFSET = 7
  * smart opcode (one byte for REBUILD_NORMAL) and u16 body length. Adding three account-info pad
  * bytes here makes the login state parse those zeros as the first packet header and advances the
  * inbound ISAAC stream before the real rebuild.
- * Every field zero-fills for milestone-3 (auto-accept, no persisted account) except `di`, which
- * carries [LOCAL_PLAYER_INDEX] — the client needs this to index its own player array and draw the
- * avatar the game stage's `PlayerInfo` packet describes.
+ * Unimplemented account identifiers zero-fill. Rights come from the authenticated account rank,
+ * and `di` carries [LOCAL_PLAYER_INDEX] so the client can index and draw its local avatar.
  */
 val LOGIN_SUCCESS_TRAILER: ByteArray = loginSuccessTrailer(PlayerRank.PLAYER)
 
@@ -92,9 +91,9 @@ private fun buildLoginInfoBlock(rank: PlayerRank): ByteArray {
  * caller (see `Main.kt`'s dispatch, mirroring how `performLoginInit`/`performHandshake` own their
  * own opcode's payload). Reads the u16 frame length + that many payload bytes, decrypts/parses it
  * via [LoginBlockParser], and:
- *  - on success: verifies the echoed server key (warns but proceeds regardless — milestone-3
- *    auto-accepts any credentials, see the plan), builds the inbound/outbound ISAAC ciphers, and
- *    replies response code 2 — followed by [LOGIN_SUCCESS_TRAILER] only on a FRESH login.
+ *  - on success: checks the echoed server key, authenticates the parsed credentials, builds the
+ *    inbound/outbound ISAAC ciphers, and replies response code 2 — followed by
+ *    [LOGIN_SUCCESS_TRAILER] only on a FRESH login.
  *  - on failure: logs only structural diagnostics, never the credential-bearing packet bytes.
  *
  * [reconnect] MUST be true for an op-18 block: the decompiled client's response-2 dispatch routes a

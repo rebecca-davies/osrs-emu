@@ -4,6 +4,7 @@ import emu.buffer.JagexBuffer
 import emu.crypto.IsaacCipher
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
+import emu.gateway.world.WorldRuntime
 import emu.protocol.osrs239.buildCodecRepository
 import emu.protocol.osrs239.game.gameModule
 import emu.protocol.osrs239.game.prot.GameServerProt
@@ -21,6 +22,7 @@ import java.io.File
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinApplication
@@ -106,6 +108,8 @@ class GameStageTest {
         val selector = SelectorManager(Dispatchers.IO)
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
+        val worldRuntime = WorldRuntime(tickInterval = 20.milliseconds)
+        val worldJob = launch { worldRuntime.run() }
 
         val serverJob = launch {
             val conn = server.accept()
@@ -126,9 +130,9 @@ class GameStageTest {
                                 runGameStage(
                                     r, w, ciphers.inbound, ciphers.outbound, gameCodecs,
                                     player = ciphers.player,
+                                    worldRuntime = worldRuntime,
                                     saveSession = { _, _, _, _ -> },
                                     idleTimeout = 2.seconds,
-                                    tickInterval = 20.milliseconds,
                                     maxTicks = 1,
                                 )
                             }
@@ -187,7 +191,8 @@ class GameStageTest {
         assertEquals(3222, x)
         assertEquals(3218, y)
 
-        serverJob.cancel()
+        serverJob.join()
+        worldJob.cancelAndJoin()
         client.close(); server.close(); selector.close()
     }
 }

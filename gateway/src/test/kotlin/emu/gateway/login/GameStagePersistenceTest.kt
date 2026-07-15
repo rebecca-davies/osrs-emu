@@ -1,6 +1,7 @@
 package emu.gateway.login
 
 import emu.crypto.IsaacCipher
+import emu.gateway.world.WorldRuntime
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRecord
 import emu.protocol.osrs239.buildCodecRepository
@@ -10,6 +11,7 @@ import io.ktor.utils.io.close
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.cancelAndJoin
 import org.koin.dsl.koinApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -39,6 +41,8 @@ class GameStagePersistenceTest {
         }
         data class Save(val id: Long, val position: PlayerPosition, val seconds: Long, val varps: Map<Int, Int>)
         val saves = mutableListOf<Save>()
+        val worldRuntime = WorldRuntime(tickInterval = 1.milliseconds)
+        val worldJob = launch { worldRuntime.run() }
 
         runGameStage(
             read = inbound,
@@ -47,11 +51,12 @@ class GameStagePersistenceTest {
             outboundCipher = IsaacCipher(intArrayOf(51, 52, 53, 54)),
             gameCodecs = codecs,
             player = player,
+            worldRuntime = worldRuntime,
             saveSession = { id, position, seconds, varps -> saves += Save(id, position, seconds, varps) },
             idleTimeout = 1.seconds,
-            tickInterval = 1.milliseconds,
             maxTicks = 0,
         )
+        worldJob.cancelAndJoin()
 
         outbound.close()
         sink.join()
