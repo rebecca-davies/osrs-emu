@@ -47,7 +47,6 @@ multiple|server/game/src/main/kotlin/emu/server/game/player/PlayerGameState.kt|t
 multiple|server/game/src/main/kotlin/emu/server/game/session/GameLoop.kt|type:GameLoop,type:LocalPlayerInfoState
 multiple|server/game/src/main/kotlin/emu/server/game/session/GameStage.kt|val:GAME_IDLE_TIMEOUT,val:SPAWN_PLANE,val:SPAWN_X,val:SPAWN_Y,function:runGameStage,function:initialPlayerMovement,function:drainGameInbound
 multiple|server/game/src/main/kotlin/emu/server/game/session/InitialGameCycle.kt|val:WELCOME_MESSAGE,function:loginNoticeMessages,function:playerAppearance,function:initialStatMessages,function:initialPlayerVarps,function:initialAccountVarps,function:initialChatFilters,function:toProtocolMessage,function:adminCycleReport,function:initialWorldGroup,function:initialFrameSubInterfaces,function:initialFrameMessages,function:initialGameCycle
-multiple|server/game/src/main/kotlin/emu/server/game/world/WorldRuntime.kt|type:WorldParticipant,type:WorldParticipantResult,type:WorldRegistration,type:WorldRuntime
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayConfig.kt|val:DEFAULT_GATEWAY_PORT,type:GatewayConfig
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayRoutes.kt|type:GatewayRouteHandler,type:GatewayRoutes
 multiple|server/login/src/main/kotlin/emu/server/login/wire/LoginSuccessTrailer.kt|val:LOGIN_SUCCESS_TRAILER_LENGTH,val:LOGIN_RIGHTS_TRAILER_OFFSET,val:LOGIN_PLAYER_MOD_TRAILER_OFFSET,function:loginSuccessTrailer

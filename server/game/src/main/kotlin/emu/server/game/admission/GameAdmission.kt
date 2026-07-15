@@ -1,7 +1,7 @@
 package emu.server.game.admission
 
 import emu.persistence.character.PlayerRecord
-import emu.server.game.world.WorldRuntime
+import emu.server.game.world.WorldReservationService
 import emu.server.session.AuthenticatedPrincipal
 import emu.server.session.GameSessionToken
 import emu.server.session.ReservationDecision
@@ -14,7 +14,7 @@ import kotlinx.coroutines.withContext
 
 /** Preloads characters and owns reservation permits until their game sessions finish. */
 internal class GameAdmission(
-    private val world: WorldRuntime,
+    private val worldReservations: WorldReservationService,
     capacity: Int,
     private val loadCharacter: suspend (Long) -> PlayerRecord?,
 ) {
@@ -38,9 +38,9 @@ internal class GameAdmission(
         val token = GameSessionToken(UUID.randomUUID().toString())
         val decision =
             try {
-                world.reserve(principal.accountId, token).await()
+                worldReservations.reserve(principal.accountId, token)
             } catch (failure: Throwable) {
-                withContext(NonCancellable) { world.release(token) }
+                withContext(NonCancellable) { worldReservations.release(token) }
                 permits.release()
                 throw failure
             }
@@ -49,7 +49,7 @@ internal class GameAdmission(
     }
 
     suspend fun release(token: GameSessionToken) {
-        world.release(token)
+        worldReservations.release(token)
         if (prepared.remove(token) != null) permits.release()
     }
 

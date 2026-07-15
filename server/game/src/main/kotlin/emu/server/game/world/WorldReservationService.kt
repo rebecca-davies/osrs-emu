@@ -1,0 +1,11 @@
+package emu.server.game.world
+
+import emu.server.session.GameSessionToken
+import emu.server.session.ReservationDecision
+
+/** Reserves and releases world capacity before the login service reports success. */
+internal interface WorldReservationService {
+    suspend fun reserve(playerId: Long, token: GameSessionToken): ReservationDecision
+
+    suspend fun release(token: GameSessionToken)
+}

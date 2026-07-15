@@ -19,7 +19,7 @@ import emu.server.game.player.PlayerVarpTypes
 import emu.server.game.network.installGameHandlers
 import emu.server.game.player.playerButtonActions
 import emu.server.game.player.playerChatActions
-import emu.server.game.world.WorldRuntime
+import emu.server.game.world.WorldSessionRegistry
 import emu.server.session.GameSessionToken
 import emu.netcore.codec.CodecRepository
 import emu.netcore.pipeline.HandlerRepositoryBuilder
@@ -71,7 +71,7 @@ internal suspend fun runGameStage(
     outboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     player: PlayerRecord,
-    worldRuntime: WorldRuntime,
+    worldSessions: WorldSessionRegistry,
     saveSession: (PlayerSessionSave) -> Unit,
     idleTimeout: Duration = GAME_IDLE_TIMEOUT,
     maxTicks: Int = Int.MAX_VALUE,
@@ -122,8 +122,8 @@ internal suspend fun runGameStage(
     try {
         coroutineScope {
             val admitted =
-                reservationToken?.let { worldRuntime.attach(it, gameLoop, startActive = false) }
-                    ?: worldRuntime.register(gameLoop, startActive = false)
+                reservationToken?.let { worldSessions.attach(it, gameLoop, startActive = false) }
+                    ?: worldSessions.register(gameLoop, startActive = false)
             val localPlayerIndex = admitted.playerIndex.await()
             if (localPlayerIndex == null) {
                 logger.warn { "game stage: rejected duplicate, overloaded, or full session for player ${player.id}" }
@@ -149,7 +149,7 @@ internal suspend fun runGameStage(
                             "(world group + full neutral frame/state)"
                     }
                     playerVarps.markClientSynchronized()
-                    worldRuntime.activate(player.id)
+                    worldSessions.activate(player.id)
 
                     val readJob = launch {
                         try {
@@ -166,7 +166,7 @@ internal suspend fun runGameStage(
                             )
                         } finally {
                             if (!admitted.removed.isCompleted) {
-                                withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                                withContext(NonCancellable) { worldSessions.remove(player.id) }
                             }
                         }
                     }
@@ -186,7 +186,7 @@ internal suspend fun runGameStage(
                 }
             } finally {
                 if (!admitted.removed.isCompleted) {
-                    withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                    withContext(NonCancellable) { worldSessions.remove(player.id) }
                 }
             }
         }

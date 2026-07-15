@@ -117,7 +117,7 @@ class GameStreamOracleTest {
                     outboundCipher = IsaacCipher(IntArray(seeds.size) { seeds[it] + 50 }),
                     gameCodecs = gameCodecs,
                     player = TEST_PLAYER,
-                    worldRuntime = worldRuntime,
+                    worldSessions = worldRuntime,
                     saveSession = {},
                     idleTimeout = 10.seconds,
                     maxTicks = ORACLE_TICKS,
