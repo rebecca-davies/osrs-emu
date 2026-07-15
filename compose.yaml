@@ -12,8 +12,6 @@ services:
       POSTGRES_DB: osrsemu
       POSTGRES_USER: osrsemu
       POSTGRES_PASSWORD: osrsemu-dev
-    ports:
-      - "127.0.0.1:54330:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U osrsemu -d osrsemu"]
       interval: 1s
@@ -26,7 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: osrsemu-gateway:latest
+    image: "osrsemu-gateway:${OSRS_IMAGE_TAG:-dev}"
     container_name: osrsemu-gateway
     # Survive host reboots / daemon restarts, but do not fight a manual `stop`.
     restart: unless-stopped
@@ -34,11 +32,12 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "43594:43594"
+      - "127.0.0.1:${OSRS_GATEWAY_PORT:-43594}:43594"
     environment:
       OSRS_CACHE_DIR: /data/cache-data
-      OSRS_SERVER_RSA_PROPERTIES: /data/server-rsa.properties
-      # Reach Postgres by its compose service name on the INTERNAL port (not the host 54330).
+      OSRS_SERVER_RSA_PROPERTIES: /run/secrets/server_rsa
+      # Reach Postgres by its Compose service name. PostgreSQL is deliberately not published to
+      # the host, avoiding collisions with development/test databases.
       OSRS_DATABASE_URL: jdbc:postgresql://postgres:5432/osrsemu
       OSRS_DATABASE_USER: osrsemu
       OSRS_DATABASE_PASSWORD: osrsemu-dev
@@ -47,17 +46,22 @@ services:
       # the image. Sources MUST be absolute host paths when deploying via act (the host Docker
       # daemon resolves them); scripts/deploy.sh sets these to the real host paths and validates them.
       - ${OSRS_CACHE_DIR:-./cache-data}:/data/cache-data:ro
-      - ${OSRS_SERVER_RSA_PROPERTIES:-./server-rsa.properties}:/data/server-rsa.properties:ro
+    secrets:
+      - server_rsa
     healthcheck:
       # Passively confirm the gateway holds a LISTEN socket on 43594 (0xAA4A) by reading the
       # kernel socket tables (state 0A = LISTEN, remote all-zeros). Checks /proc/net/tcp and
       # /proc/net/tcp6 (the gateway binds an IPv6 wildcard). Deliberately does NOT open a client
       # connection — a bare connect-then-close would make the gateway log a read-EOF ERROR each probe.
       test: ["CMD-SHELL", "grep -qiE '^[[:space:]]*[0-9]+:[[:space:]]+[0-9A-F]+:AA4A[[:space:]]+[0-9A-F]+:0000[[:space:]]+0A' /proc/net/tcp /proc/net/tcp6"]
-      interval: 30s
+      interval: 2s
       timeout: 5s
-      retries: 5
-      start_period: 20s
+      retries: 15
+      start_period: 5s
 
 volumes:
   postgres-data:
+
+secrets:
+  server_rsa:
+    file: ${OSRS_SERVER_RSA_PROPERTIES:-./server-rsa.properties}

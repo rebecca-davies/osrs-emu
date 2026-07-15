@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Git does not install repository hooks automatically. Run scripts/install-local-hooks.sh once.
+set -u
+
+ROOT="$(git rev-parse --show-toplevel)"
+if [ "$(git -C "$ROOT" branch --show-current)" != "main" ]; then
+  exit 0
+fi
+
+LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/osrsemu/local-cd.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+nohup "$ROOT/scripts/run-local-cd.sh" >>"$LOG_FILE" 2>&1 &
+echo "osrsemu local CD started in background; log: $LOG_FILE"

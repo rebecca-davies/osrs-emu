@@ -1,7 +1,7 @@
 name: CD
 
-# Continuous deployment, gated to `main`. First re-runs the full build + test (the deploy
-# gate), then deploys the gateway to the LOCAL single host.
+# Continuous deployment, gated to `main`. First re-runs the full build + test, then deploys only
+# from the labelled self-hosted runner (or an explicit local `act` invocation).
 #
 # What "deploy" means here (see scripts/deploy.sh + CI.md):
 #   - Build the gateway Docker image and (re)start ONLY the `osrsemu-gateway` container.
@@ -45,10 +45,15 @@ jobs:
       - name: Build and test (deploy gate)
         run: ./gradlew build --no-daemon --stacktrace
 
+      - name: Verify deployment configuration
+        run: ./scripts/verify-deployment-config.sh
+
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    # The deploy controls the target host's Docker daemon and runtime assets. A GitHub-hosted
+    # runner can never satisfy that contract; `act` maps this label to its local runner image.
+    runs-on: [self-hosted, linux, osrsemu]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

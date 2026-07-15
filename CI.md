@@ -1,12 +1,13 @@
-# Local CI/CD with nektos/act
+# CI/CD and local deployment
 
-This repo runs its GitHub Actions workflows **locally** with
-[`nektos/act`](https://github.com/nektos/act), which executes the workflows inside Docker
-containers on this machine — no GitHub-hosted runners, no pushing required.
+The same GitHub Actions workflows run remotely or locally through
+[`nektos/act`](https://github.com/nektos/act).
 
 - **CI** (`.github/workflows/ci.yml`) — build + test on every push / pull request.
-- **CD** (`.github/workflows/cd.yml`) — on merge to `main`: build + test, then deploy the
-  gateway to the local single host as a Docker container.
+- **CD build gate** (`.github/workflows/cd.yml`) — runs on pushes to `main`.
+- **CD deploy** — runs only on a runner labelled `self-hosted`, `linux`, and `osrsemu`, because it
+  requires this host's Docker socket and runtime assets. A GitHub-hosted runner cannot deploy here.
+- **Local CD** (`scripts/run-local-cd.sh`) — explicitly runs that same workflow through `act`.
 
 Everything below is designed so `./gradlew build` stays the source of truth and the
 RuneLite client is **never** launched by automation (see [Safety](#safety-boundaries)).
@@ -76,13 +77,13 @@ defined by [`Dockerfile`](Dockerfile) + [`compose.yaml`](compose.yaml) and drive
 1. Builds the gateway image (multi-stage: Gradle `:gateway:installDist` → a JRE-only
    runtime image). No source, cache dump, RSA key, or client tree is baked in
    (`.dockerignore` enforces this).
-2. `docker compose -p osrsemu up -d --build` — brings up the `osrsemu` stack: the
-   `postgres` service and the `gateway` container (the gateway `depends_on` postgres being
-   healthy), publishing gateway host port **43594** and postgres **127.0.0.1:54330**.
-3. Bind-mounts the cache dump and RSA key **read-only** from the host into the gateway
-   container (`/data/cache-data`, `/data/server-rsa.properties`), which `Main.kt` reads via
-   `OSRS_CACHE_DIR` / `OSRS_SERVER_RSA_PROPERTIES`; the gateway reaches Postgres over the
-   compose network at `OSRS_DATABASE_URL=jdbc:postgresql://postgres:5432/osrsemu`.
+2. Preserves the previous deployed image as `osrsemu-gateway:rollback`, then builds an image tagged
+   with the source commit rather than mutable `latest`.
+3. Brings up the internal PostgreSQL service and gateway. Only the gateway is published, on
+   **127.0.0.1:43594** by default; PostgreSQL stays inside the Compose network and cannot collide
+   with development databases.
+4. Mounts the cache read-only and the RSA key as a Compose secret, then waits for gateway health.
+   A timeout or unhealthy container fails deployment and prints the gateway logs.
 
 Running it directly on the host (the paths must point at a location that has `cache-data/`
 and `server-rsa.properties` — e.g. the main checkout):
@@ -99,6 +100,20 @@ Run from a checkout that already contains the assets and the defaults suffice:
 ./scripts/deploy.sh
 ```
 
+The RSA key must be mode `0600`; deployment rejects group/world-accessible key files.
+
+### Automatic local deployment after merging to main
+
+Git never installs repository hooks by itself. Opt this checkout in once:
+
+```bash
+./scripts/install-local-hooks.sh
+```
+
+The tracked `post-merge` hook starts `scripts/run-local-cd.sh` only when the checked-out branch is
+`main`. It runs in the background, serializes deployments with a lock, and writes its log to
+`~/.local/state/osrsemu/local-cd.log`. Merges in feature worktrees do not deploy.
+
 Manage the deployed container:
 
 ```bash
@@ -107,28 +122,17 @@ docker compose -p osrsemu -f compose.yaml logs -f gateway
 docker compose -p osrsemu -f compose.yaml down     # stop + remove
 ```
 
-### Running the CD deploy via act
+### Running local CD explicitly
 
 `act` runs each job in a container, so the `deploy` job reaches the host Docker daemon
-via **docker-out-of-docker**: `act` mounts the host `/var/run/docker.sock` into the runner
-by default, so `docker compose` inside the job creates the gateway container as a sibling
-on the host. Because the **host** daemon resolves bind-mount sources, the asset paths must
-be **absolute host paths**, passed through the environment. The `deploy` job is also gated
-`if: github.ref == 'refs/heads/main'`, so pass a `main` ref event to exercise it:
+via **docker-out-of-docker**: `act` mounts the host `/var/run/docker.sock` into the runner.
+The wrapper validates that it is running from `main`, supplies a main push event, passes absolute
+host asset paths, and prevents overlapping runs:
 
 ```bash
-# event payload that presents a main ref
-printf '{ "ref": "refs/heads/main" }' > /tmp/push-main.json
-
-act push -W .github/workflows/cd.yml -j deploy \
-  --eventpath /tmp/push-main.json \
-  --env OSRS_ASSETS_ON_HOST=1 \
-  --env OSRS_CACHE_DIR=/abs/host/path/cache-data \
-  --env OSRS_SERVER_RSA_PROPERTIES=/abs/host/path/server-rsa.properties
+./scripts/run-local-cd.sh
 ```
 
-- `OSRS_ASSETS_ON_HOST=1` tells `deploy.sh` the asset paths are host paths not visible
-  inside the runner, so it skips its local existence check and trusts them.
 - `act -j deploy` also runs the `build` job first (it is a `needs:` dependency), so this
   single command exercises the full **build + test then deploy** pipeline.
 
@@ -155,8 +159,8 @@ These are enforced, not aspirational (CLAUDE.md §12/§12a/§14):
   `client/`, `cache-data/`, `server-rsa.properties`, build output, and `.git`. The cache
   dump and RSA key are bind-mounted **read-only** at runtime instead of copied in.
 - **Isolation from other containers.** Every `docker compose` action is scoped to the
-  `osrsemu-gateway` Compose project, so the unrelated Postgres stacks on this box
+  `osrsemu` Compose project, so the unrelated Postgres stacks on this box
   (`rotmgemu`, `uber_scraper`, `uber-tracker`, `osrsemu-save`) are never stopped,
   modified, or removed.
-- **RSA private key stays server-side.** It is gitignored and only ever bind-mounted from
-  the host; it is never committed and never enters an image layer.
+- **RSA private key stays server-side.** It is gitignored, must be host mode `0600`, and is mounted
+  as a Compose secret; it is never committed and never enters an image layer.

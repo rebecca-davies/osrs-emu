@@ -29,8 +29,9 @@ server-rsa.properties
 # bust the (expensive) source COPY + compile layer.
 Dockerfile
 .dockerignore
-compose.yml
+compose.yaml
 scripts
+.githooks
 .gitignore
 gradlew.bat
 CLAUDE.md

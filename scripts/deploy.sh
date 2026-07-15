@@ -2,8 +2,8 @@
 # Deploy the osrsemu gateway to the local single host: (re)build its Docker image and
 # (re)start ONLY the gateway container. Idempotent — safe to run repeatedly.
 #
-# This is the deploy primitive invoked by .github/workflows/cd.yml on merge to main. It
-# is also runnable directly on the host (`./scripts/deploy.sh`).
+# This is the deploy primitive invoked by .github/workflows/cd.yml after a push to main and by
+# scripts/run-local-cd.sh after an opted-in local merge. It is also runnable directly.
 #
 # SAFETY (CLAUDE.md):
 #   §12a — This deploys the SERVER only. It never launches the RuneLite client and never
@@ -25,6 +25,8 @@ COMPOSE_FILE="$REPO_ROOT/compose.yaml"
 # the host Docker daemon, not this process, resolves the bind-mount sources.
 export OSRS_CACHE_DIR="${OSRS_CACHE_DIR:-$REPO_ROOT/cache-data}"
 export OSRS_SERVER_RSA_PROPERTIES="${OSRS_SERVER_RSA_PROPERTIES:-$REPO_ROOT/server-rsa.properties}"
+export OSRS_IMAGE_TAG="${OSRS_IMAGE_TAG:-$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || printf 'dev')}"
+DEPLOY_HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-90}"
 
 log() { printf '[deploy] %s\n' "$*"; }
 
@@ -53,16 +55,60 @@ else
     log "       Generate it with: ./gradlew :tools:client-patch:run  (see CI.md)." >&2
     exit 1
   fi
+  KEY_MODE="$(stat -c '%a' "$OSRS_SERVER_RSA_PROPERTIES")"
+  if (( (8#$KEY_MODE & 8#077) != 0 )); then
+    log "ERROR: RSA key must not be group/world accessible: $OSRS_SERVER_RSA_PROPERTIES (mode $KEY_MODE)" >&2
+    log "       Fix with: chmod 600 '$OSRS_SERVER_RSA_PROPERTIES'" >&2
+    exit 1
+  fi
 fi
 
 log "project=$PROJECT"
+log "image   =osrsemu-gateway:$OSRS_IMAGE_TAG"
 log "cache   =$OSRS_CACHE_DIR (bind-mounted read-only)"
 log "rsa key =$OSRS_SERVER_RSA_PROPERTIES (bind-mounted read-only)"
 log "Building gateway image and (re)starting the container..."
 
+# Preserve the currently deployed immutable image as an explicit rollback target before Compose
+# replaces the container. The tag is local to this host and never contains secrets or runtime data.
+if PREVIOUS_IMAGE_ID="$(docker inspect --format '{{.Image}}' osrsemu-gateway 2>/dev/null)"; then
+  docker image tag "$PREVIOUS_IMAGE_ID" osrsemu-gateway:rollback
+  log "preserved previous image as osrsemu-gateway:rollback"
+fi
+
 # `up -d --build` rebuilds the image, then recreates the single `gateway` container only if
 # its image/config changed. No client is ever started (there is no client service).
 "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build
+
+GATEWAY_CONTAINER_ID="$("${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps -q gateway)"
+if [ -z "$GATEWAY_CONTAINER_ID" ]; then
+  log "ERROR: Compose did not create the gateway container." >&2
+  exit 1
+fi
+
+log "Waiting up to ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s for gateway health..."
+deadline=$((SECONDS + DEPLOY_HEALTH_TIMEOUT_SECONDS))
+while (( SECONDS < deadline )); do
+  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$GATEWAY_CONTAINER_ID")"
+  case "$status" in
+    healthy)
+      log "gateway is healthy"
+      break
+      ;;
+    unhealthy|exited|dead)
+      log "ERROR: gateway entered terminal state: $status" >&2
+      "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 gateway >&2
+      exit 1
+      ;;
+  esac
+  sleep 1
+done
+
+if [ "${status:-unknown}" != "healthy" ]; then
+  log "ERROR: gateway did not become healthy within ${DEPLOY_HEALTH_TIMEOUT_SECONDS}s" >&2
+  "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" logs --tail=200 gateway >&2
+  exit 1
+fi
 
 log "Deployed. Current state:"
 "${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps

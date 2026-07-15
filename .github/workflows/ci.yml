@@ -35,3 +35,6 @@ jobs:
 
       - name: Build and test
         run: ./gradlew build --no-daemon --stacktrace
+
+      - name: Verify deployment configuration
+        run: ./scripts/verify-deployment-config.sh
