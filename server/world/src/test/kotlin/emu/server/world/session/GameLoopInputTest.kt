@@ -14,7 +14,7 @@ import emu.server.world.network.GameOutputSink
 import emu.server.world.network.GameConnection
 import emu.server.world.network.handler.MessagePublicHandler
 import emu.protocol.osrs239.game.message.MessagePublic
-import emu.server.world.player.PlayerSessionControl
+import emu.server.world.player.PlayerLogoutState
 import emu.server.world.player.playerButtonActions
 import emu.transport.message.OutgoingMessage
 import emu.transport.pipeline.HandlerContext
@@ -30,7 +30,7 @@ class GameLoopInputTest {
         val movement = PlayerMovement(Tile(0, 0), OpenCollisionMap)
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
-        val control = PlayerSessionControl()
+        val control = PlayerLogoutState()
         val executed = mutableListOf<String>()
         val huffman = HuffmanCodec(ByteArray(256) { 8 })
         val chatActions = chatActions { onPublicMessage { executed += "chat" } }
@@ -57,7 +57,7 @@ class GameLoopInputTest {
             buttonActions = buttonActions,
             playerVarps = varps,
             chatActions = chatActions,
-            sessionControl = control,
+            logout = control,
         ).cycle(worldTick = 0)
 
         assertEquals(listOf("chat", "button"), executed)
@@ -70,7 +70,7 @@ class GameLoopInputTest {
         val movement = PlayerMovement(Tile(0, 0, plane = 2), OpenCollisionMap)
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
-        val control = PlayerSessionControl()
+        val control = PlayerLogoutState()
         inputs.submit(PlayerInput.Route(3, 0, invertRun = true))
 
         GameLoop(
@@ -79,7 +79,7 @@ class GameLoopInputTest {
             playerMovement = movement,
             buttonActions = playerButtonActions(movement, varps, control),
             playerVarps = varps,
-            sessionControl = control,
+            logout = control,
         ).cycle(worldTick = 0)
 
         assertFalse(movement.runEnabled)

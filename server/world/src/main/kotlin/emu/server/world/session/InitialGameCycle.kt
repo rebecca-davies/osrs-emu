@@ -6,7 +6,7 @@ import emu.game.pathfinding.Tile
 import emu.game.varp.PlayerVarps
 import emu.game.varp.VarpValue
 import emu.server.world.network.GameOutputBatch
-import emu.server.world.player.PlayerVarpTypes
+import emu.server.world.player.PlayerVarpCatalog
 import emu.transport.message.OutgoingMessage
 import emu.persistence.account.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
@@ -64,8 +64,8 @@ internal fun initialStatMessages(): List<UpdateStat> =
 
 /** Builds typed live varp state from sparse permanent account rows and server-derived login state. */
 internal fun initialPlayerVarps(savedValues: Map<Int, Int> = emptyMap()): PlayerVarps =
-    PlayerVarps(PlayerVarpTypes.CATALOG, savedValues).apply {
-        this[PlayerVarpTypes.HAS_DISPLAY_NAME] = 1
+    PlayerVarps(PlayerVarpCatalog.ALL, savedValues).apply {
+        this[PlayerVarpCatalog.HAS_DISPLAY_NAME] = 1
     }
 
 /** Complete transmitted player variables after VARP_RESET, selecting small/large wire forms. */
@@ -76,10 +76,10 @@ internal fun initialAccountVarps(varps: PlayerVarps = initialPlayerVarps()): Lis
 internal fun initialChatFilters(varps: PlayerVarps = initialPlayerVarps()): List<OutgoingMessage> =
     listOf(
         ChatFilterSettings(
-            publicFilter = varps[PlayerVarpTypes.PUBLIC_CHAT_FILTER],
-            tradeFilter = varps[PlayerVarpTypes.TRADE_CHAT_FILTER],
+            publicFilter = varps[PlayerVarpCatalog.PUBLIC_CHAT_FILTER],
+            tradeFilter = varps[PlayerVarpCatalog.TRADE_CHAT_FILTER],
         ),
-        ChatFilterPrivate(varps[PlayerVarpTypes.PRIVATE_CHAT_FILTER]),
+        ChatFilterPrivate(varps[PlayerVarpCatalog.PRIVATE_CHAT_FILTER]),
     )
 
 /** Selects the compact or full rev-239 representation for a player variable. */

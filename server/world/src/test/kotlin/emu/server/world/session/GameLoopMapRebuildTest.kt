@@ -8,7 +8,7 @@ import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.Tile
-import emu.server.world.player.PlayerSessionControl
+import emu.server.world.player.PlayerLogoutState
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
@@ -31,7 +31,7 @@ class GameLoopMapRebuildTest {
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
         val buildArea = PlayerBuildArea(Tile(3222, 3218))
         val playerVarps = initialPlayerVarps().apply { markClientSynchronized() }
-        val sessionControl = PlayerSessionControl()
+        val logout = PlayerLogoutState()
         val batches = mutableListOf<GameOutputBatch>()
         inputs.submit(PlayerInput.Route(3256, 3218, invertRun = false))
 
@@ -40,9 +40,9 @@ class GameLoopMapRebuildTest {
             connection = GameConnection(inputs, GameOutputSink { batches += it; true }),
             playerMovement = movement,
             buildArea = buildArea,
-            buttonActions = playerButtonActions(movement, playerVarps, sessionControl),
+            buttonActions = playerButtonActions(movement, playerVarps, logout),
             playerVarps = playerVarps,
-            sessionControl = sessionControl,
+            logout = logout,
         ).cycle(worldTick = 0)
         GameOutboundWriter(OutboundSession(codecs, NopStreamCipher, output)).write(batches.single())
 

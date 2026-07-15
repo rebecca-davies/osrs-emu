@@ -11,18 +11,18 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class PlayerGameStateTest {
+class PlayerButtonActionsTest {
     @Test fun `both captured run buttons change movement and persistent varp on the game thread`() {
         for (component in listOf(116 to 30, 160 to 28)) {
             val varps = initialPlayerVarps().apply { markClientSynchronized() }
             val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
-            val control = PlayerSessionControl()
-            val actions = playerButtonActions(movement, varps, control)
+            val logout = PlayerLogoutState()
+            val actions = playerButtonActions(movement, varps, logout)
 
             assertTrue(runBlocking { actions.dispatch(ButtonClick(component.first, component.second, -1, -1, 1)) })
 
             assertTrue(movement.runEnabled)
-            assertEquals(1, varps[PlayerVarpTypes.RUN_MODE])
+            assertEquals(1, varps[PlayerVarpCatalog.RUN_MODE])
             assertEquals(mapOf(173 to 1), varps.dirtyPersistentValues())
             assertEquals(1, varps.drainClientUpdates().single().value)
         }
@@ -31,13 +31,13 @@ class PlayerGameStateTest {
     @Test fun `logout button requests clean session exit while other ops do nothing`() {
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
-        val control = PlayerSessionControl()
-        val actions = playerButtonActions(movement, varps, control)
+        val logout = PlayerLogoutState()
+        val actions = playerButtonActions(movement, varps, logout)
 
         runBlocking { actions.dispatch(ButtonClick(182, 8, -1, -1, 2)) }
-        assertFalse(control.logoutRequested)
+        assertFalse(logout.requested)
 
         runBlocking { actions.dispatch(ButtonClick(182, 8, -1, -1, 1)) }
-        assertTrue(control.logoutRequested)
+        assertTrue(logout.requested)
     }
 }

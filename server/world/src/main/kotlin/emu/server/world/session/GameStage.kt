@@ -13,9 +13,9 @@ import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameConnection
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
-import emu.server.world.player.PlayerChatState
-import emu.server.world.player.PlayerSessionControl
-import emu.server.world.player.PlayerVarpTypes
+import emu.server.world.player.PlayerLogoutState
+import emu.server.world.player.PlayerPublicChatState
+import emu.server.world.player.PlayerVarpCatalog
 import emu.server.world.config.GameConnectionConfig
 import emu.server.world.network.installGameHandlers
 import emu.server.world.player.playerButtonActions
@@ -86,13 +86,13 @@ internal suspend fun runGameStage(
     val movement =
         initialPlayerMovement(
             player.position,
-            playerVarps[PlayerVarpTypes.RUN_MODE] == 1,
+            playerVarps[PlayerVarpCatalog.RUN_MODE] == 1,
             collisionMap,
         )
     val connection = GameConnection(PlayerInputQueue(connectionConfig.inputQueue), outboundMailbox)
-    val chatState = PlayerChatState()
-    val sessionControl = PlayerSessionControl()
-    val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
+    val chatState = PlayerPublicChatState()
+    val logout = PlayerLogoutState()
+    val buttonActions = playerButtonActions(movement, playerVarps, logout)
     val chatActions = playerChatActions(player.id, player.rank, playerVarps, chatState, chatAudit, huffman)
     val gameLoop = GameLoop(
         playerId = player.id,
@@ -102,7 +102,7 @@ internal suspend fun runGameStage(
         playerVarps = playerVarps,
         chatActions = chatActions,
         chatState = chatState,
-        sessionControl = sessionControl,
+        logout = logout,
         onProfileReport = { snapshot ->
             adminCycleReport(player.rank, snapshot)?.let {
                 if (!outboundMailbox.offer(GameOutputBatch.packet(it))) {

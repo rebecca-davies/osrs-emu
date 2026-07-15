@@ -8,7 +8,7 @@ import emu.game.input.PlayerInputQueue
 import emu.game.input.PlayerInputQueueConfig
 import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonClick
-import emu.server.world.player.PlayerSessionControl
+import emu.server.world.player.PlayerLogoutState
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
@@ -31,7 +31,7 @@ class GameLoopControlTest {
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
-        val control = PlayerSessionControl()
+        val control = PlayerLogoutState()
 
         val result = GameLoop(
             playerId = 1,
@@ -39,7 +39,7 @@ class GameLoopControlTest {
             playerMovement = movement,
             buttonActions = playerButtonActions(movement, varps, control),
             playerVarps = varps,
-            sessionControl = control,
+            logout = control,
         ).cycle(worldTick = 0)
 
         assertEquals(WorldParticipantResult.REMOVE, result)
@@ -51,7 +51,7 @@ class GameLoopControlTest {
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
-        val control = PlayerSessionControl()
+        val control = PlayerLogoutState()
         val actions = playerButtonActions(movement, varps, control)
         val batches = mutableListOf<GameOutputBatch>()
         val loop =
@@ -61,7 +61,7 @@ class GameLoopControlTest {
                 playerMovement = movement,
                 buttonActions = actions,
                 playerVarps = varps,
-                sessionControl = control,
+                logout = control,
             )
         inputs.submit(PlayerInput.Button(ButtonClick(182, 8, -1, -1, 1)))
 
@@ -81,7 +81,7 @@ class GameLoopControlTest {
         val varps = initialPlayerVarps().apply { markClientSynchronized() }
         val movement = PlayerMovement(Tile(3222, 3218), OpenCollisionMap)
         val inputs = PlayerInputQueue(PlayerInputQueueConfig())
-        val control = PlayerSessionControl()
+        val control = PlayerLogoutState()
         val actions = playerButtonActions(movement, varps, control)
         val batches = mutableListOf<GameOutputBatch>()
         val loop =
@@ -91,7 +91,7 @@ class GameLoopControlTest {
                 playerMovement = movement,
                 buttonActions = actions,
                 playerVarps = varps,
-                sessionControl = control,
+                logout = control,
             )
         inputs.submit(PlayerInput.Button(ButtonClick(160, 28, -1, -1, 1)))
 

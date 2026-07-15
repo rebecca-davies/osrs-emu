@@ -37,9 +37,6 @@ multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerI
 multiple|protocol/js5/src/main/kotlin/emu/protocol/osrs239/js5/Js5Codecs.kt|type:Js5Codecs,function:buildJs5CodecRepository
 multiple|protocol/login/src/main/kotlin/emu/protocol/osrs239/login/LoginCodecs.kt|type:LoginCodecs,function:buildLoginCodecRepository
 multiple|server/host/src/main/kotlin/emu/server/host/RuntimeAssets.kt|type:RuntimeAssets,function:loadRuntimeAssets
-multiple|server/world/src/main/kotlin/emu/server/world/player/PlayerChatState.kt|type:PlayerChatState,function:playerChatActions
-multiple|server/world/src/main/kotlin/emu/server/world/player/PlayerGameState.kt|type:PlayerVarpTypes,type:PlayerSessionControl,function:playerButtonActions
-multiple|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|type:GameLoop,type:LocalPlayerInfoState
 multiple|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|val:SPAWN_PLANE,val:SPAWN_X,val:SPAWN_Y,function:runGameStage,function:initialPlayerMovement,function:drainGameInbound
 multiple|server/world/src/main/kotlin/emu/server/world/session/InitialGameCycle.kt|val:WELCOME_MESSAGE,function:loginNoticeMessages,function:playerAppearance,function:initialStatMessages,function:initialPlayerVarps,function:initialAccountVarps,function:initialChatFilters,function:toProtocolMessage,function:adminCycleReport,function:initialWorldGroup,function:initialFrameSubInterfaces,function:initialFrameMessages,function:initialGameCycle
 multiple|server/gateway/src/main/kotlin/emu/server/gateway/GatewayConfig.kt|val:DEFAULT_GATEWAY_PORT,type:GatewayConfig

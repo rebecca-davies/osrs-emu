@@ -6,23 +6,21 @@ import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.GameCycle
 import emu.game.input.PlayerInput
 import emu.game.map.PlayerBuildArea
-import emu.game.pathfinding.MovementUpdate
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonActionRegistry
 import emu.game.chat.ChatActionRegistry
 import emu.game.varp.PlayerVarps
-import emu.server.world.player.PlayerSessionControl
-import emu.server.world.player.PlayerChatState
+import emu.server.world.player.PlayerLogoutState
+import emu.server.world.player.PlayerPublicChatState
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameConnection
+import emu.server.world.network.LocalPlayerInfoState
 import emu.server.world.runtime.WorldParticipant
 import emu.server.world.runtime.WorldParticipantResult
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.Logout
-import emu.protocol.osrs239.game.message.PlayerInfo
-import emu.protocol.osrs239.game.message.PlayerMovement as ProtocolPlayerMovement
 import emu.protocol.osrs239.game.message.RebuildNormal
 import emu.protocol.osrs239.game.message.ServerTickEnd
 import emu.protocol.osrs239.game.message.SetActiveWorld
@@ -51,8 +49,8 @@ internal class GameLoop(
     private val buttonActions: ButtonActionRegistry,
     private val playerVarps: PlayerVarps,
     private val chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
-    private val chatState: PlayerChatState = PlayerChatState(),
-    private val sessionControl: PlayerSessionControl,
+    private val chatState: PlayerPublicChatState = PlayerPublicChatState(),
+    private val logout: PlayerLogoutState,
     private val onProfileReport: (CycleProfileSnapshot) -> Unit = {},
     private val maxCycles: Int = Int.MAX_VALUE,
     cycleProcesses: List<CycleProcess> = emptyList(),
@@ -102,7 +100,7 @@ internal class GameLoop(
     private fun flushClientOutput(tickIndex: Long) {
         val batch = GameOutputBatch.build {
             packets(playerVarps.drainClientUpdates().map { it.toProtocolMessage() })
-            if (sessionControl.logoutRequested) {
+            if (logout.requested) {
                 packet(Logout)
             } else {
                 val position = playerMovement.position
@@ -116,7 +114,7 @@ internal class GameLoop(
                 val playerInfo =
                     playerInfoState
                         .next(playerMovement.update, playerMovement.runEnabled)
-                        .copy(publicChat = chatState.takePublicChat())
+                        .copy(publicChat = chatState.take())
                 packetGroup(
                     listOf(
                         SetActiveWorld(),
@@ -145,11 +143,11 @@ internal class GameLoop(
         if (processedCycles >= maxCycles) return WorldParticipantResult.REMOVE
         cycle.tick(worldTick)
         processedCycles++
-        val remove = outputSaturated || sessionControl.logoutRequested || processedCycles >= maxCycles
+        val remove = outputSaturated || logout.requested || processedCycles >= maxCycles
         logger.debug {
             when {
                 outputSaturated -> "game loop: player $playerId outbound mailbox saturated"
-                sessionControl.logoutRequested -> "game loop: player $playerId requested logout"
+                logout.requested -> "game loop: player $playerId requested logout"
                 processedCycles >= maxCycles -> "game loop: player $playerId reached test cycle cap $maxCycles"
                 else -> "game loop: advanced player $playerId on world tick $worldTick"
             }
@@ -158,47 +156,4 @@ internal class GameLoop(
     }
 
     override fun reportCycleProfile(snapshot: CycleProfileSnapshot) = onProfileReport(snapshot)
-}
-
-/** Keeps protocol-specific direction encoding outside the game simulation module. */
-private fun MovementUpdate.toProtocolMovement(): ProtocolPlayerMovement? =
-    when (this) {
-        MovementUpdate.Idle -> null
-        is MovementUpdate.Walk -> ProtocolPlayerMovement.Walk(deltaX, deltaY)
-        is MovementUpdate.Run -> ProtocolPlayerMovement.Run(deltaX, deltaY)
-    }
-
-/**
- * Tracks the movement speed cached by the rev-239 client independently from each tick's positional
- * GPI update. The two-tile run opcode moves the player's true tile; MOVE_SPEED and
- * TEMP_MOVE_SPEED select the avatar's visual walk/run animation.
- */
-internal class LocalPlayerInfoState {
-    private var knownMoveSpeed = STATIONARY_SPEED
-
-    fun next(update: MovementUpdate, runEnabled: Boolean): PlayerInfo {
-        val selectedSpeed = if (runEnabled) RUN_SPEED else WALK_SPEED
-        val moveSpeed = selectedSpeed.takeIf { it != knownMoveSpeed }
-        knownMoveSpeed = selectedSpeed
-
-        val actualSpeed =
-            when (update) {
-                MovementUpdate.Idle -> selectedSpeed
-                is MovementUpdate.Walk -> WALK_SPEED
-                is MovementUpdate.Run -> RUN_SPEED
-            }
-        val temporaryMoveSpeed = actualSpeed.takeIf { update != MovementUpdate.Idle && it != selectedSpeed }
-
-        return PlayerInfo(
-            movement = update.toProtocolMovement(),
-            moveSpeed = moveSpeed,
-            temporaryMoveSpeed = temporaryMoveSpeed,
-        )
-    }
-
-    private companion object {
-        const val WALK_SPEED = 1
-        const val RUN_SPEED = 2
-        const val STATIONARY_SPEED = 127
-    }
 }

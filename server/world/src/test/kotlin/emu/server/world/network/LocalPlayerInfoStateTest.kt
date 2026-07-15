@@ -1,4 +1,4 @@
-package emu.server.world.session
+package emu.server.world.network
 
 import emu.game.pathfinding.MovementUpdate
 import emu.protocol.osrs239.game.message.PlayerMovement
