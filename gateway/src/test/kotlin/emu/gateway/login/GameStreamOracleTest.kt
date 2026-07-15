@@ -160,6 +160,7 @@ class GameStreamOracleTest {
                     saveSession = { _, _, _, _ -> },
                     idleTimeout = 10.seconds,
                     maxTicks = ORACLE_TICKS,
+                    sendLoginInfo = true,
                 )
                 w.flush()
             } finally {
@@ -184,7 +185,7 @@ class GameStreamOracleTest {
         cw.writeFully(payload)
 
         check(cr.readByte().toInt() and 0xFF == 2) { "expected login response 2" }
-        ByteArray(LOGIN_SUCCESS_TRAILER.size).also { cr.readFully(it) }
+        ByteArray(LOGIN_SUCCESS_TRAILER_LENGTH).also { cr.readFully(it) }
 
         val stream = readUntilEof(cr)
         serverJob.join()

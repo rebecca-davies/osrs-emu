@@ -23,7 +23,8 @@ import kotlin.test.assertEquals
 // Main.kt's dispatch: opcode 14 replies the server session key (and remembers it for this
 // connection), then a synthesized op-16 "new login" block — built with the SAME RSA keypair the
 // gateway reads from server-rsa.properties — is decrypted, its echoed server key checked, ISAAC
-// ciphers built, and response code 2 (+ trailer) sent back. LoginBlockParser documents the exact
+// ciphers built, and response code 2 sent back. The index-dependent trailer follows paused world
+// admission in GameStageTest. LoginBlockParser documents the exact
 // plaintext layout and the header-offset/auth-token assumptions this test locks in.
 class LoginBlockFlowTest {
 
@@ -113,11 +114,7 @@ class LoginBlockFlowTest {
         cw.writeFully(payload)
 
         val responseCode = cr.readByte().toInt() and 0xFF
-        val trailer = ByteArray(LOGIN_SUCCESS_TRAILER.size)
-        cr.readFully(trailer)
-
         assertEquals(2, responseCode)
-        assertEquals(LOGIN_SUCCESS_TRAILER.toList(), trailer.toList())
 
         serverJob.cancel()
         client.close(); server.close(); selector.close()

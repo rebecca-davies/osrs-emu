@@ -4,6 +4,8 @@ import emu.buffer.JagexBuffer
 import emu.crypto.IsaacCipher
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
+import emu.gateway.world.WorldParticipant
+import emu.gateway.world.WorldParticipantResult
 import emu.gateway.world.WorldRuntime
 import emu.protocol.osrs239.buildCodecRepository
 import emu.protocol.osrs239.game.gameModule
@@ -101,7 +103,7 @@ class GameStageTest {
         return out.array
     }
 
-    @Test fun `after login the server writes the 34-byte success trailer then an ISAAC-adjusted login rebuild at the spawn tile`() = runBlocking {
+    @Test fun `after admission the server writes its allocated index then an ISAAC-adjusted login rebuild`() = runBlocking {
         val keyPair = loadRealOrSkip() ?: return@runBlocking
         val gameCodecs = koinApplication { modules(gameModule) }.koin.buildCodecRepository()
 
@@ -109,7 +111,16 @@ class GameStageTest {
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
         val worldRuntime = WorldRuntime(tickInterval = 20.milliseconds)
+        val occupiedIndex = worldRuntime.register(
+            object : WorldParticipant {
+                override val playerId: Long = Long.MAX_VALUE
+
+                override fun cycle(worldTick: Long): WorldParticipantResult = WorldParticipantResult.KEEP
+            },
+            startActive = false,
+        )
         val worldJob = launch { worldRuntime.run() }
+        assertEquals(1, occupiedIndex.playerIndex.await())
 
         val serverJob = launch {
             val conn = server.accept()
@@ -134,6 +145,7 @@ class GameStageTest {
                                     saveSession = { _, _, _, _ -> },
                                     idleTimeout = 2.seconds,
                                     maxTicks = 1,
+                                    sendLoginInfo = true,
                                 )
                             }
                         }
@@ -171,7 +183,11 @@ class GameStageTest {
         // A three-byte pad here used to be consumed as an empty rebuild and advanced ISAAC once.
         assertEquals(37, cr.readByte().toInt() and 0xFF, "login-info advertised span")
         val loginInfo = ByteArray(34).also { cr.readFully(it) }
-        assertEquals(LOGIN_SUCCESS_TRAILER.drop(1), loginInfo.toList(), "login-info payload")
+        assertEquals(
+            loginSuccessTrailer(TEST_PLAYER.rank, playerIndex = 2).drop(1),
+            loginInfo.toList(),
+            "login-info payload",
+        )
 
         // Independent cipher, seeded identically to the server's outbound (seeds+50, per
         // performLoginBlock's doc), to compute the first game packet's expected ISAAC-adjusted opcode.
