@@ -82,7 +82,8 @@ defined by [`Dockerfile`](Dockerfile) + [`compose.yaml`](compose.yaml) and drive
 3. Brings up the internal PostgreSQL service and gateway. Only the gateway is published, on
    **127.0.0.1:43594** by default; PostgreSQL stays inside the Compose network and cannot collide
    with development databases.
-4. Mounts the cache read-only and the RSA key as a Compose secret, then waits for gateway health.
+4. Mounts the cache read-only and the mode-`0600` RSA key as a Compose secret. The gateway runs as
+   that asset owner's unprivileged UID/GID, and health requires both a readable key and listener.
    A timeout or unhealthy container fails deployment and prints the gateway logs.
 
 Running it directly on the host (the paths must point at a location that has `cache-data/`

@@ -34,11 +34,14 @@ assert port.get("published") == "43594", f"unexpected default gateway port: {por
 
 image = services["gateway"].get("image", "")
 assert image == "osrsemu-gateway:dev", f"default image must be explicitly tagged, found {image!r}"
+assert services["gateway"].get("user") == "1000:1000", "gateway must run as the default asset owner"
 
 secret_path = services["gateway"]["environment"].get("OSRS_SERVER_RSA_PROPERTIES")
 assert secret_path == "/run/secrets/server_rsa", f"RSA key is not using a Compose secret: {secret_path!r}"
 mounted_secrets = {entry["source"] for entry in services["gateway"].get("secrets", [])}
 assert "server_rsa" in mounted_secrets, "gateway does not mount server_rsa"
+health_test = " ".join(services["gateway"]["healthcheck"]["test"])
+assert "test -r /run/secrets/server_rsa" in health_test, "health check does not require readable RSA"
 PY
 
 echo "deployment configuration verified"

@@ -41,4 +41,6 @@ act push -W .github/workflows/cd.yml -j deploy \
   --env OSRS_ASSETS_ON_HOST=1 \
   --env OSRS_CACHE_DIR="${OSRS_CACHE_DIR:-$ROOT/cache-data}" \
   --env OSRS_SERVER_RSA_PROPERTIES="$RSA_KEY" \
+  --env OSRS_RUNTIME_UID="$(stat -c '%u' "$RSA_KEY")" \
+  --env OSRS_RUNTIME_GID="$(stat -c '%g' "$RSA_KEY")" \
   --pull=false

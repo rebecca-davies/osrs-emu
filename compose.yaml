@@ -26,6 +26,9 @@ services:
       dockerfile: Dockerfile
     image: "osrsemu-gateway:${OSRS_IMAGE_TAG:-dev}"
     container_name: osrsemu-gateway
+    # Compose file-secrets are read-only bind mounts and retain host ownership. Run as the asset
+    # owner (exported by deploy.sh) so a host-mode-0600 RSA key remains readable without root.
+    user: "${OSRS_RUNTIME_UID:-1000}:${OSRS_RUNTIME_GID:-1000}"
     # Survive host reboots / daemon restarts, but do not fight a manual `stop`.
     restart: unless-stopped
     depends_on:
@@ -53,7 +56,7 @@ services:
       # kernel socket tables (state 0A = LISTEN, remote all-zeros). Checks /proc/net/tcp and
       # /proc/net/tcp6 (the gateway binds an IPv6 wildcard). Deliberately does NOT open a client
       # connection — a bare connect-then-close would make the gateway log a read-EOF ERROR each probe.
-      test: ["CMD-SHELL", "grep -qiE '^[[:space:]]*[0-9]+:[[:space:]]+[0-9A-F]+:AA4A[[:space:]]+[0-9A-F]+:0000[[:space:]]+0A' /proc/net/tcp /proc/net/tcp6"]
+      test: ["CMD-SHELL", "test -r /run/secrets/server_rsa && grep -qiE '^[[:space:]]*[0-9]+:[[:space:]]+[0-9A-F]+:AA4A[[:space:]]+[0-9A-F]+:0000[[:space:]]+0A' /proc/net/tcp /proc/net/tcp6"]
       interval: 2s
       timeout: 5s
       retries: 15

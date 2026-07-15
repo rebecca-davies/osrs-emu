@@ -26,6 +26,8 @@ COMPOSE_FILE="$REPO_ROOT/compose.yaml"
 export OSRS_CACHE_DIR="${OSRS_CACHE_DIR:-$REPO_ROOT/cache-data}"
 export OSRS_SERVER_RSA_PROPERTIES="${OSRS_SERVER_RSA_PROPERTIES:-$REPO_ROOT/server-rsa.properties}"
 export OSRS_IMAGE_TAG="${OSRS_IMAGE_TAG:-$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || printf 'dev')}"
+export OSRS_RUNTIME_UID="${OSRS_RUNTIME_UID:-$(stat -c '%u' "$OSRS_SERVER_RSA_PROPERTIES" 2>/dev/null || printf '1000')}"
+export OSRS_RUNTIME_GID="${OSRS_RUNTIME_GID:-$(stat -c '%g' "$OSRS_SERVER_RSA_PROPERTIES" 2>/dev/null || printf '1000')}"
 DEPLOY_HEALTH_TIMEOUT_SECONDS="${DEPLOY_HEALTH_TIMEOUT_SECONDS:-90}"
 
 log() { printf '[deploy] %s\n' "$*"; }
@@ -65,6 +67,7 @@ fi
 
 log "project=$PROJECT"
 log "image   =osrsemu-gateway:$OSRS_IMAGE_TAG"
+log "user    =$OSRS_RUNTIME_UID:$OSRS_RUNTIME_GID (RSA asset owner)"
 log "cache   =$OSRS_CACHE_DIR (bind-mounted read-only)"
 log "rsa key =$OSRS_SERVER_RSA_PROPERTIES (bind-mounted read-only)"
 log "Building gateway image and (re)starting the container..."
