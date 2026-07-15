@@ -9,5 +9,7 @@ fi
 
 LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/osrsemu/local-cd.log"
 mkdir -p "$(dirname "$LOG_FILE")"
-nohup "$ROOT/scripts/run-local-cd.sh" >>"$LOG_FILE" 2>&1 &
+# The hook runs before `git merge` releases its repository/index locks. Hand off after a short
+# delay so act snapshots the completed main worktree instead of racing the merge process.
+nohup bash -c 'sleep 1; exec "$1"' _ "$ROOT/scripts/run-local-cd.sh" >>"$LOG_FILE" 2>&1 &
 echo "osrsemu local CD started in background; log: $LOG_FILE"
