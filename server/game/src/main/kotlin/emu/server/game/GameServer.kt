@@ -11,6 +11,9 @@ import io.ktor.utils.io.ByteWriteChannel
 interface GameServer : AutoCloseable {
     fun start()
 
+    /** Suspends for the server lifetime and propagates an unexpected world failure. */
+    suspend fun awaitTermination()
+
     suspend fun reserve(principal: AuthenticatedPrincipal): ReservationDecision
 
     suspend fun release(token: GameSessionToken)

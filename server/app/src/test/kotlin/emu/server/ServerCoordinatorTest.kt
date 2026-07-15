@@ -103,6 +103,8 @@ class ServerCoordinatorTest {
 
         override fun start() = Unit
 
+        override suspend fun awaitTermination() = Unit
+
         override suspend fun reserve(principal: AuthenticatedPrincipal): ReservationDecision {
             events += "reserve"
             return decision
