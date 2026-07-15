@@ -1,6 +1,6 @@
 package emu.server.world.network
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** One cycle's indivisible, ordered server-to-client output. */
 internal data class GameOutputBatch(

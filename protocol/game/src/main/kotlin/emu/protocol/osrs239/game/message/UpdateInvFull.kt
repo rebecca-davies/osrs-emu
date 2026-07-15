@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Replaces an inventory; the initial cycle currently uses empty social/account containers. */
 data class UpdateInvFull(

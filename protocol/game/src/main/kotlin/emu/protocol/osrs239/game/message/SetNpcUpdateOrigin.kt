@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * SET_NPC_UPDATE_ORIGIN (opcode 116) — the base tile the following NPC_INFO bit stream is encoded

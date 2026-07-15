@@ -20,7 +20,7 @@ dependencies {
     implementation(project(":server-js5"))
     implementation(project(":server-login"))
     implementation(project(":server-world"))
-    implementation(project(":net-core"))
+    implementation(project(":transport"))
     implementation(project(":persistence-api"))
     implementation(project(":persistence-postgres"))
     implementation(project(":protocol-login"))

@@ -3,7 +3,7 @@ package emu.server.world
 import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
 import emu.cache.store.Store
-import emu.netcore.codec.CodecRepository
+import emu.transport.codec.CodecRepository
 import emu.persistence.character.CharacterStore
 import emu.persistence.chat.ChatAuditSink
 import emu.server.world.admission.GameAdmission

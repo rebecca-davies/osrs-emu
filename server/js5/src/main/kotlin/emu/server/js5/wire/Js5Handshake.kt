@@ -12,7 +12,7 @@ private val logger = KotlinLogging.logger {}
 /**
  * Reads the 20-byte JS5 handshake payload (revision int + 4 key ints) that follows opcode 15 and
  * replies with a single status byte: `0` (ok) if [revision] matches the client's, else `6` (client
- * out of date). Returns whether the caller should proceed to the JS5 [emu.netcore.pipeline.ProtocolStage].
+ * out of date). Returns whether the caller should proceed to the JS5 [emu.transport.pipeline.ProtocolStage].
  *
  * The default of 239 matches the current RuneLite injected-client (1.12.33-SNAPSHOT); a freshly
  * cloned RuneLite tracks live OSRS and had bumped past the originally-assumed rev 235.

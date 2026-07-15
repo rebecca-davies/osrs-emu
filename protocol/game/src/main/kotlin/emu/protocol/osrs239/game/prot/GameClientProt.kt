@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.prot
 
-import emu.netcore.prot.Prot
+import emu.transport.prot.Prot
 
 /**
  * Complete rev-239 client-to-server opcode/size table recovered from the injected client's

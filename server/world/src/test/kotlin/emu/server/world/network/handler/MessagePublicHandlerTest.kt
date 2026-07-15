@@ -6,8 +6,8 @@ import emu.game.chat.ChatInput
 import emu.game.chat.PlayerChatQueue
 import emu.game.chat.chatActions
 import kotlinx.coroutines.runBlocking
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.message.OutgoingMessage
+import emu.transport.pipeline.HandlerContext
+import emu.transport.message.OutgoingMessage
 import emu.protocol.osrs239.game.message.MessagePublic
 import kotlin.test.Test
 import kotlin.test.assertEquals

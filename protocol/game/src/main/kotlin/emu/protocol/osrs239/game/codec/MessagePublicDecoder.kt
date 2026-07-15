@@ -1,7 +1,7 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.buffer.JagexBuffer
-import emu.netcore.codec.MessageDecoder
+import emu.transport.codec.MessageDecoder
 import emu.protocol.osrs239.game.message.MessagePublic
 import emu.protocol.osrs239.game.prot.GameClientProt
 

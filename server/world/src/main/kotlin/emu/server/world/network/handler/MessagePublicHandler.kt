@@ -3,8 +3,8 @@ package emu.server.world.network.handler
 import emu.compression.HuffmanCodec
 import emu.game.chat.PlayerChatSink
 import emu.game.chat.PublicChatInput
-import emu.netcore.pipeline.HandlerContext
-import emu.netcore.pipeline.PacketHandler
+import emu.transport.pipeline.HandlerContext
+import emu.transport.pipeline.PacketHandler
 import emu.protocol.osrs239.game.message.MessagePublic
 import io.github.oshai.kotlinlogging.KotlinLogging
 

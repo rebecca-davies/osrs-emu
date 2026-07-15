@@ -2,11 +2,11 @@ package emu.server.world.network
 
 import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
-import emu.netcore.codec.CodecRepositoryBuilder
-import emu.netcore.codec.MessageEncoder
-import emu.netcore.message.OutgoingMessage
-import emu.netcore.pipeline.OutboundSession
-import emu.netcore.prot.Prot
+import emu.transport.codec.CodecRepositoryBuilder
+import emu.transport.codec.MessageEncoder
+import emu.transport.message.OutgoingMessage
+import emu.transport.pipeline.OutboundSession
+import emu.transport.prot.Prot
 import emu.protocol.osrs239.game.codec.PacketGroupStartEncoder
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.close

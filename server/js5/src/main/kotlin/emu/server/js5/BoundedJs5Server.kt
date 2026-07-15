@@ -5,9 +5,9 @@ import emu.server.js5.config.Js5ExecutionConfig
 import emu.server.js5.handler.Js5RequestHandler
 import emu.server.js5.wire.installJs5Handlers
 import emu.server.js5.wire.performHandshake
-import emu.netcore.codec.CodecRepository
-import emu.netcore.pipeline.HandlerRepositoryBuilder
-import emu.netcore.pipeline.ProtocolStage
+import emu.transport.codec.CodecRepository
+import emu.transport.pipeline.HandlerRepositoryBuilder
+import emu.transport.pipeline.ProtocolStage
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel

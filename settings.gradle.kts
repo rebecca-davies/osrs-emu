@@ -13,11 +13,15 @@ dependencyResolutionManagement {
 }
 
 include("buffer")
+project(":buffer").projectDir = file("libraries/buffer")
 include("cache")
 include("crypto")
+project(":crypto").projectDir = file("libraries/crypto")
 include("compression")
+project(":compression").projectDir = file("libraries/compression")
 include("game")
-include("net-core")
+include("transport")
+project(":transport").projectDir = file("libraries/transport")
 include("protocol-login")
 project(":protocol-login").projectDir = file("protocol/login")
 include("protocol-js5")

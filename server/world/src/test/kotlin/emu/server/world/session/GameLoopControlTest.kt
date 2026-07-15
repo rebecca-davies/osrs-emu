@@ -12,7 +12,7 @@ import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
 import emu.server.world.player.playerButtonActions
-import emu.netcore.pipeline.OutboundSession
+import emu.transport.pipeline.OutboundSession
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameServerProt
 import emu.server.world.runtime.WorldParticipantResult

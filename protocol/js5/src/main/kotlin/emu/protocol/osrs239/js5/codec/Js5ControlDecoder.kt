@@ -1,8 +1,8 @@
 package emu.protocol.osrs239.js5.codec
 
 import emu.buffer.JagexBuffer
-import emu.netcore.codec.MessageDecoder
-import emu.netcore.prot.Prot
+import emu.transport.codec.MessageDecoder
+import emu.transport.prot.Prot
 import emu.protocol.osrs239.js5.message.Js5Control
 
 /**

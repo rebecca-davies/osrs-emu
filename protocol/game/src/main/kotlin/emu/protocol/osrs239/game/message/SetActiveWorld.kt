@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * Sets the world and plane used by subsequent player, NPC, and zone updates in the cycle.

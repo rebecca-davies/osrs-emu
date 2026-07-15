@@ -1,6 +1,6 @@
 package emu.server.world.network
 
-import emu.netcore.pipeline.OutboundSession
+import emu.transport.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.PacketGroupStart
 
 /** Expands packet groups and publishes a batch with exactly one socket flush. */

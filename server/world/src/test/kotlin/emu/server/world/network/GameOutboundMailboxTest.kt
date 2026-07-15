@@ -1,6 +1,6 @@
 package emu.server.world.network
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking

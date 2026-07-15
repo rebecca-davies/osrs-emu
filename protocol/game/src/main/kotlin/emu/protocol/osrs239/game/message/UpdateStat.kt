@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Replaces one skill's current/invisible level and accumulated experience. */
 data class UpdateStat(

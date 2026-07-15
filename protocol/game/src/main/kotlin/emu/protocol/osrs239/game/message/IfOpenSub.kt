@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.game.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /** Attaches [interfaceId] beneath a destination component in the active top-level frame. */
 data class IfOpenSub(

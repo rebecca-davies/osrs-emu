@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.login.prot
 
-import emu.netcore.prot.Prot
+import emu.transport.prot.Prot
 
 /**
  * Login opcode/size table for OSRS rev 239.

@@ -1,8 +1,8 @@
 package emu.protocol.osrs239.game.codec
 
 import emu.crypto.StreamCipher
-import emu.netcore.codec.MessageEncoder
-import emu.netcore.prot.Prot
+import emu.transport.codec.MessageEncoder
+import emu.transport.prot.Prot
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.prot.GameServerProt
 

@@ -2,7 +2,7 @@ package emu.server.world.network.handler
 
 import emu.game.pathfinding.PlayerRouteRequestSink
 import emu.game.pathfinding.RouteRequestAdmission
-import emu.netcore.pipeline.HandlerContext
+import emu.transport.pipeline.HandlerContext
 import emu.protocol.osrs239.game.message.MoveGameClick
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -24,7 +24,7 @@ class MoveGameClickHandlerTest {
     }
 
     private object NoOutput : HandlerContext {
-        override suspend fun write(message: emu.netcore.message.OutgoingMessage) =
+        override suspend fun write(message: emu.transport.message.OutgoingMessage) =
             error("movement input must not write directly")
     }
 }

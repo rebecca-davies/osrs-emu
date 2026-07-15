@@ -7,7 +7,7 @@ import emu.game.varp.PlayerVarps
 import emu.game.varp.VarpValue
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.player.PlayerVarpTypes
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 import emu.persistence.account.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset

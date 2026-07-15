@@ -1,6 +1,6 @@
 package emu.protocol.osrs239.login.message
 
-import emu.netcore.message.OutgoingMessage
+import emu.transport.message.OutgoingMessage
 
 /**
  * The single response byte the client reads after sending its login block (`uo2.af()`). Code 2 =

@@ -3,7 +3,7 @@ package emu.server.js5.wire
 import emu.crypto.XorStreamCipher
 import emu.server.js5.handler.Js5ControlHandler
 import emu.server.js5.handler.Js5RequestHandler
-import emu.netcore.pipeline.HandlerRepositoryBuilder
+import emu.transport.pipeline.HandlerRepositoryBuilder
 import emu.protocol.osrs239.js5.message.Js5Control
 import emu.protocol.osrs239.js5.message.Js5Request
 
