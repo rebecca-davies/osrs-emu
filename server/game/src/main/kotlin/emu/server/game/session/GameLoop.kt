@@ -19,7 +19,6 @@ import emu.server.game.player.PlayerSessionControl
 import emu.server.game.player.PlayerChatState
 import emu.server.game.network.GameOutputBatch
 import emu.server.game.network.GameOutputSink
-import emu.server.game.network.gameOutputBatch
 import emu.server.game.world.WorldParticipant
 import emu.server.game.world.WorldParticipantResult
 import emu.protocol.osrs239.game.message.NpcInfo
@@ -90,7 +89,7 @@ internal class GameLoop(
      * repeated; GPI carries this cycle's optional walk/run delta.
     */
     private fun flushClientOutput(tickIndex: Long) {
-        val batch = gameOutputBatch {
+        val batch = GameOutputBatch.build {
             packets(playerVarps.drainClientUpdates().map { it.toProtocolMessage() })
             if (sessionControl.logoutRequested) {
                 packet(Logout)

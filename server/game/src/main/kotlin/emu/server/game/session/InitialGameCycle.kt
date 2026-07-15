@@ -7,7 +7,6 @@ import emu.game.varp.PlayerVarps
 import emu.game.varp.VarpValue
 import emu.server.game.network.GameOutputBatch
 import emu.server.game.player.PlayerVarpTypes
-import emu.server.game.network.gameOutputBatch
 import emu.netcore.message.OutgoingMessage
 import emu.persistence.account.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
@@ -170,7 +169,7 @@ internal fun initialGameCycle(
     appearance: PlayerAppearance?,
     accountVarps: List<OutgoingMessage> = initialAccountVarps(),
     chatFilters: List<OutgoingMessage> = initialChatFilters(),
-): GameOutputBatch = gameOutputBatch {
+): GameOutputBatch = GameOutputBatch.build {
     val buildArea = PlayerBuildArea(Tile(spawnX, spawnY, spawnPlane))
     packet(RebuildLogin(spawnPlane, spawnX, spawnY, localPlayerIndex))
 

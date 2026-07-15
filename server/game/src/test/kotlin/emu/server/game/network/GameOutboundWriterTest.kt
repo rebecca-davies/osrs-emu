@@ -28,7 +28,7 @@ class GameOutboundWriterTest {
         val channel = ByteChannel(autoFlush = false)
         val writer = GameOutboundWriter(OutboundSession(codecs, NopStreamCipher, channel))
         val batch =
-            gameOutputBatch {
+            GameOutputBatch.build {
                 packet(TestMessage(1))
                 packetGroup(listOf(TestMessage(2), TestMessage(3)))
                 packet(TestMessage(4))
