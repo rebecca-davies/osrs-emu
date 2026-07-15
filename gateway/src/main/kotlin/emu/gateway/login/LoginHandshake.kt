@@ -7,21 +7,16 @@ import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeFully
 import java.security.SecureRandom
 
-/** Shared across every connection: [SecureRandom] is thread-safe internally-synchronized, so one
- * instance avoids the (non-trivial) cost of reseeding a new one per login rather than being any
- * kind of per-connection state. */
+/** Shared thread-safe session-key generator. */
 private val secureRandom = SecureRandom()
 
 /**
  * Handles opcode 14 (login init) after the pipeline's first-opcode dispatch: `LoginProt.INIT` has
  * no payload, so there is nothing to read here. Replies `[1 status byte = 0][8-byte server session
  * key, big-endian]`, which the client stores as `cs.lv` and echoes back inside the RSA login block.
- * Pre-cipher, mirrors
- * `Js5Handshake.performHandshake`'s role for opcode 15.
+ * This exchange occurs before ISAAC is initialized.
  *
- * [sessionKey]'s generator is injectable (defaults to the shared [secureRandom]) so tests can pin a
- * deterministic key; the caller (`LoginHandler`) must remember the returned key to verify it is
- * echoed back correctly in the login block.
+ * The returned key must match the value echoed by the following login block.
  */
 suspend fun performLoginInit(write: ByteWriteChannel, sessionKey: Long = secureRandom.nextLong()): Long {
     write.writeFully(ServerSessionKeyEncoder.encode(NopStreamCipher, ServerSessionKey(sessionKey)))

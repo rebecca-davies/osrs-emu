@@ -3,9 +3,8 @@ package emu.cache.index
 import emu.buffer.JagexBuffer
 
 /**
- * Decodes a JS5 reference table from its decompressed [emu.cache.container.Container] payload
- * (recon doc §3, `IndexData.load`). Field read order is positional and MUST match
- * [Js5IndexEncoder] exactly.
+ * Decodes a JS5 reference table from its decompressed [emu.cache.container.Container] payload.
+ * Field order is positional and must match [Js5IndexEncoder].
  */
 object Js5IndexDecoder {
     fun decode(bytes: ByteArray): Js5Index {

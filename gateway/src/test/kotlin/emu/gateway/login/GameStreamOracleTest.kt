@@ -31,14 +31,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.fail
 
-/** Number of heartbeat ticks driven — enough packets to cross the ISAAC 256-value regeneration boundary twice. */
+/** Crosses the ISAAC 256-value regeneration boundary twice. */
 private const val ORACLE_TICKS = 300
 
 /**
  * The rev-239 client's complete server-packet size table, extracted verbatim from the running
- * client's decompiled `jc.java` static initializer (`new jc(opcode, size)`): size >= 0 is a fixed
- * body length, -1 a u8 length prefix, -2 a big-endian u16 length prefix. This is the client's OWN
- * framing ground truth — any opcode absent here would crash the client with "Invalid ServerProt".
+ * client's `jc.java` static initializer: non-negative values are fixed body lengths, -1 is a u8
+ * length prefix, and -2 is a big-endian u16 length prefix.
  */
 private val CLIENT_PROT_SIZES: Map<Int, Int> = mapOf(
     0 to 4, 1 to 5, 2 to -2, 3 to 0, 4 to 9, 5 to 1, 6 to -1, 7 to 7, 8 to -2, 9 to 3, 10 to 2,
@@ -61,10 +60,7 @@ private val CLIENT_PROT_SIZES: Map<Int, Int> = mapOf(
 
 /**
  * The client's outbound-decrypt keystream with the non-advancing peek its smart-opcode width
- * decision needs (decompiled `xv.ax` peeks via `xs.af`, then `xv.ap` consumes via `xs.ag`). Backed
- * by our [IsaacCipher], whose value-parity with the client's real `xs` class is proven by
- * `IsaacCipherTest`'s 4096-value golden vector (generated FROM that class) — so a decode failure
- * here is a genuine stream bug, not a cipher-implementation gap.
+ * decision needs. [IsaacCipherTest]'s client-derived golden vector validates cipher parity.
  */
 private class ClientIsaacOracle(seeds: IntArray) {
     private val cipher = IsaacCipher(seeds)
@@ -75,8 +71,8 @@ private class ClientIsaacOracle(seeds: IntArray) {
 }
 
 /**
- * Decodes a captured server->client game-stream byte-for-byte the way the rev-239 client does
- * (decompiled `client.java` packet loop + `xv.ax`/`xv.ap`): peek-decrypt the next byte; if the
+ * Decodes a captured server-to-client game stream with rev-239 framing: peek-decrypt the next byte;
+ * if the
  * decrypted value is >= 128 the opcode is a 2-byte smart (each byte consuming one keystream int),
  * else 1 byte; then a plaintext u8/u16 length for var-size prots per [CLIENT_PROT_SIZES]; then the
  * body. Returns the (opcode, bodyLength) sequence, failing loudly at the first undecodable byte.
@@ -112,11 +108,8 @@ private fun decodeAsClient(stream: ByteArray, oracle: ClientIsaacOracle): List<P
 }
 
 /**
- * Milestone-5 oracle: proves the ENTIRE post-login outbound stream (login rebuild + the rsmod
- * onLogin init batch + [ORACLE_TICKS] heartbeat ticks) decodes cleanly under the client's own
- * cipher implementation and its own opcode/size table. This is the headless stand-in for the real
- * client (CLAUDE.md §12a — iterate headless, client as acceptance): any opcode/length/keystream
- * divergence fails here with the exact byte offset instead of an opaque in-game disconnect.
+ * Verifies the complete post-login stream through [ORACLE_TICKS] heartbeats against the client's
+ * opcode sizes and ISAAC framing. Divergence reports the exact byte offset.
  *
  * Skips (with a note) when the gitignored client jar or server RSA key is absent.
  */

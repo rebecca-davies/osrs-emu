@@ -10,14 +10,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-/**
- * Declares every JS5 wire codec as a Koin singleton bound to [MessageDecoder]/[MessageEncoder] so
- * [emu.protocol.osrs239.buildCodecRepository] can COLLECT them (`getOfType/getAll<...>()`) instead
- * of a growing `bindDecoder(...).bindDecoder(...)` chain at a top-level site (CLAUDE.md §5a
- * addendum). Each `single` is qualified by name — Koin identifies a definition by primary type +
- * qualifier, and several of these bind the SAME concrete class ([Js5ControlDecoder]) with different
- * constructor arguments, which would otherwise collide.
- */
+/** JS5 codecs, qualified where multiple definitions share a concrete type. */
 val js5Module = module {
     single(named("js5.groupRequest")) { Js5RequestDecoder(prefetch = false) } bind MessageDecoder::class
     single(named("js5.groupRequestPrefetch")) { Js5RequestDecoder(prefetch = true) } bind MessageDecoder::class

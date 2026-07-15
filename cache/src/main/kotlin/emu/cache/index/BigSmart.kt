@@ -3,8 +3,7 @@ package emu.cache.index
 import emu.buffer.JagexBuffer
 
 /**
- * The peek-based variable-width integer encoding used by protocol-7 JS5 index counts and
- * delta-encoded ids (recon doc §3, `io/InputStream.java#readBigSmart` / `io/OutputStream.java#writeBigSmart`).
+ * Peek-based variable-width integer encoding for protocol-7 JS5 counts and delta-encoded ids.
  * Values `< 32768` are written as u16; larger values as a u32 with the top bit set (masked off on
  * read). Protocol 5/6 always use a plain u16 instead — see [readIndexField]/[writeIndexField].
  */

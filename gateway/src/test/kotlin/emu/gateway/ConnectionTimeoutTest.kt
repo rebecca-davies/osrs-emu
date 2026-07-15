@@ -21,10 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 
-// Covers CLAUDE.md §10 (read/idle timeouts at the internet-facing edge): a client that opens the
-// socket and never sends a byte must not hold handleConnection's coroutine + fd forever. Uses a
-// tiny injected handshakeTimeout (see Main.kt's handleConnection) rather than sleeping for the real
-// 15s HANDSHAKE_TIMEOUT, so this stays fast and non-flaky.
+/** Verifies idle and stalled pre-game connections are closed at the injected handshake deadline. */
 class ConnectionTimeoutTest {
     @Test fun `a client that sends nothing is disconnected within the handshake timeout`() = runBlocking {
         val store = FlatFileStore(Files.createTempDirectory("gw-timeout").toFile())
@@ -50,9 +47,6 @@ class ConnectionTimeoutTest {
         val client = aSocket(selector).tcp().connect(InetSocketAddress("127.0.0.1", port))
         val cr = client.openReadChannel()
 
-        // The client sends nothing at all. Once the tiny handshake timeout elapses, handleConnection
-        // must close the socket (its finally { conn.close() }) rather than hang — the client observes
-        // EOF/failure reading, not an indefinite block.
         assertFailsWith<Throwable> {
             withTimeout(2000) { cr.readByte() }
         }

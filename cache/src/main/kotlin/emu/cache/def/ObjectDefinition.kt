@@ -1,8 +1,7 @@
 package emu.cache.def
 
 /**
- * A decoded rev-239 object (loc) definition: index 2, group 6, `fileId == id` (recon doc §4a,
- * `ObjectLoader`).
+ * Decoded rev-239 object definition from index 2, group 6, where `fileId == id`.
  *
  * Every property maps to exactly one opcode (or opcode family) and is nullable/empty when that
  * opcode was absent — the class captures only what the wire actually wrote, never the loader's

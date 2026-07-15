@@ -6,7 +6,7 @@ import emu.cache.def.ParamValue
 import emu.cache.def.Params
 
 /**
- * Byte-exact inverse of RuneLite's `ItemLoader` for rev 239 (recon doc §4c). Model fields have a u16
+ * Rev-239 item definition codec. Model fields have a u16
  * and an i32 opcode form; [encode] selects the u16 form unless a value falls outside `0..0xFFFF`.
  */
 object ItemDefCodec {

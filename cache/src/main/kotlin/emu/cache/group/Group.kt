@@ -3,13 +3,12 @@ package emu.cache.group
 import emu.buffer.JagexBuffer
 
 /**
- * Multi-file group (stripe) framing inside a decompressed [emu.cache.container.Container] payload
- * (recon doc §2, `fs/ArchiveFiles.java`).
+ * Multi-file group framing inside a decompressed [emu.cache.container.Container] payload.
  *
  * A group with one file has no framing at all; a group with more than one file ends with a
  * delta-encoded per-chunk size table and a trailing chunk-count byte. Files are addressed by their
  * 0-based position within the group (ascending file-id order) — the caller maps position to the
- * real file id using the reference table's `fileIds` list (recon doc §3).
+ * real file id using the reference table's `fileIds` list.
  */
 object Group {
     /**
@@ -59,8 +58,7 @@ object Group {
     /**
      * Packs [files] (keyed ascending, e.g. by file id) into a group payload: file contents
      * concatenated in ascending-key order, followed (when there's more than one file) by a single
-     * delta-encoded chunk-size table and a trailing chunk-count byte of `1` (recon doc §2 —
-     * RuneLite's encoder always writes exactly one chunk).
+     * delta-encoded chunk-size table and a trailing chunk-count byte of `1`.
      */
     fun pack(files: Map<Int, ByteArray>): ByteArray {
         require(files.isNotEmpty()) { "cannot pack an empty group" }

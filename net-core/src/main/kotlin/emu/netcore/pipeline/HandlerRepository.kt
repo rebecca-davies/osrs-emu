@@ -2,13 +2,7 @@ package emu.netcore.pipeline
 
 import emu.netcore.message.IncomingMessage
 
-/**
- * Type-keyed dispatch table that replaces a god `when(message){...}` handler (CLAUDE.md §5a):
- * every packet type is bound to its own [PacketHandler], so adding a packet never edits shared
- * dispatch code. A message type with no bound handler is silently dropped — the
- * [emu.netcore.codec.CodecRepository] already rejects unbound wire opcodes before a message is
- * ever decoded, so this only happens if a decoder is registered without a matching handler.
- */
+/** Type-keyed packet dispatch table. Messages without a bound handler are dropped. */
 class HandlerRepository internal constructor(
     private val byType: Map<Class<out IncomingMessage>, PacketHandler<*>>,
 ) {

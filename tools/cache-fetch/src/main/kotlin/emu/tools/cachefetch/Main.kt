@@ -16,10 +16,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Target OSRS revision — must match the client. The freshly-cloned RuneLite injected-client
- * is rev 239 (verified from its JS5 handshake). Change this one constant to move revisions.
- */
+/** Target OSRS revision; must match the client. */
 private const val TARGET_BUILD = 239
 
 /**
@@ -66,14 +63,8 @@ fun main() {
 }
 
 /**
- * Map-region XTEA keys for loc (`l`) groups. Live build-$TARGET_BUILD OSRS caches ship **zero**
- * map keys (the community corpus lags a few builds), so scenery loc groups in the served cache stay
- * encrypted. This fetches `keys.json` from the newest live oldschool cache with build `<=
- * TARGET_BUILD` that actually has keys (build 236, id 2499 at time of writing — keys are
- * revision-stable for old content like Lumbridge), plus the Lumbridge `l50_50` container so
- * the key can be validated by trial-decrypt ([emu.cache.container.MapXteaKeys]). These are **not**
- * injected into any rev-239 game packet — the decompiled client's REBUILD_NORMAL carries no keys;
- * they exist for server-side loc validation/decode.
+ * Fetches map XTEA keys from the newest compatible cache that provides them, plus the Lumbridge
+ * loc container used to validate its key. These files are for server-side loc decoding only.
  */
 private fun fetchMapKeys(base: String, cachesJson: String, outDir: File) {
     val candidates = keyedCacheCandidates(cachesJson)
@@ -112,7 +103,7 @@ private fun fetchMapKeys(base: String, cachesJson: String, outDir: File) {
     logger.warn { "no live oldschool cache <= build $TARGET_BUILD had non-empty map keys; scenery will stay encrypted" }
 }
 
-/** Lumbridge mapsquare id = `(50 shl 8) or 50` — the milestone spawn region. */
+/** Lumbridge mapsquare id: `(50 shl 8) or 50`. */
 private const val LUMBRIDGE_MAPSQUARE = 12850
 
 /**

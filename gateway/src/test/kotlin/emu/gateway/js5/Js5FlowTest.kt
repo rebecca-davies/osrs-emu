@@ -53,10 +53,7 @@ class Js5FlowTest {
     @Test fun `handshake then pipeline serves the group`() = runBlocking {
         val store = store()
         val codecs = koinApplication { modules(js5Module) }.koin.buildCodecRepository()
-        // Production (Main.kt) shares ONE cipher instance per connection between the control handler
-        // (which sets the key from control opcode 4) and ProtocolStage (which hands it to the
-        // encoder). Mirror that here rather than giving the handlers and the stage different
-        // instances.
+        // The control handler and encoder share one connection-local cipher.
         val cipher = XorStreamCipher()
         val handlerKoin = koinApplication { modules(gatewayModule(store, null)) }.koin
         val handlers = HandlerRepositoryBuilder().installJs5Handlers(handlerKoin, cipher).build()
@@ -64,11 +61,7 @@ class Js5FlowTest {
         val server = aSocket(selector).tcp().bind(InetSocketAddress("127.0.0.1", 0))
         val port = (server.localAddress as InetSocketAddress).port
 
-        // ProtocolStage.run() loops reading the next opcode until the connection closes, so this
-        // job never completes on its own. It is cancelled below once the exchange under test has
-        // happened; otherwise closing the client races the server's next readOpcode() call, which
-        // throws EOFException instead of returning cleanly, failing runBlocking's structured
-        // concurrency even though every assertion already passed.
+        // The protocol stage is cancelled after the exchange because it reads until EOF.
         val serverJob = launch {
             val conn = server.accept()
             val r = conn.openReadChannel(); val w = conn.openWriteChannel(autoFlush = false)
@@ -97,10 +90,7 @@ class Js5FlowTest {
         client.close(); server.close(); selector.close()
     }
 
-    // Covers fix #3: the handler and the encoder MUST see the same cipher instance, or a key set by
-    // control opcode 4 never reaches the encoder (a bug the earlier test wiring would have masked,
-    // since it gave the handler and ProtocolStage separate cipher instances). Also exercises a
-    // >512-byte response so the inserted 0xFF block markers are XORed too, not just payload bytes.
+    // A multi-block response verifies that opcode 4's shared key also encrypts continuation markers.
     @Test fun `control opcode 4 sets the key and every response byte including block markers is XORed`() = runBlocking {
         val root = Files.createTempDirectory("js5").toFile()
         val big = container(600)

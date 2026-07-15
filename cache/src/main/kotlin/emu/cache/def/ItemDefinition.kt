@@ -1,7 +1,7 @@
 package emu.cache.def
 
 /**
- * A decoded rev-239 item definition: index 2, group 10, `fileId == id` (recon doc §4c, `ItemLoader`).
+ * Decoded rev-239 item definition from index 2, group 10, where `fileId == id`.
  *
  * Every property maps to one opcode (family) and is null/empty when absent; the derived
  * weight-when-stackable default is never stored. Model fields have both a u16 and an i32 opcode

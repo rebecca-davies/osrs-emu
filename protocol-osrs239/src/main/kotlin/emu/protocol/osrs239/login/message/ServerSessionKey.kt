@@ -2,8 +2,5 @@ package emu.protocol.osrs239.login.message
 
 import emu.netcore.message.OutgoingMessage
 
-/**
- * Reply to opcode 14: the 8-byte server session key the client stores as `cs.lv` and later echoes
- * back inside the RSA login block. See rev239-login-facts.md §1-§2.
- */
+/** Opcode-14 reply containing the 8-byte key echoed in the RSA login block. */
 data class ServerSessionKey(val key: Long) : OutgoingMessage

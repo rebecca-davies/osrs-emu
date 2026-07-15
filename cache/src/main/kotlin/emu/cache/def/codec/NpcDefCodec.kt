@@ -7,7 +7,7 @@ import emu.cache.def.Params
 import emu.cache.def.VarTransform
 
 /**
- * Byte-exact inverse of RuneLite's `NpcLoader` for rev 239 (recon doc §4b). rev-239 gates are fixed:
+ * Rev-239 NPC definition codec. Revision gates are fixed:
  * opcode 102 uses the `rev210` head-icon bitfield, and opcode 111 sets `renderPriority = 2`.
  */
 object NpcDefCodec {

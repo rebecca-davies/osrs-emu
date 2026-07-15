@@ -35,15 +35,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 private val logger = KotlinLogging.logger {}
 
 /**
- * One player's protocol-facing work within the shared world tick.
- *
- * A freshly logged-in client only stays in-game while the server keeps feeding it a PLAYER_INFO
- * (GPI) packet **every** cycle. Scheduling belongs exclusively to
- * [emu.gateway.world.WorldRuntime]; this class cannot create an independent player clock.
- *
- * [GameCycle] drains this player's bounded input, advances movement in the player phase, offers one
- * indivisible output batch, then clears per-cycle state. [output] is deliberately non-suspending:
- * socket IO and ISAAC ownership live in the connection's writer coroutine.
+ * Runs one player's input, movement, and output phases on [emu.gateway.world.WorldRuntime]'s clock.
+ * [output] is non-suspending; the connection writer owns socket IO and outbound ISAAC state.
  */
 internal class GameLoop(
     override val playerId: Long,
@@ -83,12 +76,7 @@ internal class GameLoop(
                 },
         )
 
-    /**
-     * Recentres the client's 104x104 build area when movement reaches its outer two zones, then
-     * flushes active-world context, the current scene-local NPC origin, local-player GPI and empty
-     * NPC info as one atomic group. Appearance was established by [initialGameCycle] and is not
-     * repeated; GPI carries this cycle's optional walk/run delta.
-    */
+    /** Recentres the build area when required and emits one atomic per-cycle update group. */
     private fun flushClientOutput(tickIndex: Long) {
         val batch = gameOutputBatch {
             packets(playerVarps.drainClientUpdates().map { it.toProtocolMessage() })

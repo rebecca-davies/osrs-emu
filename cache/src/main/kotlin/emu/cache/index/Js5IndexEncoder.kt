@@ -3,9 +3,7 @@ package emu.cache.index
 import emu.buffer.JagexBuffer
 
 /**
- * Encodes a JS5 reference table back to its wire form (recon doc §3, `IndexData.writeIndexData`).
- * Field write order mirrors [Js5IndexDecoder] exactly; this is what makes the format positional
- * rather than tagged.
+ * Encodes a JS5 reference table in the positional field order consumed by [Js5IndexDecoder].
  */
 object Js5IndexEncoder {
     fun encode(index: Js5Index): ByteArray {

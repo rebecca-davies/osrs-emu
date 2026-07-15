@@ -1,11 +1,8 @@
 package emu.game.varp
 
 /**
- * Live account varp state with rsmod-style controlled setters and 2004Scape-style scope metadata.
- *
- * The client is synchronized from the full transmitted catalog at login and by a sparse on-change
- * queue afterwards. Permanent changes are tracked separately for write-behind at a save point;
- * this class performs no database or network I/O.
+ * Live account varps with full login synchronization, sparse client updates, and save-point
+ * tracking for permanent values. Performs no database or network I/O.
  */
 class PlayerVarps(
     private val catalog: VarpCatalog,
@@ -63,7 +60,7 @@ class PlayerVarps(
             .map { VarpValue(it.id, values.getValue(it.id)) }
             .toList()
 
-    /** Marks the full login sync complete; later setter calls become sparse client updates. */
+    /** Completes login synchronization and enables sparse client updates. */
     fun markClientSynchronized() {
         pendingClient.clear()
         clientSynchronized = true

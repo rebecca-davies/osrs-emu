@@ -18,9 +18,7 @@ class XteaTest {
     }
 
     @Test fun `known answer vector`() {
-        // Canonical XTEA (32 rounds, delta 0x9E3779B9): key=0, block=0.
-        // v0=0,v1=0,key=all-zero -> ciphertext (verified against an independent reference
-        // Python implementation of standard 32-round XTEA; see task-2-report.md for derivation).
+        // Independent standard 32-round XTEA vector for a zero key and zero block.
         val work = intArrayOf(0, 0)
         Xtea.encrypt(work, intArrayOf(0, 0, 0, 0))
         assertEquals(0xDEE9D4D8.toInt(), work[0])

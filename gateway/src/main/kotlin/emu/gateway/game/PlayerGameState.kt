@@ -11,7 +11,7 @@ import emu.game.varp.VarpScope
 import emu.game.varp.VarpTransmit
 import emu.game.varp.VarpType
 
-/** Rev-239 account configuration types currently owned by gameplay. */
+/** Rev-239 account configuration types owned by gameplay. */
 internal object PlayerVarpTypes {
     /** 0=walk, 1=run (2=crawl is reserved by the client). */
     val RUN_MODE = VarpType(173, scope = VarpScope.PERMANENT)
@@ -45,12 +45,7 @@ internal class PlayerSessionControl {
     }
 }
 
-/**
- * Content registration for the currently-open rev-239 gameframe.
- *
- * Interface IDs remain here at the client/content edge. Both run controls share one action, and
- * operations are checked by the content handler just like an rsmod `onIfOverlayButton` script.
- */
+/** Button actions for the rev-239 game frame. */
 internal fun playerButtonActions(
     movement: PlayerMovement,
     varps: PlayerVarps,

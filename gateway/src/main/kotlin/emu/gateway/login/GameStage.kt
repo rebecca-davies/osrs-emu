@@ -49,15 +49,7 @@ import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 
-/**
- * Idle-read deadline for a connection that has reached the GAME stage (a logged-in client). Unlike
- * [emu.gateway.HANDSHAKE_TIMEOUT], this is deliberately generous: a real client can sit idle between
- * player-initiated packets, and this deadline resets on every packet the inbound drain receives, so
- * it only fires on a connection that stops sending anything at all for the whole window — the
- * CLAUDE.md §10 "read/idle timeouts at the edge" requirement, applied without penalizing a
- * normally-active client. Note this bounds only *inbound* silence; the server still emits its
- * per-tick PLAYER_INFO heartbeat the whole time (see [GameLoop]).
- */
+/** Inbound GAME-stage idle timeout, reset after each received packet. */
 val GAME_IDLE_TIMEOUT: Duration = 30.seconds
 
 /** Lumbridge, the default tile for a newly created account. */
@@ -69,20 +61,14 @@ internal const val SPAWN_Y = 3218
  * Authenticated game stage: puts the client in-world and keeps its session lifecycle synchronized
  * with the shared world.
  *
- * After inactive world admission it sends [initialGameCycle]: the Lumbridge rebuild plus the
- * required atomic entity/player/NPC/zone group and neutral rev-239 frame/account state. It then
- * activates the player while a sibling coroutine drains this connection's inbound protocol stream:
- *  - the **world runtime** advances [GameLoop] from the same authoritative 600ms clock as every
- *    other player and sends the atomic player/NPC heartbeat that keeps the client in-game.
- *  - an **inbound protocol stage** ([drainGameInbound]) that frames all rev-239 client packets,
- *    dispatches implemented messages, and enforces the idle timeout.
+ * Sends [initialGameCycle] before activation. [WorldRuntime] advances [GameLoop] on the shared
+ * clock while [drainGameInbound] frames and dispatches client packets.
  *
  * When either side ends (the client disconnects, or it goes idle past [idleTimeout]) the other is
  * cancelled and the connection is handed back to [emu.gateway.handleConnection]'s `finally` to close.
  *
- * Every server->client packet is offered as a bounded atomic batch. A per-connection writer is the
- * sole owner of [OutboundSession], outbound ISAAC and the socket, so a slow client cannot suspend
- * the authoritative world cycle and each opcode still advances the keystream exactly once.
+ * A bounded mailbox carries atomic output batches to the per-connection writer, the sole owner of
+ * [OutboundSession], outbound ISAAC, and the socket.
  *
  * A fresh login sets [sendLoginInfo] so its rank and admitted player index are written before that
  * writer starts. Reconnects omit the trailer, matching the rev-239 login-state contract.

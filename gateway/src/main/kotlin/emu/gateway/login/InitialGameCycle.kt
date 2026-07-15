@@ -45,10 +45,7 @@ import emu.protocol.osrs239.game.message.WorldEntityInfo
 /** The chatbox notice the real server posts on every login. */
 internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
 
-/**
- * The one-time chatbox notices shown after login, once the game frame (and its chatbox) is open.
- * Just the plain welcome line for now; server MOTD/broadcast lines would join it here.
- */
+/** One-time chatbox notices sent after the game frame opens. */
 internal fun loginNoticeMessages(): List<MessageGame> = listOf(
     MessageGame(MessageGame.GAME_MESSAGE, WELCOME_MESSAGE),
 )

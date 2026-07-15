@@ -22,13 +22,8 @@ private data class MapXteaEntry(
  * Per-mapsquare XTEA keys for map-region (index 5) loc (`l`) groups, loaded from an OpenRS2
  * `keys.json` dump.
  *
- * **Where these keys are used — and where they are NOT.** Verified against the rev-239 decompiled
- * client (`uk.df`, the REBUILD_NORMAL body): rev-239 REBUILD_NORMAL carries **no** XTEA keys — it
- * reads only three zone `u16`s and drives the async map loader, which pulls loc groups from the JS5
- * cache and decrypts each **only if its stored key is non-zero** (`uf.ez`), treating a zero key as
- * plaintext. So these keys are *not* injected into any rev-239 game packet; their purpose is
- * server-side: validating that a served loc group decrypts (below), and later feeding the
- * [Container] XTEA layer for server-side loc/collision decode.
+ * Rev-239 REBUILD_NORMAL contains no XTEA keys. These keys are used only by server-side [Container]
+ * decoding for encrypted loc groups; a zero key denotes plaintext.
  *
  * A mapsquare id is `(regionX shl 8) or regionY` where `regionX = worldX shr 6`; e.g. Lumbridge
  * `l50_50` = mapsquare `12850`.

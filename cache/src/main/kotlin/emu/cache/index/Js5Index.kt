@@ -1,6 +1,6 @@
 package emu.cache.index
 
-/** JS5 reference-table flag bits (byte 3 of the layout in recon doc §3, `IndexData.java`). */
+/** JS5 reference-table flag bits. */
 object Js5IndexFlags {
     const val NAMED: Int = 0x1
     const val SIZED: Int = 0x4
@@ -26,7 +26,7 @@ data class GroupEntry(
 
 /**
  * A decoded JS5 reference table (index 255, archive X): describes every group of top-level index
- * `X` — ids, name hashes, CRCs, revisions, and child file ids (recon doc §3, `IndexData.java`).
+ * `X`: ids, name hashes, CRCs, revisions, and child file ids.
  *
  * `groups` must be ascending by [GroupEntry.id], and each group's `files` ascending by
  * [FileEntry.id] — [Js5IndexEncoder] asserts this, mirroring the client's own invariant.

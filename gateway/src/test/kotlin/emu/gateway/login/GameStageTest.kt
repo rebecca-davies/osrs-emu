@@ -58,14 +58,8 @@ private fun decodePacked30(body: ByteArray): Triple<Int, Int, Int> {
 }
 
 /**
- * Guards the milestone-5 login→game boundary: after a real login exchange reaches response code 2,
- * the server writes the success trailer as one advertised span byte + exactly **34** account-info
- * bytes (never a padded 37), then the first game packet — a [GameServerProt.REBUILD_NORMAL] whose
- * opcode is ISAAC-adjusted by the outbound cipher (seeds+50, per [performLoginBlock]'s doc) and whose
- * body bit-packs the Lumbridge spawn tile. A stray pad in the trailer would be decoded as an empty
- * first packet and advance the outbound keystream once, desyncing every following opcode — the exact
- * milestone-5 root cause this test exists to catch. The full post-login packet stream (the whole
- * initial cycle plus hundreds of heartbeat ticks) is asserted end-to-end by [GameStreamOracleTest].
+ * Verifies the login-to-game boundary: a 34-byte account-info trailer is followed immediately by
+ * an ISAAC-adjusted [GameServerProt.REBUILD_NORMAL] containing the spawn tile.
  */
 class GameStageTest {
 
@@ -180,7 +174,7 @@ class GameStageTest {
 
         // Mirror the client's real fresh-login boundary instead of trusting the server constant:
         // one advertised span byte, exactly 34 account-info bytes, then the first game header.
-        // A three-byte pad here used to be consumed as an empty rebuild and advanced ISAAC once.
+        // Account info ends before the first ISAAC-framed game packet.
         assertEquals(37, cr.readByte().toInt() and 0xFF, "login-info advertised span")
         val loginInfo = ByteArray(34).also { cr.readFully(it) }
         assertEquals(
