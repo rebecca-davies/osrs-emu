@@ -166,15 +166,35 @@ class WorldRuntimeTest {
         assertTrue(afterShutdown.removed.isCompleted)
     }
 
+    @Test
+    fun `an overrun yields to activation submitters before the next cycle`() = runBlocking {
+        val runtime = WorldRuntime(tickInterval = 1.milliseconds)
+        val overrun = RecordingParticipant(playerId = 31, cycleDelayMillis = 20)
+        val participant = RecordingParticipant(playerId = 32)
+        runtime.register(overrun)
+        val registration = runtime.register(participant, startActive = false)
+        val activation = launch {
+            assertEquals(2, registration.playerIndex.await())
+            runtime.activate(participant.playerId)
+        }
+
+        runtime.run(maxTicks = 3)
+
+        activation.join()
+        assertEquals(listOf(1L, 2L), participant.ticks)
+    }
+
     private class RecordingParticipant(
         override val playerId: Long,
         private val failOnTick: Long? = null,
         private val removeOnTick: Long? = null,
+        private val cycleDelayMillis: Long = 0,
     ) : WorldParticipant {
         val ticks = mutableListOf<Long>()
 
         override fun cycle(worldTick: Long): WorldParticipantResult {
             ticks += worldTick
+            if (cycleDelayMillis > 0) Thread.sleep(cycleDelayMillis)
             if (worldTick == failOnTick) error("participant failure")
             return if (worldTick == removeOnTick) WorldParticipantResult.REMOVE else WorldParticipantResult.KEEP
         }
