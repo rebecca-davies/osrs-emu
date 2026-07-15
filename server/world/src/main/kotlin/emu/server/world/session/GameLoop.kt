@@ -5,7 +5,6 @@ import emu.game.cycle.CycleProcess
 import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.GameCycle
 import emu.game.input.PlayerInput
-import emu.game.input.PlayerInputQueue
 import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.MovementUpdate
 import emu.game.pathfinding.OpenCollisionMap
@@ -17,7 +16,7 @@ import emu.game.varp.PlayerVarps
 import emu.server.world.player.PlayerSessionControl
 import emu.server.world.player.PlayerChatState
 import emu.server.world.network.GameOutputBatch
-import emu.server.world.network.GameOutputSink
+import emu.server.world.network.GameConnection
 import emu.server.world.runtime.WorldParticipant
 import emu.server.world.runtime.WorldParticipantResult
 import emu.protocol.osrs239.game.message.NpcInfo
@@ -40,15 +39,14 @@ private val logger = KotlinLogging.logger {}
  * [emu.server.world.runtime.WorldRuntime]; this class cannot create an independent player clock.
  *
  * [GameCycle] drains this player's bounded input, advances movement in the player phase, offers one
- * indivisible output batch, then clears per-cycle state. [output] is deliberately non-suspending:
- * socket IO and ISAAC ownership live in the connection's writer coroutine.
+ * indivisible output batch, then clears per-cycle state. [GameConnection.output] is deliberately
+ * non-suspending: socket IO and ISAAC ownership live in the connection's writer coroutine.
  */
 internal class GameLoop(
     override val playerId: Long,
-    private val output: GameOutputSink,
+    private val connection: GameConnection,
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
-    private val inputs: PlayerInputQueue,
     private val buildArea: PlayerBuildArea = PlayerBuildArea(playerMovement.position),
     private val buttonActions: ButtonActionRegistry,
     private val playerVarps: PlayerVarps,
@@ -79,7 +77,7 @@ internal class GameLoop(
 
     private fun processInputs() {
         var latestRoute: PlayerInput.Route? = null
-        inputs.drain { input ->
+        connection.inputs.drain { input ->
             when (input) {
                 is PlayerInput.Button -> buttonActions.dispatch(input.click)
                 is PlayerInput.Chat -> chatActions.dispatch(input.input)
@@ -134,7 +132,7 @@ internal class GameLoop(
     }
 
     private fun publish(batch: GameOutputBatch, tickIndex: Long) {
-        if (output.offer(batch)) {
+        if (connection.output.offer(batch)) {
             logger.debug { "game loop: queued atomic client output for tick $tickIndex" }
         } else {
             outputSaturated = true

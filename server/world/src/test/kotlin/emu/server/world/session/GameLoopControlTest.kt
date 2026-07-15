@@ -12,6 +12,7 @@ import emu.server.world.player.PlayerSessionControl
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
+import emu.server.world.network.GameConnection
 import emu.server.world.player.playerButtonActions
 import emu.transport.pipeline.OutboundSession
 import emu.protocol.osrs239.game.buildGameCodecRepository
@@ -34,9 +35,8 @@ class GameLoopControlTest {
 
         val result = GameLoop(
             playerId = 1,
-            output = GameOutputSink { false },
+            connection = GameConnection(inputs, GameOutputSink { false }),
             playerMovement = movement,
-            inputs = inputs,
             buttonActions = playerButtonActions(movement, varps, control),
             playerVarps = varps,
             sessionControl = control,
@@ -57,9 +57,8 @@ class GameLoopControlTest {
         val loop =
             GameLoop(
                 playerId = 1,
-                output = GameOutputSink { batches += it; true },
+                connection = GameConnection(inputs, GameOutputSink { batches += it; true }),
                 playerMovement = movement,
-                inputs = inputs,
                 buttonActions = actions,
                 playerVarps = varps,
                 sessionControl = control,
@@ -88,9 +87,8 @@ class GameLoopControlTest {
         val loop =
             GameLoop(
                 playerId = 1,
-                output = GameOutputSink { batches += it; true },
+                connection = GameConnection(inputs, GameOutputSink { batches += it; true }),
                 playerMovement = movement,
-                inputs = inputs,
                 buttonActions = actions,
                 playerVarps = varps,
                 sessionControl = control,

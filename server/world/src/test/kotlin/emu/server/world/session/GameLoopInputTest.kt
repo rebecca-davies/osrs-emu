@@ -11,6 +11,7 @@ import emu.game.pathfinding.Tile
 import emu.game.ui.ButtonClick
 import emu.game.ui.buttonActions
 import emu.server.world.network.GameOutputSink
+import emu.server.world.network.GameConnection
 import emu.server.world.network.handler.MessagePublicHandler
 import emu.protocol.osrs239.game.message.MessagePublic
 import emu.server.world.player.PlayerSessionControl
@@ -51,9 +52,8 @@ class GameLoopInputTest {
 
         GameLoop(
             playerId = 1,
-            output = GameOutputSink { true },
+            connection = GameConnection(inputs, GameOutputSink { true }),
             playerMovement = movement,
-            inputs = inputs,
             buttonActions = buttonActions,
             playerVarps = varps,
             chatActions = chatActions,
@@ -75,9 +75,8 @@ class GameLoopInputTest {
 
         GameLoop(
             playerId = 1,
-            output = GameOutputSink { true },
+            connection = GameConnection(inputs, GameOutputSink { true }),
             playerMovement = movement,
-            inputs = inputs,
             buttonActions = playerButtonActions(movement, varps, control),
             playerVarps = varps,
             sessionControl = control,

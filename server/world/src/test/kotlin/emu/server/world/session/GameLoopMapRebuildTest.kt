@@ -12,6 +12,7 @@ import emu.server.world.player.PlayerSessionControl
 import emu.server.world.network.GameOutboundWriter
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
+import emu.server.world.network.GameConnection
 import emu.server.world.player.playerButtonActions
 import emu.transport.pipeline.OutboundSession
 import emu.protocol.osrs239.game.buildGameCodecRepository
@@ -36,9 +37,8 @@ class GameLoopMapRebuildTest {
 
         GameLoop(
             playerId = 1,
-            output = GameOutputSink { batches += it; true },
+            connection = GameConnection(inputs, GameOutputSink { batches += it; true }),
             playerMovement = movement,
-            inputs = inputs,
             buildArea = buildArea,
             buttonActions = playerButtonActions(movement, playerVarps, sessionControl),
             playerVarps = playerVarps,

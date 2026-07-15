@@ -8,7 +8,7 @@ constructor-parameters|persistence/api/src/main/kotlin/emu/persistence/character
 constructor-parameters|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerAppearance.kt|PlayerAppearance|9>7
 constructor-parameters|server/host/src/main/kotlin/emu/server/host/ServerConfig.kt|ServerConfig|10>7
 constructor-parameters|server/world/src/main/kotlin/emu/server/world/InProcessWorldServer.kt|InProcessWorldServer|11>7
-constructor-parameters|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|GameLoop|14>7
+constructor-parameters|server/world/src/main/kotlin/emu/server/world/session/GameLoop.kt|GameLoop|13>7
 function-parameters|server/world/src/main/kotlin/emu/server/world/session/GameStage.kt|runGameStage|16>10
 large-file|cache/src/main/kotlin/emu/cache/def/codec/ObjectDefCodec.kt|319
 large-file|server/world/src/main/kotlin/emu/server/world/runtime/WorldRuntime.kt|382

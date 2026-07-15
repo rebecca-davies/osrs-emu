@@ -10,6 +10,7 @@ import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.Tile
 import emu.server.world.network.GameOutboundMailbox
 import emu.server.world.network.GameOutboundWriter
+import emu.server.world.network.GameConnection
 import emu.server.world.network.GameOutputBatch
 import emu.server.world.network.GameOutputSink
 import emu.server.world.player.PlayerChatState
@@ -88,16 +89,15 @@ internal suspend fun runGameStage(
             playerVarps[PlayerVarpTypes.RUN_MODE] == 1,
             collisionMap,
         )
-    val inputs = PlayerInputQueue(connectionConfig.inputQueue)
+    val connection = GameConnection(PlayerInputQueue(connectionConfig.inputQueue), outboundMailbox)
     val chatState = PlayerChatState()
     val sessionControl = PlayerSessionControl()
     val buttonActions = playerButtonActions(movement, playerVarps, sessionControl)
     val chatActions = playerChatActions(player.id, player.rank, playerVarps, chatState, chatAudit, huffman)
     val gameLoop = GameLoop(
         playerId = player.id,
-        output = outboundMailbox,
+        connection = connection,
         playerMovement = movement,
-        inputs = inputs,
         buttonActions = buttonActions,
         playerVarps = playerVarps,
         chatActions = chatActions,
@@ -151,7 +151,7 @@ internal suspend fun runGameStage(
                                 outboundMailbox,
                                 inboundCipher,
                                 gameCodecs,
-                                inputs,
+                                connection.inputs,
                                 connectionConfig.idleTimeout,
                                 huffman,
                             )
