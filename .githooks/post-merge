@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Git does not install repository hooks automatically. Run scripts/install-local-hooks.sh once.
-set -u
+set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 if [ "$(git -C "$ROOT" branch --show-current)" != "main" ]; then
@@ -9,7 +9,7 @@ fi
 
 LOG_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/osrsemu/local-cd.log"
 mkdir -p "$(dirname "$LOG_FILE")"
-# The hook runs before `git merge` releases its repository/index locks. Hand off after a short
-# delay so act snapshots the completed main worktree instead of racing the merge process.
-nohup bash -c 'sleep 1; exec "$1"' _ "$ROOT/scripts/run-local-cd.sh" >>"$LOG_FILE" 2>&1 &
-echo "osrsemu local CD started in background; log: $LOG_FILE"
+echo "osrsemu local CD starting; log: $LOG_FILE"
+# Run synchronously: Git/tooling supervisors are allowed to reap detached hook children as soon as
+# the merge process exits, which can turn a background deploy into a silent no-op.
+"$ROOT/scripts/run-local-cd.sh" 2>&1 | tee "$LOG_FILE"

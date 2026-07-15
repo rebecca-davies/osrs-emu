@@ -111,9 +111,10 @@ Git never installs repository hooks by itself. Opt this checkout in once:
 ./scripts/install-local-hooks.sh
 ```
 
-The tracked `post-merge` hook starts `scripts/run-local-cd.sh` only when the checked-out branch is
-`main`. It runs in the background, serializes deployments with a lock, and writes its log to
-`~/.local/state/osrsemu/local-cd.log`. Merges in feature worktrees do not deploy.
+The tracked `post-merge` hook runs `scripts/run-local-cd.sh` only when the checked-out branch is
+`main`. It serializes deployments with a lock, writes its log to
+`~/.local/state/osrsemu/local-cd.log`, and deliberately keeps the merge command attached until the
+build/deploy result is known. Merges in feature worktrees do not deploy.
 
 Manage the deployed container:
 
