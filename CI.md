@@ -165,3 +165,24 @@ These are enforced, not aspirational (CLAUDE.md §12/§12a/§14):
   modified, or removed.
 - **RSA private key stays server-side.** It is gitignored, must be host mode `0600`, and is mounted
   as a Compose secret; it is never committed and never enters an image layer.
+
+## Isolated local clients
+
+The explicit development launcher starts its own PostgreSQL service, composed server, local
+client configuration server, and first RuneLite client:
+
+```bash
+./scripts/local-dev.sh start
+```
+
+Additional clients share that local game world while retaining separate throwaway homes:
+
+```bash
+./scripts/local-dev.sh client
+./scripts/local-dev.sh status
+./scripts/local-dev.sh stop
+```
+
+The launcher creates a rootless network namespace with no external default route. It starts and
+stops only PIDs recorded beneath its private runtime directory; unrelated RuneLite or Bolt
+processes are never searched for or signalled.
