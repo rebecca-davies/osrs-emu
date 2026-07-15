@@ -42,7 +42,5 @@ class AccountAuthenticatorTest {
                 passwordHash,
             ).also { accounts[username] = it }
         }
-
-        override fun setRank(accountId: Long, rank: PlayerRank) = Unit
     }
 }

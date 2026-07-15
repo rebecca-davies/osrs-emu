@@ -4,6 +4,7 @@ import emu.persistence.account.PlayerRank
 import emu.persistence.character.PlayerPosition
 import emu.persistence.character.PlayerSessionSave
 import emu.persistence.postgres.account.PostgresAccountStore
+import emu.persistence.postgres.account.PostgresAccountRankStore
 import emu.persistence.postgres.character.PostgresCharacterStore
 import java.util.UUID
 import kotlin.test.Test
@@ -16,6 +17,7 @@ class PostgresPlayerStoresTest {
     fun `account and character storage remain separate`() {
         migratedTestDatabase().use { database ->
             val accounts = PostgresAccountStore(database)
+            val ranks = PostgresAccountRankStore(database)
             val characters = PostgresCharacterStore(database)
             val name = "T_${UUID.randomUUID().toString().take(8)}"
 
@@ -28,7 +30,7 @@ class PostgresPlayerStoresTest {
             assertEquals(0, character.playTimeSeconds)
             assertEquals(emptyMap(), character.varps)
 
-            accounts.setRank(created.account.id, PlayerRank.ADMINISTRATOR)
+            ranks.setRank(created.account.id, PlayerRank.ADMINISTRATOR)
             assertEquals(
                 PlayerRank.ADMINISTRATOR,
                 requireNotNull(accounts.findByUsername(created.account.username)).account.rank,

@@ -1,6 +1,6 @@
 package emu.persistence.account
 
-/** Persistence operations required by account authentication and administration. */
+/** Persistence operations required by account authentication. */
 interface AccountStore {
     fun findByUsername(username: String): StoredAccount?
 
@@ -9,6 +9,4 @@ interface AccountStore {
         displayName: String,
         passwordHash: String,
     ): StoredAccount?
-
-    fun setRank(accountId: Long, rank: PlayerRank)
 }
