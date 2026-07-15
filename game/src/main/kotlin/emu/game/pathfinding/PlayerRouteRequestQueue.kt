@@ -2,55 +2,81 @@ package emu.game.pathfinding
 
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProcess
-import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
+
+enum class RouteRequestAdmission {
+    QUEUED,
+    REPLACED,
+    REJECTED,
+}
+
+/** Monotonic input counters; snapshots may be sampled by future world metrics. */
+data class RouteRequestMetrics(
+    val submitted: Long,
+    val replaced: Long,
+    val rejected: Long,
+    val processed: Long,
+)
 
 /** Thread-safe destination sink exposed to network packet handlers. */
 fun interface PlayerRouteRequestSink {
-    fun submit(x: Int, z: Int, keyCombination: Int): Boolean
+    fun submit(x: Int, z: Int, keyCombination: Int): RouteRequestAdmission
 }
 
 /**
- * Bounded network-to-game mailbox for player route destinations.
+ * Size-one, latest-wins network-to-game mailbox for player route destinations.
  *
- * IO may only [submit]; the world thread drains at most [maxPerCycle] requests during
- * `CLIENT_INPUT`, before the player's movement phase. Later clicks replace earlier routes in FIFO
- * order exactly as multiple move packets decoded in one game cycle would.
+ * IO may only [submit]. A newer click atomically replaces an unprocessed click, and the world
+ * consumes at most one destination in `CLIENT_INPUT` before movement. This bounds both memory and
+ * BFS work while matching the client's most recent intent.
  */
-class PlayerRouteRequestQueue(
-    capacity: Int = DEFAULT_CAPACITY,
-    private val maxPerCycle: Int = DEFAULT_MAX_PER_CYCLE,
-) : PlayerRouteRequestSink {
-    private val requests: ArrayBlockingQueue<Request>
-
-    init {
-        require(capacity > 0) { "route request capacity must be positive" }
-        require(maxPerCycle > 0) { "per-cycle route request limit must be positive" }
-        requests = ArrayBlockingQueue(capacity)
-    }
+class PlayerRouteRequestQueue : PlayerRouteRequestSink {
+    private val pending = AtomicReference<Request?>()
+    private val submitted = AtomicLong()
+    private val replaced = AtomicLong()
+    private val rejected = AtomicLong()
+    private val processed = AtomicLong()
 
     /** Offers raw wire coordinates without reading mutable world state from the network thread. */
-    override fun submit(x: Int, z: Int, keyCombination: Int): Boolean =
-        requests.offer(Request(x, z, keyCombination))
+    override fun submit(x: Int, z: Int, keyCombination: Int): RouteRequestAdmission {
+        submitted.incrementAndGet()
+        if (x !in WORLD_COORDINATES || z !in WORLD_COORDINATES) {
+            rejected.incrementAndGet()
+            return RouteRequestAdmission.REJECTED
+        }
+        val previous = pending.getAndSet(Request(x, z, keyCombination))
+        return if (previous == null) {
+            RouteRequestAdmission.QUEUED
+        } else {
+            replaced.incrementAndGet()
+            RouteRequestAdmission.REPLACED
+        }
+    }
 
-    /** Creates the client-input process that searches each admitted destination. */
+    fun metrics(): RouteRequestMetrics =
+        RouteRequestMetrics(
+            submitted = submitted.get(),
+            replaced = replaced.get(),
+            rejected = rejected.get(),
+            processed = processed.get(),
+        )
+
+    /** Creates the client-input process that searches at most the latest admitted destination. */
     fun cycleProcesses(movement: PlayerMovement): List<CycleProcess> =
         listOf(
             CycleProcess(CyclePhase.CLIENT_INPUT) {
-                repeat(maxPerCycle) {
-                    val request = requests.poll() ?: return@CycleProcess
-                    if (request.x !in WORLD_COORDINATES || request.z !in WORLD_COORDINATES) return@repeat
-                    val destination = Tile(request.x, request.z, movement.position.plane)
-                    val temporaryRun = if (request.keyCombination == CONTROL_KEY) !movement.runEnabled else null
-                    movement.routeTo(destination, temporaryRun)
-                }
+                val request = pending.getAndSet(null) ?: return@CycleProcess
+                processed.incrementAndGet()
+                val destination = Tile(request.x, request.z, movement.position.plane)
+                val temporaryRun = if (request.keyCombination == CONTROL_KEY) !movement.runEnabled else null
+                movement.routeTo(destination, temporaryRun)
             },
         )
 
     private data class Request(val x: Int, val z: Int, val keyCombination: Int)
 
     private companion object {
-        const val DEFAULT_CAPACITY = 32
-        const val DEFAULT_MAX_PER_CYCLE = 10
         const val CONTROL_KEY = 1
         val WORLD_COORDINATES = 0..0x3FFF
     }
