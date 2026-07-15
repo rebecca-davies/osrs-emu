@@ -15,6 +15,7 @@ import emu.netcore.message.OutgoingMessage
 data class PlayerInfo(
     val appearance: PlayerAppearance? = null,
     val movement: PlayerMovement? = null,
+    val publicChat: PlayerPublicChat? = null,
 ) : OutgoingMessage
 
 /** Local-player movement delta encoded by the rev-239 high-resolution GPI bitcode. */

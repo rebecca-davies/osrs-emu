@@ -11,6 +11,7 @@ import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset
 import emu.protocol.osrs239.game.message.CamTargetPlayer
 import emu.protocol.osrs239.game.message.ChatFilterSettings
+import emu.protocol.osrs239.game.message.ChatFilterPrivate
 import emu.protocol.osrs239.game.message.HideLocOps
 import emu.protocol.osrs239.game.message.HideNpcOps
 import emu.protocol.osrs239.game.message.HideObjOps
@@ -76,6 +77,16 @@ internal fun initialPlayerVarps(savedValues: Map<Int, Int> = emptyMap()): Player
 /** Complete transmitted player variables after VARP_RESET, selecting small/large wire forms. */
 internal fun initialAccountVarps(varps: PlayerVarps = initialPlayerVarps()): List<OutgoingMessage> =
     varps.loginSync().map(VarpValue::toProtocolMessage)
+
+/** Restores all three sparse account chat settings through their dedicated rev-239 packets. */
+internal fun initialChatFilters(varps: PlayerVarps = initialPlayerVarps()): List<OutgoingMessage> =
+    listOf(
+        ChatFilterSettings(
+            publicFilter = varps[PlayerVarpTypes.PUBLIC_CHAT_FILTER],
+            tradeFilter = varps[PlayerVarpTypes.TRADE_CHAT_FILTER],
+        ),
+        ChatFilterPrivate(varps[PlayerVarpTypes.PRIVATE_CHAT_FILTER]),
+    )
 
 internal fun VarpValue.toProtocolMessage(): OutgoingMessage =
     if (value in Byte.MIN_VALUE..Byte.MAX_VALUE) VarpSmall(id, value) else VarpLarge(id, value)
@@ -162,11 +173,12 @@ internal suspend fun sendInitialGameCycle(
     localPlayerIndex: Int,
     appearance: PlayerAppearance?,
     accountVarps: List<OutgoingMessage> = initialAccountVarps(),
+    chatFilters: List<OutgoingMessage> = initialChatFilters(),
 ) {
     session.send(RebuildNormal(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
     session.send(SiteSettings())
-    session.send(ChatFilterSettings())
+    for (filter in chatFilters) session.send(filter)
     session.send(HideNpcOps())
     session.send(HideLocOps())
     session.send(HideObjOps())

@@ -8,6 +8,8 @@ import emu.netcore.prot.Prot
  * See docs/superpowers/research/2026-07-14-rev239-ingame-facts.md §1c.
  */
 object GameServerProt {
+    /** Private-chat visibility mode (opcode 5, fixed 1). */
+    val CHAT_FILTER_SETTINGS_PRIVATE = Prot(5, 1)
     /** Clean player logout (opcode 57, empty). */
     val LOGOUT = Prot(57, 0)
 

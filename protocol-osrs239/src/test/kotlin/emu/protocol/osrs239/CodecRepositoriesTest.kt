@@ -5,6 +5,8 @@ import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.RebuildNormal
 import emu.protocol.osrs239.game.message.IfButtonX
 import emu.protocol.osrs239.game.message.Logout
+import emu.protocol.osrs239.game.message.MessagePublic
+import emu.protocol.osrs239.game.message.SetChatFilterSettings
 import emu.protocol.osrs239.game.prot.GameClientProt
 import emu.protocol.osrs239.js5.js5Module
 import emu.protocol.osrs239.js5.message.Js5GroupResponse
@@ -48,6 +50,8 @@ class CodecRepositoriesTest {
         assertNotNull(repository.encoder(PlayerInfo::class.java), "game player-info encoder")
         assertNotNull(repository.encoder(Logout::class.java), "game logout encoder")
         assertNotNull(repository.decoder(GameClientProt.IF_BUTTONX.opcode), "game if-button-x decoder")
+        assertNotNull(repository.decoder(GameClientProt.MESSAGE_PUBLIC.opcode), "game public-chat decoder")
+        assertNotNull(repository.decoder(GameClientProt.SET_CHAT_FILTER_SETTINGS.opcode), "game chat-filter decoder")
     }
 
     @Test fun `collected decoder count matches the number of opcodes every domain module declares`() {
@@ -55,10 +59,15 @@ class CodecRepositoriesTest {
         // qualifier collision shows up here rather than only as a dropped packet at runtime.
         val expectedOpcodes = listOf(Js5Prot.GROUP_REQUEST.opcode, Js5Prot.GROUP_REQUEST_PREFETCH.opcode) +
             Js5Prot.CONTROL_OPCODES.toList() +
-            listOf(GameClientProt.MOVE_GAMECLICK.opcode, GameClientProt.IF_BUTTONX.opcode)
+            listOf(
+                GameClientProt.MOVE_GAMECLICK.opcode,
+                GameClientProt.IF_BUTTONX.opcode,
+                GameClientProt.MESSAGE_PUBLIC.opcode,
+                GameClientProt.SET_CHAT_FILTER_SETTINGS.opcode,
+            )
         for (opcode in expectedOpcodes) {
             assertNotNull(repository.decoder(opcode))
         }
-        assertEquals(9, expectedOpcodes.size)
+        assertEquals(11, expectedOpcodes.size)
     }
 }

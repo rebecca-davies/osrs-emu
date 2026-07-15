@@ -20,7 +20,19 @@ internal object PlayerVarpTypes {
     private val DISPLAY_NAME_STATE = VarpType(1737, transmit = VarpTransmit.ON_CHANGE)
     val HAS_DISPLAY_NAME = VarbitType(8119, DISPLAY_NAME_STATE, 31..31)
 
-    val CATALOG = VarpCatalog(RUN_MODE, DISPLAY_NAME_STATE)
+    /** Server-owned account settings; dedicated chat packets publish them, never VARP packets. */
+    val PUBLIC_CHAT_FILTER = VarpType(65533, scope = VarpScope.PERMANENT, transmit = VarpTransmit.NEVER)
+    val PRIVATE_CHAT_FILTER = VarpType(65534, scope = VarpScope.PERMANENT, transmit = VarpTransmit.NEVER)
+    val TRADE_CHAT_FILTER = VarpType(65535, scope = VarpScope.PERMANENT, transmit = VarpTransmit.NEVER)
+
+    val CATALOG =
+        VarpCatalog(
+            RUN_MODE,
+            DISPLAY_NAME_STATE,
+            PUBLIC_CHAT_FILTER,
+            PRIVATE_CHAT_FILTER,
+            TRADE_CHAT_FILTER,
+        )
 }
 
 /** Per-session lifecycle requests set only from game-cycle button actions. */

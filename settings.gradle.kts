@@ -15,6 +15,7 @@ dependencyResolutionManagement {
 include("buffer")
 include("cache")
 include("crypto")
+include("compression")
 include("game")
 include("net-core")
 include("protocol-osrs239")

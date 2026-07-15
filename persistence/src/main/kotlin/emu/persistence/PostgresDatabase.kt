@@ -70,6 +70,7 @@ class PostgresDatabase(config: PostgresConfig) {
                 Migration(1, "/db/migration/V1__players.sql"),
                 Migration(2, "/db/migration/V2__player_rank.sql"),
                 Migration(3, "/db/migration/V3__player_varps.sql"),
+                Migration(4, "/db/migration/V4__chat_messages.sql"),
             )
     }
 }
