@@ -138,15 +138,16 @@ scripts/local-dev/process-identity.py spawn \
   "$SECOND_HELPER_IDENTITY_FILE" \
   "$STATE_DIR/helper-two.log" \
   -- sleep 30
-SECOND_HELPER_PID="$(<"$SECOND_HELPER_PID_FILE")"
 scripts/local-dev/process-identity.py stop-many -- \
   "$HELPER_PID_FILE" "$HELPER_IDENTITY_FILE" sleep "verification helper" \
   "$SECOND_HELPER_PID_FILE" "$SECOND_HELPER_IDENTITY_FILE" sleep "second verification helper"
-if kill -0 "$HELPER_PID" 2>/dev/null; then
+if scripts/local-dev/process-identity.py matches \
+  --marker=sleep "$HELPER_PID_FILE" "$HELPER_IDENTITY_FILE"; then
   echo "process control did not stop its verified process" >&2
   exit 1
 fi
-if kill -0 "$SECOND_HELPER_PID" 2>/dev/null; then
+if scripts/local-dev/process-identity.py matches \
+  --marker=sleep "$SECOND_HELPER_PID_FILE" "$SECOND_HELPER_IDENTITY_FILE"; then
   echo "batched process control did not stop every verified process" >&2
   exit 1
 fi
