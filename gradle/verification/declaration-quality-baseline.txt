@@ -42,7 +42,6 @@ multiple|protocol/game/src/main/kotlin/emu/protocol/osrs239/game/message/PlayerI
 multiple|protocol/js5/src/main/kotlin/emu/protocol/osrs239/js5/Js5Codecs.kt|type:Js5Codecs,function:buildJs5CodecRepository
 multiple|protocol/login/src/main/kotlin/emu/protocol/osrs239/login/LoginCodecs.kt|type:LoginCodecs,function:buildLoginCodecRepository
 multiple|server/app/src/main/kotlin/emu/server/RuntimeAssets.kt|type:RuntimeAssets,function:loadRuntimeAssets
-multiple|server/game/src/main/kotlin/emu/server/game/network/GameOutput.kt|type:GameOutputBatch,type:GameOutputSegment,type:GameOutputBatchBuilder,function:gameOutputBatch,type:GameOutputSink,type:GameOutboundMailbox,type:GameOutboundWriter
 multiple|server/game/src/main/kotlin/emu/server/game/player/PlayerChatState.kt|type:PlayerChatState,function:playerChatActions
 multiple|server/game/src/main/kotlin/emu/server/game/player/PlayerGameState.kt|type:PlayerVarpTypes,type:PlayerSessionControl,function:playerButtonActions
 multiple|server/game/src/main/kotlin/emu/server/game/session/GameLoop.kt|type:GameLoop,type:LocalPlayerInfoState
