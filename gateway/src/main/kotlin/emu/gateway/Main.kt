@@ -362,9 +362,8 @@ private fun buildJs5CodecRepository(): CodecRepository = koinApplication { modul
 /**
  * The immutable game-domain encoder registry, built once and shared by every connection — the
  * same hoist-at-startup convention as [buildJs5CodecRepository], scoped to just [gameModule] so it
- * never picks up a JS5/login codec. [emu.gateway.login.runGameStage] uses it (via
- * [emu.netcore.pipeline.OutboundSession]) to encode the initial-scene packets; it holds no
- * per-connection state, unlike the outbound ISAAC cipher each connection gets from its own
- * authenticated game login.
+ * never picks up a JS5/login codec. [emu.gateway.login.runGameStage] gives it to each connection's
+ * isolated outbound writer; the repository itself holds no per-connection state, unlike the ISAAC
+ * cipher and bounded mailbox each authenticated game login owns.
  */
 private fun buildGameCodecRepository(): CodecRepository = koinApplication { modules(gameModule) }.koin.buildCodecRepository()

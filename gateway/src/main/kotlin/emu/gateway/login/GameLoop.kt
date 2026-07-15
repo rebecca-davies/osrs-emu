@@ -17,9 +17,11 @@ import emu.game.chat.PlayerChatQueue
 import emu.game.varp.PlayerVarps
 import emu.gateway.game.PlayerSessionControl
 import emu.gateway.game.PlayerChatState
+import emu.gateway.game.GameOutputBatch
+import emu.gateway.game.GameOutputSink
+import emu.gateway.game.gameOutputBatch
 import emu.gateway.world.WorldParticipant
 import emu.gateway.world.WorldParticipantResult
-import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.game.message.NpcInfo
 import emu.protocol.osrs239.game.message.Logout
 import emu.protocol.osrs239.game.message.PlayerInfo
@@ -39,13 +41,13 @@ private val logger = KotlinLogging.logger {}
  * (GPI) packet **every** cycle. Scheduling belongs exclusively to
  * [emu.gateway.world.WorldRuntime]; this class cannot create an independent player clock.
  *
- * [GameCycle] drains this player's bounded input, advances movement in the player phase, flushes
- * update info in client output, then clears per-cycle state. [session] reuses the shared
- * registry/ISAAC write path verbatim.
+ * [GameCycle] drains this player's bounded input, advances movement in the player phase, offers one
+ * indivisible output batch, then clears per-cycle state. [output] is deliberately non-suspending:
+ * socket IO and ISAAC ownership live in the connection's writer coroutine.
  */
 internal class GameLoop(
     override val playerId: Long,
-    private val session: OutboundSession,
+    private val output: GameOutputSink,
     private val playerMovement: PlayerMovement =
         PlayerMovement(Tile(SPAWN_X, SPAWN_Y, SPAWN_PLANE), OpenCollisionMap),
     private val routeRequests: PlayerRouteRequestQueue = PlayerRouteRequestQueue(),
@@ -57,12 +59,13 @@ internal class GameLoop(
     chatActions: ChatActionRegistry = emu.game.chat.chatActions {},
     private val chatState: PlayerChatState = PlayerChatState(),
     private val sessionControl: PlayerSessionControl,
-    private val onProfileReport: suspend (CycleProfileSnapshot) -> Unit = {},
+    private val onProfileReport: (CycleProfileSnapshot) -> Unit = {},
     private val maxCycles: Int = Int.MAX_VALUE,
     cycleProcesses: List<CycleProcess> = emptyList(),
 ) : WorldParticipant {
     private val playerInfoState = LocalPlayerInfoState()
     private var processedCycles = 0
+    private var outputSaturated = false
 
     init {
         require(maxCycles >= 0) { "maxCycles must be non-negative" }
@@ -83,40 +86,48 @@ internal class GameLoop(
     /**
      * Recentres the client's 104x104 build area when movement reaches its outer two zones, then
      * flushes active-world context, the current scene-local NPC origin, local-player GPI and empty
-     * NPC info as one atomic group. Appearance was established by [sendInitialGameCycle] and is not
+     * NPC info as one atomic group. Appearance was established by [initialGameCycle] and is not
      * repeated; GPI carries this cycle's optional walk/run delta.
     */
-    private suspend fun flushClientOutput(tickIndex: Long) {
-        for (varp in playerVarps.drainClientUpdates()) session.send(varp.toProtocolMessage())
-        if (sessionControl.logoutRequested) {
-            session.send(Logout)
-            logger.info { "game loop: sent clean logout response on tick $tickIndex" }
-            return
-        }
-
-        val position = playerMovement.position
-        if (buildArea.recenterIfRequired(position)) {
-            session.send(RebuildNormal(buildArea.centreZoneX, buildArea.centreZoneY))
-            logger.info {
-                "game loop: rebuilt normal scene around zone " +
-                    "${buildArea.centreZoneX},${buildArea.centreZoneY} at tile ${position.x},${position.y}"
+    private fun flushClientOutput(tickIndex: Long) {
+        val batch = gameOutputBatch {
+            packets(playerVarps.drainClientUpdates().map { it.toProtocolMessage() })
+            if (sessionControl.logoutRequested) {
+                packet(Logout)
+            } else {
+                val position = playerMovement.position
+                if (buildArea.recenterIfRequired(position)) {
+                    packet(RebuildNormal(buildArea.centreZoneX, buildArea.centreZoneY))
+                    logger.info {
+                        "game loop: rebuilt normal scene around zone " +
+                            "${buildArea.centreZoneX},${buildArea.centreZoneY} at tile ${position.x},${position.y}"
+                    }
+                }
+                val playerInfo =
+                    playerInfoState
+                        .next(playerMovement.update, playerMovement.runEnabled)
+                        .copy(publicChat = chatState.takePublicChat())
+                packetGroup(
+                    listOf(
+                        SetActiveWorld(),
+                        SetNpcUpdateOrigin(buildArea.localX(position.x), buildArea.localY(position.y)),
+                        playerInfo,
+                        NpcInfo,
+                    ),
+                )
+                packet(ServerTickEnd)
             }
         }
-        val playerInfo =
-            playerInfoState
-                .next(playerMovement.update, playerMovement.runEnabled)
-                .copy(publicChat = chatState.takePublicChat())
-        sendPacketGroup(
-            session,
-            listOf(
-                SetActiveWorld(),
-                SetNpcUpdateOrigin(buildArea.localX(position.x), buildArea.localY(position.y)),
-                playerInfo,
-                NpcInfo,
-            ),
-        )
-        session.send(ServerTickEnd)
-        logger.debug { "game loop: sent atomic world group + SERVER_TICK_END for tick $tickIndex" }
+        publish(batch, tickIndex)
+    }
+
+    private fun publish(batch: GameOutputBatch, tickIndex: Long) {
+        if (output.offer(batch)) {
+            logger.debug { "game loop: queued atomic client output for tick $tickIndex" }
+        } else {
+            outputSaturated = true
+            logger.warn { "game loop: outbound mailbox saturated for player $playerId on tick $tickIndex" }
+        }
     }
 
     /** Advances this player exactly once using the world's authoritative tick number. */
@@ -124,9 +135,10 @@ internal class GameLoop(
         if (processedCycles >= maxCycles) return WorldParticipantResult.REMOVE
         cycle.tick(worldTick)
         processedCycles++
-        val remove = sessionControl.logoutRequested || processedCycles >= maxCycles
+        val remove = outputSaturated || sessionControl.logoutRequested || processedCycles >= maxCycles
         logger.debug {
             when {
+                outputSaturated -> "game loop: player $playerId outbound mailbox saturated"
                 sessionControl.logoutRequested -> "game loop: player $playerId requested logout"
                 processedCycles >= maxCycles -> "game loop: player $playerId reached test cycle cap $maxCycles"
                 else -> "game loop: advanced player $playerId on world tick $worldTick"

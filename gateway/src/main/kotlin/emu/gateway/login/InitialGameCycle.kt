@@ -5,9 +5,10 @@ import emu.game.map.PlayerBuildArea
 import emu.game.pathfinding.Tile
 import emu.game.varp.PlayerVarps
 import emu.game.varp.VarpValue
+import emu.gateway.game.GameOutputBatch
 import emu.gateway.game.PlayerVarpTypes
+import emu.gateway.game.gameOutputBatch
 import emu.netcore.message.OutgoingMessage
-import emu.netcore.pipeline.OutboundSession
 import emu.persistence.PlayerRank
 import emu.protocol.osrs239.game.message.AmbienceStop
 import emu.protocol.osrs239.game.message.CamReset
@@ -23,7 +24,6 @@ import emu.protocol.osrs239.game.message.IfResync
 import emu.protocol.osrs239.game.message.MessageGame
 import emu.protocol.osrs239.game.message.MinimapToggle
 import emu.protocol.osrs239.game.message.NpcInfo
-import emu.protocol.osrs239.game.message.PacketGroupStart
 import emu.protocol.osrs239.game.message.PlayerAppearance
 import emu.protocol.osrs239.game.message.PlayerInfo
 import emu.protocol.osrs239.game.message.RebuildLogin
@@ -37,13 +37,10 @@ import emu.protocol.osrs239.game.message.UpdateRunEnergy
 import emu.protocol.osrs239.game.message.UpdateRunWeight
 import emu.protocol.osrs239.game.message.UpdateStat
 import emu.protocol.osrs239.game.message.UpdateZoneFullFollows
+import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.VarpReset
 import emu.protocol.osrs239.game.message.VarpSmall
-import emu.protocol.osrs239.game.message.VarpLarge
 import emu.protocol.osrs239.game.message.WorldEntityInfo
-import io.github.oshai.kotlinlogging.KotlinLogging
-
-private val logger = KotlinLogging.logger {}
 
 /** The chatbox notice the real server posts on every login. */
 internal const val WELCOME_MESSAGE = "Welcome to RuneScape."
@@ -165,8 +162,7 @@ internal fun initialFrameMessages(): List<OutgoingMessage> {
  * group length is measured from the registered codecs, so it covers each member's smart opcode,
  * variable-length prefix, and body exactly as the client counts them.
  */
-internal suspend fun sendInitialGameCycle(
-    session: OutboundSession,
+internal fun initialGameCycle(
     spawnPlane: Int,
     spawnX: Int,
     spawnY: Int,
@@ -174,20 +170,19 @@ internal suspend fun sendInitialGameCycle(
     appearance: PlayerAppearance?,
     accountVarps: List<OutgoingMessage> = initialAccountVarps(),
     chatFilters: List<OutgoingMessage> = initialChatFilters(),
-) {
+): GameOutputBatch = gameOutputBatch {
     val buildArea = PlayerBuildArea(Tile(spawnX, spawnY, spawnPlane))
-    session.send(RebuildLogin(spawnPlane, spawnX, spawnY, localPlayerIndex))
+    packet(RebuildLogin(spawnPlane, spawnX, spawnY, localPlayerIndex))
 
-    session.send(SiteSettings())
-    for (filter in chatFilters) session.send(filter)
-    session.send(HideNpcOps())
-    session.send(HideLocOps())
-    session.send(HideObjOps())
-    session.send(VarpReset)
-    for (varp in accountVarps) session.send(varp)
+    packet(SiteSettings())
+    packets(chatFilters)
+    packet(HideNpcOps())
+    packet(HideLocOps())
+    packet(HideObjOps())
+    packet(VarpReset)
+    packets(accountVarps)
 
-    sendPacketGroup(
-        session,
+    packetGroup(
         initialWorldGroup(
             appearance,
             localPlayerIndex,
@@ -196,28 +191,19 @@ internal suspend fun sendInitialGameCycle(
         ),
     )
 
-    session.send(UpdateInvFull(-1, 64209, 93))
-    session.send(UpdateInvFull(-1, 64208, 94))
+    packet(UpdateInvFull(-1, 64209, 93))
+    packet(UpdateInvFull(-1, 64208, 94))
 
-    for (message in initialFrameMessages()) session.send(message)
+    packets(initialFrameMessages())
 
-    for (stat in initialStatMessages()) session.send(stat)
-    session.send(UpdateRunWeight())
-    session.send(UpdateRunEnergy())
-    session.send(ResetAnims)
-    session.send(MinimapToggle())
-    for (message in loginNoticeMessages()) session.send(message)
+    packets(initialStatMessages())
+    packet(UpdateRunWeight())
+    packet(UpdateRunEnergy())
+    packet(ResetAnims)
+    packet(MinimapToggle())
+    packets(loginNoticeMessages())
 
-    session.send(ServerTickEnd)
-    logger.info { "game stage: sent capture-shaped initial cycle (world group + full neutral frame/state)" }
-}
-
-/** Sends one rev-239 atomic packet group with its exact on-wire member byte count. */
-internal suspend fun sendPacketGroup(session: OutboundSession, messages: List<OutgoingMessage>) {
-    val length = messages.sumOf(session::wireSize)
-    require(length <= Short.MAX_VALUE) { "packet group too large: $length" }
-    session.send(PacketGroupStart(length))
-    for (message in messages) session.send(message)
+    packet(ServerTickEnd)
 }
 
 /** Capture order: a center-out spiral over scene-local zone origins 24..72. */

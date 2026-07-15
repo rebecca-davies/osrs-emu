@@ -10,10 +10,10 @@ import io.ktor.utils.io.ByteWriteChannel
 
 /**
  * A small, reusable per-connection outbound wrapper around [writePacket]: looks the encoder up in
- * [codecs] by the message's runtime class, then writes it through the single shared write path —
- * so every caller (the post-login game stage today, the tick-loop's outbound queue later) reuses
- * the exact same registry lookup + ISAAC-opcode-adjustment contract that [ProtocolStage.emit]
- * already relies on for in-loop replies, instead of re-deriving it per call site.
+ * [codecs] by the message's runtime class, then writes it through the single shared write path.
+ * [send] publishes one packet; [sendBatch] preserves packet order and flushes only at the batch
+ * boundary. Both reuse the registry lookup and ISAAC-opcode-adjustment contract instead of
+ * re-deriving it per call site.
  *
  * Deliberately holds no other state: [codecs] is shared/immutable across connections, [cipher] and
  * [write] are per-connection, and [writeOpcode] mirrors the protocol's own convention (game packets
@@ -29,6 +29,25 @@ class OutboundSession(
     suspend fun send(message: OutgoingMessage) {
         val encoder = encoderFor(message)
         writePacket(write, encoder, message, cipher, writeOpcode)
+    }
+
+    /**
+     * Writes an already-ordered logical batch with a single final flush. A game connection gives
+     * exclusive ownership of this method (and therefore its ISAAC cipher and socket) to its
+     * outbound writer coroutine.
+     */
+    suspend fun sendBatch(messages: List<OutgoingMessage>) {
+        messages.forEachIndexed { index, message ->
+            val encoder = encoderFor(message)
+            writePacket(
+                write = write,
+                encoder = encoder,
+                message = message,
+                cipher = cipher,
+                writeOpcode = writeOpcode,
+                flush = index == messages.lastIndex,
+            )
+        }
     }
 
     /**
