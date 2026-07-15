@@ -108,7 +108,16 @@ review.
     green (`./gradlew build`). Wire/protocol behavior is validated against the **real client** —
     the client is the oracle when the decompile and the wire disagree.
 17. **Never change wire behavior in a cleanup/refactor.** Byte-for-byte tests must still pass.
-18. Non-trivial changes get a review pass (spec compliance + code quality) before merge.
+18. **Independent blocking review is mandatory for every code-changing task.** Before each commit,
+    dispatch a read-only agent that did not author the change to review the complete commit-sized
+    diff. The reviewer must return `PASS` or `BLOCK` with file/line evidence against all of:
+    responsibility, package ownership, object lifetime, direct dependencies, composition boundary,
+    concurrency/queue bounds, global cycle ordering, extensibility, necessity, tests, declaration
+    layout, and contract-only KDoc. A blocked diff is not committed. Fix every finding and request
+    re-review. If the author disputes a finding, record the evidence in the external review log and
+    return it to the independent reviewer; only a subsequent explicit `PASS` clears a `BLOCK`. The
+    author can never overrule it. Never excuse transitional architecture or add a quality baseline
+    entry to make the review pass. Repeat the review on the final aggregate diff before merge.
 19. Git: isolated feature branch/worktree → validated merge to `main` → push to the canonical
     remote. Never revive the removed `staging` branch.
 20. **Every concurrent subagent works in its OWN git worktree on its OWN branch — never two
