@@ -37,10 +37,10 @@ class ActiveSceneCollisionRealCacheTest {
             return
         }
         val store = FlatFileStore(cache)
-        val collision = CacheCollisionLoader(
+        val collision = CacheCollisionMap(
             CacheMapRepository(store),
             CacheObjectDefinitionRepository(store),
-        ).load(49..51, 49..51)
+        )
 
         val blockingTileMask = CollisionFlag.OBJECT or CollisionFlag.FLOOR or CollisionFlag.FLOOR_DECORATION
         assertEquals(0, collision.flagsAt(3222, 3218, 0) and blockingTileMask)
@@ -50,8 +50,6 @@ class ActiveSceneCollisionRealCacheTest {
             }
         }
         assertTrue(BfsPathfinder(collision).findPath(Tile(3222, 3218), Tile(3223, 3218)).success)
-        assertEquals(-1, collision.flagsAt(48 * 64 + 63, 50 * 64, 0))
-
         var wallTiles = 0
         var objectTiles = 0
         var terrainTiles = 0
