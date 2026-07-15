@@ -8,7 +8,7 @@ cache-data/
 client/
 .git-pat
 
-# Generated server RSA keypair (tools:client-patch) — the gateway's private key. Never commit.
+# Generated server RSA keypair (tools:client-patch). Never commit.
 /server-rsa.properties
 .kotlin/
 
@@ -16,3 +16,6 @@ client/
 .claude/
 /.superpowers/
 /docs/
+
+# Historical GUI acceptance screenshots are local artifacts; client automation is jail-only.
+/tools/verify/

@@ -79,9 +79,10 @@ if PREVIOUS_IMAGE_ID="$(docker inspect --format '{{.Image}}' osrsemu-server 2>/d
   log "preserved previous image as osrsemu-server:rollback"
 fi
 
-# `up -d --build` rebuilds the image, then recreates the single `server` container only if
-# its image/config changed. No client is ever started (there is no client service).
-"${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build
+# Rebuild the image and reconcile only this Compose project. Removing project-scoped orphans is
+# required when a service is renamed (for example, gateway -> server), otherwise the retired
+# container can retain the public port and prevent its replacement from starting.
+"${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" up -d --build --remove-orphans
 
 SERVER_CONTAINER_ID="$("${COMPOSE[@]}" -p "$PROJECT" -f "$COMPOSE_FILE" ps -q server)"
 if [ -z "$SERVER_CONTAINER_ID" ]; then

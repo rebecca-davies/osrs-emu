@@ -15,6 +15,11 @@ fi
 
 bash -n scripts/deploy.sh scripts/run-local-cd.sh scripts/install-local-hooks.sh .githooks/post-merge
 
+grep -q -- '--remove-orphans' scripts/deploy.sh || {
+  echo "deploy must remove retired services within the scoped Compose project" >&2
+  exit 1
+}
+
 CONFIG="$(${COMPOSE[@]} -f compose.yaml config --format json)"
 python3 - "$CONFIG" <<'PY'
 import json
