@@ -11,6 +11,7 @@ import io.ktor.utils.io.readFully
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 private data class OutboundWriterTestMessage(val n: Int) : OutgoingMessage
 
@@ -28,6 +29,32 @@ private class ScriptedCipher(private val values: List<Int>) : StreamCipher {
 }
 
 class OutboundWriterTest {
+    @Test fun `VAR_BYTE rejects an oversized body before writing a frame`() = runBlocking {
+        val encoder = object : MessageEncoder<OutboundWriterTestMessage> {
+            override val prot = Prot(30, Prot.VAR_BYTE)
+            override val messageType = OutboundWriterTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage) = ByteArray(256)
+        }
+        val ch = ByteChannel(true)
+
+        assertFailsWith<IllegalArgumentException> {
+            writePacket(ch, encoder, OutboundWriterTestMessage(0), NopStreamCipher, writeOpcode = true)
+        }
+    }
+
+    @Test fun `VAR_SHORT rejects an oversized body before writing a frame`() = runBlocking {
+        val encoder = object : MessageEncoder<OutboundWriterTestMessage> {
+            override val prot = Prot(49, Prot.VAR_SHORT)
+            override val messageType = OutboundWriterTestMessage::class.java
+            override fun encode(cipher: StreamCipher, message: OutboundWriterTestMessage) = ByteArray(65_536)
+        }
+        val ch = ByteChannel(true)
+
+        assertFailsWith<IllegalArgumentException> {
+            writePacket(ch, encoder, OutboundWriterTestMessage(0), NopStreamCipher, writeOpcode = true)
+        }
+    }
+
     @Test fun `writeOpcode true with NopStreamCipher is byte-identical to the raw opcode`() = runBlocking {
         val ch = ByteChannel(true)
         writePacket(ch, OutboundWriterTestEncoder, OutboundWriterTestMessage(42), NopStreamCipher, writeOpcode = true)

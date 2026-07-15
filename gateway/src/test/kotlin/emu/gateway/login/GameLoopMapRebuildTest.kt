@@ -8,6 +8,9 @@ import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.PlayerButtonQueue
 import emu.gateway.game.PlayerSessionControl
+import emu.gateway.game.GameOutboundWriter
+import emu.gateway.game.GameOutputBatch
+import emu.gateway.game.GameOutputSink
 import emu.gateway.game.playerButtonActions
 import emu.netcore.pipeline.OutboundSession
 import emu.protocol.osrs239.buildCodecRepository
@@ -30,11 +33,12 @@ class GameLoopMapRebuildTest {
         val buttonClicks = PlayerButtonQueue()
         val playerVarps = initialPlayerVarps().apply { markClientSynchronized() }
         val sessionControl = PlayerSessionControl()
+        val batches = mutableListOf<GameOutputBatch>()
         routeRequests.submit(3256, 3218, 0)
 
         GameLoop(
             playerId = 1,
-            session = OutboundSession(codecs, NopStreamCipher, output),
+            output = GameOutputSink { batches += it; true },
             playerMovement = movement,
             routeRequests = routeRequests,
             buildArea = buildArea,
@@ -43,6 +47,7 @@ class GameLoopMapRebuildTest {
             playerVarps = playerVarps,
             sessionControl = sessionControl,
         ).cycle(worldTick = 0)
+        GameOutboundWriter(OutboundSession(codecs, NopStreamCipher, output)).write(batches.single())
 
         val rebuildPacket = ByteArray(9)
         output.readFully(rebuildPacket)

@@ -35,8 +35,17 @@ class ProtocolStage(
     private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot },
 ) {
     suspend fun run(read: ByteReadChannel, write: ByteWriteChannel) {
+        run(read) { message -> emit(message, write) }
+    }
+
+    /**
+     * Runs this stage with an injected outbound boundary. Game sessions use this overload to put
+     * handler replies into their per-connection mailbox, keeping the reader away from the socket's
+     * writer and outbound ISAAC state.
+     */
+    suspend fun run(read: ByteReadChannel, emit: suspend (OutgoingMessage) -> Unit) {
         val ctx = object : HandlerContext {
-            override suspend fun write(message: OutgoingMessage) = emit(message, write)
+            override suspend fun write(message: OutgoingMessage) = emit(message)
         }
         while (true) {
             val opcode = readOpcode(read)

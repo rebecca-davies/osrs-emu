@@ -9,7 +9,8 @@ import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
 
 /**
- * Writes one outbound packet to [write]: encode the body, optionally prefix an opcode smart, flush.
+ * Writes one outbound packet to [write]: encode the body, optionally prefix an opcode smart, and
+ * flush when [flush] is true.
  * The single reusable outbound-write path for every protocol stage — extracted out of
  * [ProtocolStage] so it can be unit-tested (and reused) independently of a running pipeline.
  *
@@ -41,9 +42,18 @@ suspend fun <T : OutgoingMessage> writePacket(
     message: T,
     cipher: StreamCipher,
     writeOpcode: Boolean,
+    flush: Boolean = true,
 ) {
     val body = encoder.encode(cipher, message)
     if (writeOpcode) {
+        when (encoder.prot.size) {
+            Prot.VAR_BYTE -> require(body.size <= UByte.MAX_VALUE.toInt()) {
+                "VAR_BYTE packet body is too large: ${body.size}"
+            }
+            Prot.VAR_SHORT -> require(body.size <= UShort.MAX_VALUE.toInt()) {
+                "VAR_SHORT packet body is too large: ${body.size}"
+            }
+        }
         val opcode = encoder.prot.opcode
         require(opcode in 0..0x7FFF) { "opcode must fit pSmart1or2: $opcode" }
         if (opcode < 128) {
@@ -61,5 +71,5 @@ suspend fun <T : OutgoingMessage> writePacket(
         }
     }
     write.writeFully(body)
-    write.flush()
+    if (flush) write.flush()
 }

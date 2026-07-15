@@ -1,20 +1,23 @@
 package emu.gateway.login
 
+import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
+import emu.game.chat.PlayerChatQueue
 import emu.game.pathfinding.CollisionMap
 import emu.game.pathfinding.OpenCollisionMap
 import emu.game.pathfinding.PlayerMovement
 import emu.game.pathfinding.PlayerRouteRequestQueue
 import emu.game.pathfinding.Tile
 import emu.game.ui.PlayerButtonQueue
-import emu.game.chat.PlayerChatQueue
-import emu.compression.HuffmanCodec
-import emu.persistence.ChatAuditSink
+import emu.gateway.game.GameOutboundMailbox
+import emu.gateway.game.GameOutboundWriter
+import emu.gateway.game.GameOutputBatch
+import emu.gateway.game.GameOutputSink
+import emu.gateway.game.PlayerChatState
 import emu.gateway.game.PlayerSessionControl
 import emu.gateway.game.PlayerVarpTypes
-import emu.gateway.game.playerButtonActions
 import emu.gateway.game.installGameHandlers
-import emu.gateway.game.PlayerChatState
+import emu.gateway.game.playerButtonActions
 import emu.gateway.game.playerChatActions
 import emu.gateway.world.WorldRuntime
 import emu.netcore.codec.CodecRepository
@@ -22,9 +25,10 @@ import emu.netcore.pipeline.HandlerRepositoryBuilder
 import emu.netcore.pipeline.OutboundSession
 import emu.netcore.pipeline.ProtocolStage
 import emu.netcore.prot.Prot
-import emu.protocol.osrs239.game.prot.GameClientProt
+import emu.persistence.ChatAuditSink
 import emu.persistence.PlayerPosition
 import emu.persistence.PlayerRecord
+import emu.protocol.osrs239.game.prot.GameClientProt
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
@@ -64,7 +68,7 @@ internal const val SPAWN_Y = 3218
  * Authenticated game stage: puts the client in-world and keeps its session lifecycle synchronized
  * with the shared world.
  *
- * After inactive world admission it sends [sendInitialGameCycle]: the Lumbridge rebuild plus the
+ * After inactive world admission it sends [initialGameCycle]: the Lumbridge rebuild plus the
  * required atomic entity/player/NPC/zone group and neutral rev-239 frame/account state. It then
  * activates the player while a sibling coroutine drains this connection's inbound protocol stream:
  *  - the **world runtime** advances [GameLoop] from the same authoritative 600ms clock as every
@@ -75,10 +79,9 @@ internal const val SPAWN_Y = 3218
  * When either side ends (the client disconnects, or it goes idle past [idleTimeout]) the other is
  * cancelled and the connection is handed back to [emu.gateway.handleConnection]'s `finally` to close.
  *
- * Every server->client packet is written through the same
- * [OutboundSession] — a thin wrapper over [emu.netcore.pipeline.writePacket] and the shared
- * [gameCodecs] registry — so each advances the outbound ISAAC keystream exactly once for its opcode
- * and this function never hand-rolls opcode/body bytes (CLAUDE.md §1/§9).
+ * Every server->client packet is offered as a bounded atomic batch. A per-connection writer is the
+ * sole owner of [OutboundSession], outbound ISAAC and the socket, so a slow client cannot suspend
+ * the authoritative world cycle and each opcode still advances the keystream exactly once.
  *
  * [maxTicks] is a per-session test seam; production leaves it unbounded.
  */
@@ -98,7 +101,8 @@ internal suspend fun runGameStage(
     chatAudit: ChatAuditSink = ChatAuditSink { true },
 ): Unit {
     val sessionStarted = System.nanoTime()
-    val session = OutboundSession(gameCodecs, outboundCipher, write)
+    val outboundMailbox = GameOutboundMailbox(OUTBOUND_BATCH_CAPACITY)
+    val outboundWriter = GameOutboundWriter(OutboundSession(gameCodecs, outboundCipher, write))
     val playerVarps = initialPlayerVarps(player.varps)
     val movement =
         initialPlayerMovement(
@@ -115,7 +119,7 @@ internal suspend fun runGameStage(
     val chatActions = playerChatActions(player.id, player.rank, playerVarps, chatState, chatAudit, huffman)
     val gameLoop = GameLoop(
         playerId = player.id,
-        session = session,
+        output = outboundMailbox,
         playerMovement = movement,
         routeRequests = routeRequests,
         buttonClicks = buttonClicks,
@@ -126,56 +130,79 @@ internal suspend fun runGameStage(
         chatState = chatState,
         sessionControl = sessionControl,
         onProfileReport = { snapshot ->
-            adminCycleReport(player.rank, snapshot)?.let { session.send(it) }
+            adminCycleReport(player.rank, snapshot)?.let {
+                if (!outboundMailbox.offer(GameOutputBatch.packet(it))) {
+                    logger.warn { "game stage: dropped admin profile report for saturated player ${player.id}" }
+                }
+            }
         },
         maxCycles = maxTicks,
     )
     try {
         coroutineScope {
-            val registration = worldRuntime.register(gameLoop, startActive = false)
-            if (!registration.admitted.await()) {
-                logger.warn { "game stage: rejected duplicate or overloaded session for player ${player.id}" }
-                return@coroutineScope
-            }
+            val writerJob = launch(Dispatchers.IO) { outboundMailbox.run(outboundWriter::write) }
             try {
-                sendInitialGameCycle(
-                    session = session,
-                    spawnPlane = player.position.plane,
-                    spawnX = player.position.x,
-                    spawnY = player.position.y,
-                    localPlayerIndex = LOCAL_PLAYER_INDEX,
-                    appearance = playerAppearance(player.displayName),
-                    accountVarps = initialAccountVarps(playerVarps),
-                    chatFilters = initialChatFilters(playerVarps),
-                )
-                playerVarps.markClientSynchronized()
-                worldRuntime.activate(player.id)
+                val registration = worldRuntime.register(gameLoop, startActive = false)
+                if (!registration.admitted.await()) {
+                    logger.warn { "game stage: rejected duplicate or overloaded session for player ${player.id}" }
+                    return@coroutineScope
+                }
+                try {
+                    val initialBatch = initialGameCycle(
+                        spawnPlane = player.position.plane,
+                        spawnX = player.position.x,
+                        spawnY = player.position.y,
+                        localPlayerIndex = LOCAL_PLAYER_INDEX,
+                        appearance = playerAppearance(player.displayName),
+                        accountVarps = initialAccountVarps(playerVarps),
+                        chatFilters = initialChatFilters(playerVarps),
+                    )
+                    withTimeout(INITIAL_BATCH_TIMEOUT) {
+                        outboundMailbox.submitAndAwait(initialBatch)
+                    }
+                    logger.info {
+                        "game stage: sent capture-shaped initial cycle " +
+                            "(world group + full neutral frame/state)"
+                    }
+                    playerVarps.markClientSynchronized()
+                    worldRuntime.activate(player.id)
 
-                val readJob = launch {
-                    try {
-                        drainGameInbound(
-                            read,
-                            write,
-                            inboundCipher,
-                            gameCodecs,
-                            routeRequests,
-                            buttonClicks,
-                            idleTimeout,
-                            chatInputs,
-                            huffman,
-                        )
-                    } finally {
-                        if (!registration.removed.isCompleted) {
-                            withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                    val readJob = launch {
+                        try {
+                            drainGameInbound(
+                                read,
+                                outboundMailbox,
+                                inboundCipher,
+                                gameCodecs,
+                                routeRequests,
+                                buttonClicks,
+                                idleTimeout,
+                                chatInputs,
+                                huffman,
+                            )
+                        } finally {
+                            if (!registration.removed.isCompleted) {
+                                withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                            }
                         }
                     }
-                }
 
-                registration.removed.await()
-                readJob.cancelAndJoin()
+                    registration.removed.await()
+                    readJob.cancelAndJoin()
+                } finally {
+                    if (!registration.removed.isCompleted) {
+                        withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                    }
+                }
             } finally {
-                if (!registration.removed.isCompleted) {
-                    withContext(NonCancellable) { worldRuntime.remove(player.id) }
+                outboundMailbox.close()
+                withContext(NonCancellable) {
+                    try {
+                        withTimeout(OUTBOUND_DRAIN_TIMEOUT) { writerJob.join() }
+                    } catch (_: TimeoutCancellationException) {
+                        logger.warn { "game stage: timed out draining outbound batches for player ${player.id}" }
+                        writerJob.cancelAndJoin()
+                    }
                 }
             }
         }
@@ -213,7 +240,7 @@ internal fun initialPlayerMovement(
  */
 internal suspend fun drainGameInbound(
     read: ByteReadChannel,
-    write: ByteWriteChannel,
+    output: GameOutputSink,
     inboundCipher: IsaacCipher,
     gameCodecs: CodecRepository,
     routeRequests: PlayerRouteRequestQueue,
@@ -238,7 +265,9 @@ internal suspend fun drainGameInbound(
             findProt = GameClientProt::find,
         )
     try {
-        stage.run(read, write)
+        stage.run(read) { message ->
+            check(output.offer(GameOutputBatch.packet(message))) { "outbound mailbox saturated" }
+        }
     } catch (e: TimeoutCancellationException) {
         logger.info { "game stage: idle for $idleTimeout during an inbound packet; closing connection" }
     } catch (e: CancellationException) {
@@ -266,4 +295,7 @@ private suspend fun readGamePayload(read: ByteReadChannel, prot: Prot): ByteArra
 
 private const val MAX_GAME_PACKET_SIZE = 10_000
 private const val NANOS_PER_SECOND = 1_000_000_000L
+private const val OUTBOUND_BATCH_CAPACITY = 4
 private val SESSION_SAVE_TIMEOUT = 5.seconds
+private val INITIAL_BATCH_TIMEOUT = 10.seconds
+private val OUTBOUND_DRAIN_TIMEOUT = 2.seconds
