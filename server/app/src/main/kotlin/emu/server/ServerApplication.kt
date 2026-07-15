@@ -1,6 +1,6 @@
 package emu.server
 
-import emu.server.game.BoundedGameServer
+import emu.server.game.createGameServer
 import emu.server.gateway.GatewayService
 import emu.server.js5.BoundedJs5Server
 import emu.server.js5.handler.Js5RequestHandler
@@ -54,7 +54,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             config = config.login,
         )
     val game =
-        BoundedGameServer(
+        createGameServer(
             store = assets.store,
             codecs = buildGameCodecRepository(),
             characters = characters,

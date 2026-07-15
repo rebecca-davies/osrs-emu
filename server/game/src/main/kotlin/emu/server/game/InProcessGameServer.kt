@@ -1,54 +1,43 @@
 package emu.server.game
 
-import emu.cache.map.CacheMapRepository
-import emu.cache.map.CacheObjectDefinitionRepository
-import emu.cache.store.Store
+import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
-import emu.server.game.admission.GameAdmission
-import emu.server.game.config.GameExecutionConfig
-import emu.server.game.network.loadHuffmanCodec
-import emu.server.game.map.CacheCollisionMap
-import emu.server.game.session.runGameStage
-import emu.server.game.world.WorldLifecycle
-import emu.server.game.world.WorldRuntime
+import emu.game.pathfinding.CollisionMap
 import emu.netcore.codec.CodecRepository
 import emu.persistence.character.CharacterStore
 import emu.persistence.chat.ChatAuditSink
+import emu.server.game.admission.GameAdmission
+import emu.server.game.config.GameExecutionConfig
+import emu.server.game.session.runGameStage
+import emu.server.game.world.WorldLifecycle
+import emu.server.game.world.WorldRuntime
+import emu.server.session.AuthenticatedPrincipal
 import emu.server.session.ConnectionHandoff
 import emu.server.session.GameSessionToken
-import emu.server.session.AuthenticatedPrincipal
 import emu.server.session.ReservationDecision
 import emu.server.session.ReservationRejection
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.ExecutorCoroutineDispatcher
-import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 
 private val logger = KotlinLogging.logger {}
 
-/** Bounded game IO and single-thread world runtime for prepared character sessions. */
-class BoundedGameServer(
-    store: Store,
+/** In-process game service for prepared character sessions. */
+internal class InProcessGameServer(
     private val codecs: CodecRepository,
     private val characters: CharacterStore,
     private val chatAudit: ChatAuditSink,
-    private val config: GameExecutionConfig = GameExecutionConfig(),
-    private val worldDispatcher: ExecutorCoroutineDispatcher = newWorldDispatcher(),
-    private val ioDispatcher: ExecutorCoroutineDispatcher = newGameIoDispatcher(config.ioWorkerThreads),
+    private val config: GameExecutionConfig,
+    private val world: WorldRuntime,
+    private val collision: CollisionMap,
+    private val huffman: HuffmanCodec,
+    private val admissions: GameAdmission,
+    private val worldLifecycle: WorldLifecycle,
+    private val dispatchers: GameServerDispatchers,
 ) : GameServer {
-    private val world = WorldRuntime(maxPlayerIndex = config.maxConcurrentSessions)
-    private val collision = CacheCollisionMap(CacheMapRepository(store), CacheObjectDefinitionRepository(store))
-    private val huffman = loadHuffmanCodec(store)
-    private val admissions =
-        GameAdmission(world, config.maxConcurrentSessions) { accountId ->
-            withContext(ioDispatcher) { characters.load(accountId) }
-        }
     private val started = AtomicBoolean(false)
-    private val worldLifecycle = WorldLifecycle(worldDispatcher, world::run)
 
     override fun start() {
         check(started.compareAndSet(false, true)) { "game server can only be started once" }
@@ -77,7 +66,7 @@ class BoundedGameServer(
             return
         }
         try {
-            withContext(ioDispatcher) {
+            withContext(dispatchers.io) {
                 val accountId = handoff.connection.principal.accountId
                 if (player.id != accountId) {
                     logger.warn { "game reservation account mismatch for account $accountId" }
@@ -98,7 +87,7 @@ class BoundedGameServer(
                     huffman = huffman,
                     chatAudit = chatAudit,
                     reservationToken = handoff.reservation.token,
-                    ioDispatcher = ioDispatcher,
+                    ioDispatcher = dispatchers.io,
                 )
             }
         } finally {
@@ -112,17 +101,6 @@ class BoundedGameServer(
     }
 
     override fun close() {
-        ioDispatcher.close()
-        worldDispatcher.close()
+        dispatchers.close()
     }
 }
-
-private fun newWorldDispatcher(): ExecutorCoroutineDispatcher =
-    Executors.newSingleThreadExecutor { task ->
-        Thread(task, "game-world").apply { isDaemon = true }
-    }.asCoroutineDispatcher()
-
-private fun newGameIoDispatcher(workerThreads: Int): ExecutorCoroutineDispatcher =
-    Executors.newFixedThreadPool(workerThreads) { task ->
-        Thread(task, "game-io").apply { isDaemon = true }
-    }.asCoroutineDispatcher()

@@ -93,6 +93,15 @@ class CompositionBoundaryTest {
         assertFalse(postgresSources.any { it.readText().contains("class AccountService") })
     }
 
+    @Test
+    fun `host composes the game capability without importing its implementation`() {
+        val application = root.resolve("server/app/src/main/kotlin/emu/server/ServerApplication.kt").readText()
+
+        assertTrue(application.contains("createGameServer("))
+        assertFalse(application.contains("BoundedGameServer"))
+        assertFalse(application.contains("InProcessGameServer"))
+    }
+
     private fun serverSources(module: String): List<Path> = root.resolve("server/$module/src").kotlinSources()
 
     private fun Path.kotlinSources(): List<Path> =
