@@ -1,10 +1,10 @@
 package emu.server.login.auth
 
+import emu.persistence.account.AccountRank
 import emu.persistence.account.AccountRecord
 import emu.persistence.account.AccountStore
-import emu.persistence.account.PlayerRank
 import emu.persistence.account.StoredAccount
-import emu.server.session.AuthenticationDecision
+import emu.server.session.authentication.AuthenticationDecision
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -40,7 +40,7 @@ class AccountAuthenticatorTest {
         override fun create(username: String, displayName: String, passwordHash: String): StoredAccount? {
             if (username in accounts) return null
             return StoredAccount(
-                AccountRecord(1, username, displayName, PlayerRank.PLAYER),
+                AccountRecord(1, username, displayName, AccountRank.PLAYER),
                 passwordHash,
             ).also { accounts[username] = it }
         }

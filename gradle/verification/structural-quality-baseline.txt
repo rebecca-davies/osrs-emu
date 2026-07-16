@@ -1,6 +1,0 @@
-# Existing structural debt. Remove entries as code is improved; never add entries casually.
-constructor-parameters|cache/src/main/kotlin/emu/cache/def/ItemDefinition.kt|ItemDefinition|56>7
-constructor-parameters|cache/src/main/kotlin/emu/cache/def/NpcDefinition.kt|NpcDefinition|44>7
-constructor-parameters|cache/src/main/kotlin/emu/cache/def/ObjectDefinition.kt|ObjectDefinition|48>7
-constructor-parameters|cache/src/main/kotlin/emu/cache/index/Js5Index.kt|GroupEntry|8>7
-large-file|cache/src/main/kotlin/emu/cache/def/codec/ObjectDefCodec.kt|319

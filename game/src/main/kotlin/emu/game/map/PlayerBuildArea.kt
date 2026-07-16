@@ -1,7 +1,5 @@
 package emu.game.map
 
-import emu.game.pathfinding.Tile
-
 /**
  * The local player's normal 104x104 scene window.
  *

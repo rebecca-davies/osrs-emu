@@ -5,9 +5,9 @@ import emu.crypto.RsaKeyPair
 import emu.protocol.osrs239.login.codec.LoginBlockParser
 import emu.protocol.osrs239.login.codec.LoginResponseEncoder
 import emu.protocol.osrs239.login.message.LoginResponse
-import emu.server.session.AuthenticationDecision
-import emu.server.session.AuthenticatedSession
-import emu.server.session.IsaacBootstrap
+import emu.server.session.authentication.AuthenticatedSession
+import emu.server.session.authentication.AuthenticationDecision
+import emu.server.session.authentication.IsaacBootstrap
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte

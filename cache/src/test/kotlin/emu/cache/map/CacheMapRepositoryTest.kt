@@ -5,11 +5,11 @@ import emu.cache.container.Js5Compression
 import emu.cache.def.ObjectDefinition
 import emu.cache.def.codec.ObjectDefCodec
 import emu.cache.group.Group
-import emu.cache.index.FileEntry
-import emu.cache.index.GroupEntry
-import emu.cache.index.Js5Index
-import emu.cache.index.Js5IndexEncoder
-import emu.cache.index.Js5IndexFlags
+import emu.cache.index.codec.Js5IndexEncoder
+import emu.cache.index.model.FileEntry
+import emu.cache.index.model.GroupEntry
+import emu.cache.index.model.Js5Index
+import emu.cache.index.model.Js5IndexFlags
 import emu.cache.store.Store
 import kotlin.test.Test
 import kotlin.test.assertEquals

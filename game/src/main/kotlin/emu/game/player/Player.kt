@@ -1,13 +1,13 @@
 package emu.game.player
 
 import emu.game.content.player.PlayerVarpCatalog
-import emu.game.content.ui.Gameframe
+import emu.game.content.ui.gameframe.Gameframe
 import emu.game.map.PlayerBuildArea
-import emu.game.pathfinding.PlayerMovement
-import emu.game.pathfinding.Tile
+import emu.game.map.Tile
+import emu.game.pathfinding.movement.PlayerMovement
 import emu.game.queue.PlayerActionQueue
-import emu.game.script.PlayerScriptExecution
-import emu.game.script.PlayerScriptRequest
+import emu.game.script.execution.PlayerScriptExecution
+import emu.game.script.execution.PlayerScriptRequest
 import emu.game.ui.PlayerInterfaces
 import emu.game.varp.PlayerVarps
 

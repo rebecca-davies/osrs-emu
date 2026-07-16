@@ -2,8 +2,14 @@ package emu.game.chat
 
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertNull
 
 class PublicChatInputTest {
+    @Test
+    fun `ordinary chat defaults to no pattern`() {
+        assertNull(PublicChatInput(0, 0, "hello").pattern)
+    }
+
     @Test
     fun `pattern bytes are copied on construction and access`() {
         val source = byteArrayOf(1, 2, 3)

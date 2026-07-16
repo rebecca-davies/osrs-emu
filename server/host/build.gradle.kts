@@ -19,7 +19,7 @@ dependencies {
     implementation(project(":server-session"))
     implementation(project(":server-js5"))
     implementation(project(":server-login"))
-    implementation(project(":server-world"))
+    implementation(project(":server-game"))
     implementation(project(":game"))
     implementation(project(":transport"))
     implementation(project(":persistence-api"))

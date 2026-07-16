@@ -5,7 +5,7 @@ build/
 !gradle-wrapper.jar
 /tmp/
 cache-data/
-client/
+/client/
 .git-pat
 
 # Generated server RSA keypair (tools:client-patch). Never commit.

@@ -3,12 +3,15 @@ package emu.server.gateway
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.ServerSocket
+import io.ktor.network.sockets.aSocket
 import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
 import io.ktor.utils.io.readByte
-import java.util.concurrent.atomic.AtomicBoolean
 import java.io.EOFException
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
@@ -16,7 +19,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
-import kotlin.time.Duration
 
 /** Bound gateway socket whose accept loop owns connection routing and closure. */
 class GatewayListener internal constructor(
@@ -54,7 +56,7 @@ class GatewayListener internal constructor(
                             }
                         classifications.release()
                         classifying = false
-                        route?.handle(read, write)
+                        route?.serve(read, write)
                     } catch (_: TimeoutCancellationException) {
                     } catch (_: EOFException) {
                     } catch (failure: CancellationException) {
@@ -76,5 +78,28 @@ class GatewayListener internal constructor(
         if (!closed.compareAndSet(false, true)) return
         socket.close()
         selector.close()
+    }
+
+    companion object {
+        /** Binds the shared JS5/login endpoint and returns its accept-loop owner. */
+        suspend fun bind(config: GatewayConfig, routes: GatewayRoutes): GatewayListener {
+            val selector = SelectorManager(Dispatchers.IO)
+            return try {
+                val socket =
+                    aSocket(selector)
+                        .tcp()
+                        .bind(InetSocketAddress(config.bindHost, config.port))
+                GatewayListener(
+                    socket,
+                    selector,
+                    routes,
+                    config.maxPendingClassifications,
+                    config.classificationTimeout,
+                )
+            } catch (failure: Throwable) {
+                selector.close()
+                throw failure
+            }
+        }
     }
 }

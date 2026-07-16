@@ -1,27 +1,26 @@
 package emu.server.login
 
-import emu.server.login.wire.LOGIN_PLAYER_MOD_TRAILER_OFFSET
-import emu.server.login.wire.LOGIN_RIGHTS_TRAILER_OFFSET
-import emu.server.login.wire.loginSuccessTrailer
-import emu.server.login.wire.performLoginBlock
-import emu.protocol.osrs239.login.codec.LoginBlockParser
-
 import emu.buffer.JagexBuffer
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
 import emu.crypto.Xtea
-import emu.server.session.AccountPrivilege
-import emu.server.session.AuthenticationDecision
+import emu.protocol.osrs239.login.codec.LoginBlockParser
 import emu.server.login.auth.LoginAuthenticator
+import emu.server.login.wire.LOGIN_PLAYER_MOD_TRAILER_OFFSET
+import emu.server.login.wire.LOGIN_RIGHTS_TRAILER_OFFSET
+import emu.server.login.wire.loginSuccessTrailer
+import emu.server.login.wire.performLoginBlock
+import emu.server.session.account.AccountPrivilege
+import emu.server.session.authentication.AuthenticationDecision
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class LoginAuthenticationTest {
     @Test

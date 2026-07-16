@@ -1,7 +1,7 @@
 package emu.server.login
 
-import emu.server.session.AuthenticationCompletion
-import emu.server.session.AuthenticatedSession
+import emu.server.session.authentication.AuthenticatedSession
+import emu.server.session.authentication.AuthenticationCompletion
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 

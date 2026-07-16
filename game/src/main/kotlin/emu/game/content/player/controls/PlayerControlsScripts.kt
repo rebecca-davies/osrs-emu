@@ -1,9 +1,9 @@
 package emu.game.content.player.controls
 
 import emu.game.content.player.PlayerVarpCatalog
-import emu.game.script.PlayerContent
-import emu.game.script.PlayerScriptContext
-import emu.game.script.ifClose
+import emu.game.script.content.PlayerContent
+import emu.game.script.execution.PlayerScriptContext
+import emu.game.script.queue.ifClose
 
 /** Player-controls content triggers, including both client run-toggle components. */
 object PlayerControlsScripts {

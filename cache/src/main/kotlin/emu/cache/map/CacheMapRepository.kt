@@ -1,9 +1,12 @@
 package emu.cache.map
 
 import emu.cache.container.Container
-import emu.cache.index.GroupEntry
 import emu.cache.group.Group
-import emu.cache.index.Js5IndexDecoder
+import emu.cache.index.codec.Js5IndexDecoder
+import emu.cache.index.model.GroupEntry
+import emu.cache.map.codec.MapLocDecoder
+import emu.cache.map.codec.MapTileDecoder
+import emu.cache.map.model.MapSquare
 import emu.cache.store.Store
 import java.util.concurrent.ConcurrentHashMap
 

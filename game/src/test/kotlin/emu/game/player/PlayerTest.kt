@@ -1,7 +1,7 @@
 package emu.game.player
 
 import emu.game.content.player.PlayerVarpCatalog
-import emu.game.pathfinding.Tile
+import emu.game.map.Tile
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue

@@ -1,5 +1,13 @@
 package emu.cache.index
 
+import emu.cache.index.checksum.crc32
+import emu.cache.index.checksum.withRecomputedCrc
+import emu.cache.index.codec.Js5IndexDecoder
+import emu.cache.index.codec.Js5IndexEncoder
+import emu.cache.index.model.FileEntry
+import emu.cache.index.model.GroupEntry
+import emu.cache.index.model.Js5Index
+import emu.cache.index.model.Js5IndexFlags
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals

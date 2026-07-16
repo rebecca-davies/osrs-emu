@@ -1,7 +1,7 @@
 package emu.game.content.player.logout
 
-import emu.game.script.PlayerContent
-import emu.game.script.ifClose
+import emu.game.script.content.PlayerContent
+import emu.game.script.queue.ifClose
 
 /** Login/logout content triggers owned by the game module. */
 object LogoutScripts {

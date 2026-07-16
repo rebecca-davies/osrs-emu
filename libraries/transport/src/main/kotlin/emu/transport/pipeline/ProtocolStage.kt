@@ -6,6 +6,9 @@ import emu.crypto.StreamCipher
 import emu.transport.codec.CodecRepository
 import emu.transport.codec.MessageEncoder
 import emu.transport.message.OutgoingMessage
+import emu.transport.pipeline.handler.HandlerContext
+import emu.transport.pipeline.handler.HandlerRepository
+import emu.transport.pipeline.outbound.writePacket
 import emu.transport.prot.Prot
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
@@ -22,7 +25,7 @@ class ProtocolStage(
     private val readOpcode: suspend (ByteReadChannel) -> Int,
     private val readPayload: suspend (ByteReadChannel, Prot) -> ByteArray,
     private val writeOpcode: Boolean = true,
-    private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot }
+    private val findProt: (Int) -> Prot? = { codecs.decoder(it)?.prot },
 ) {
     suspend fun run(read: ByteReadChannel, write: ByteWriteChannel) {
         run(read) { message -> emit(message, write) }

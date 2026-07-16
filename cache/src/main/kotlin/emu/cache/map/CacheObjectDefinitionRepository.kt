@@ -5,7 +5,7 @@ import emu.cache.def.DefinitionType
 import emu.cache.def.ObjectDefinition
 import emu.cache.def.codec.ObjectDefCodec
 import emu.cache.group.Group
-import emu.cache.index.Js5IndexDecoder
+import emu.cache.index.codec.Js5IndexDecoder
 import emu.cache.store.Store
 import java.util.concurrent.ConcurrentHashMap
 

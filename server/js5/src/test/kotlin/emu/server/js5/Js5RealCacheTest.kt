@@ -1,13 +1,13 @@
 package emu.server.js5
 
-import emu.server.js5.wire.installJs5Handlers
-import emu.server.js5.wire.performHandshake
 import emu.cache.store.FlatFileStore
 import emu.crypto.XorStreamCipher
-import emu.server.js5.handler.Js5RequestHandler
-import emu.transport.pipeline.HandlerRepositoryBuilder
-import emu.transport.pipeline.ProtocolStage
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
+import emu.server.js5.handler.Js5RequestHandler
+import emu.server.js5.wire.installJs5Handlers
+import emu.server.js5.wire.performHandshake
+import emu.transport.pipeline.ProtocolStage
+import emu.transport.pipeline.handler.HandlerRepositoryBuilder
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -17,12 +17,12 @@ import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class Js5RealCacheTest {
     @Test fun `composed pipeline serves the real master index if cache-data exists`() = runBlocking {

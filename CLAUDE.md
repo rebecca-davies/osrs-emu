@@ -9,16 +9,19 @@ review.
 1. **No god-objects.** A connection "session" is a *composition* — a decoder + a pure handler +
    an encoder driven by `transport`'s `ProtocolStage`. Never a `Session.serve()` method that reads,
    loops, dispatches, and writes all at once.
-2. **Small single-purpose units** with well-defined interfaces. If a file does two things, split it.
+2. **Small cohesive units** with well-defined interfaces. Split independently changing
+   responsibilities; keep a tightly coupled closed model family, codec pair, or product/builder
+   together when separating it would only manufacture navigation overhead.
 3. **Module boundaries are law:**
    - `libraries/{buffer,compression,crypto}` — leaf libraries with **zero** protocol knowledge
      (no opcodes, no revision).
-   - `libraries/transport` — **revision-agnostic**: `Prot(opcode,size)`, `Message` hierarchy, codec
-     interfaces + registry, `ProtocolStage`, `Session`. **No opcode literals, ever.**
+   - `libraries/transport` — **revision-agnostic**: `Prot(opcode,size)`, directional message
+     contracts, codec/handler registries, packet framing, and `ProtocolStage`. It does not own
+     login/game sessions. **No opcode literals, ever.**
    - `cache` — layered: `Store` leaf → `Container`(decompress/XTEA) → `Js5Index` → `Definition`.
      Each layer a small pure/testable unit, not one god-class. Build upper layers as needed (YAGNI).
    - `protocol/{login,js5,game}` — owns the rev-239 opcode/size tables and per-packet codecs.
-   - `server/gateway`, `server/login`, `server/js5`, `server/world` — peer services with no peer
+   - `server/gateway`, `server/login`, `server/js5`, `server/game` — peer services with no peer
      dependencies. Gateway accepts and routes sockets; each protocol service owns its stage.
    - Login owns authentication policy and bcrypt under `server/login/auth`; do not create a separate
      identity service. Persistence owns storage, not authentication decisions.
@@ -47,15 +50,51 @@ review.
     changing logic gets a named subpackage and its own file. Never create `Util`, `Common`, or
     unrelated config companion-object dumps. Keep wire, handler, domain, persistence and
     orchestration packages separate. Gradle modules live under capability folders such as
-    `libraries/`, `protocol/`, `server/`, and `tools/`; executable architecture checks protect
-    these boundaries.
-5e. **One independently meaningful production declaration per file.** `internal` is visibility,
-    not permission to hide another class in a convenient file. Secondary declarations are allowed
-    only when private, small, stateless and inseparable, or nested in one closed sealed family.
+    `libraries/`, `protocol/`, `server/`, and `tools/`; review dependencies and ownership as part
+    of architecture work instead of enforcing file layout with source-scanning validators.
+5e. **One independently meaningful production responsibility per file.** `internal` is visibility,
+    not permission to hide unrelated classes in a convenient file. Closely coupled declarations
+    may share a file when they form one closed model family, codec capability, or product/builder
+    and change for the same reason. Do not create a file for every trivial helper.
     Interfaces belong at capability and substitutable external seams, not in front of private pure
     helpers. Companion objects contain only factories or conversions intrinsic to their owning
     type; environment keys, service defaults, SQL, migrations, registries, caches and unrelated
     constants belong to typed configuration, named catalogs, or file-private implementation values.
+
+## Architecture vocabulary
+
+- **Game server** is the peer service under `server/game`. **World** means only its authoritative,
+  single-threaded game state and cycle. Never call the service/module a world server.
+- **Service** is the narrow host-facing capability at a module boundary. **Server** is its concrete
+  concurrency and lifecycle owner. **Listener** owns a bound socket and accept loop. **Runner**
+  advances one bounded execution lifetime, such as a connection or script. **Coordinator** is
+  host-only sequencing across peer services.
+- **Connection** is the socket/channel lifetime. **Session** is authenticated protocol-lifetime
+  data composed around a connection; it is never a read/dispatch/write god-object. **Handoff** is
+  the one-way transfer from login to game. **Reservation** temporarily owns a world slot before the
+  player attaches.
+- **World** owns live entities and indexes. **Cycle** is one deterministic 600 ms world update.
+  **Process** is one ordered phase within that cycle. **Runtime** schedules cycles; **lifecycle**
+  starts, stops, and reports failure for that runtime.
+- **Prot** is Jagex opcode/size metadata. **Message** is an immutable decoded/encodable Kotlin
+  value. **Codec** converts a message body to or from bytes. **Packet** means the encoded wire frame.
+  **Handler** maps one decoded inbound message into service work or a player action. **Output** maps
+  world state into outbound messages/batches; it is not a codec.
+- **Action** is RuneScape player work consumed by the strong/weak player action queues. **Input** is
+  the validated payload carried by an action. **Command** is cross-thread control work applied on
+  the world thread. **Queue** is an explicitly ordered, bounded producer/consumer structure; state
+  whether it is a player action queue or an infrastructure queue.
+- **IncomingPlayerActionQueue** is bounded connection-to-world staging. **PlayerActionQueue** is
+  the RuneScape primary/strong/weak/engine queue. Keep the two lifetimes and semantics distinct.
+- **Trigger** selects content; **script** is resumable content execution; **content** is gameplay
+  behavior and configuration owned by `game`, never server bootstrap wiring.
+- **Account** is authenticated identity and privilege, **character** is persisted gameplay data,
+  and **player** is the live in-world entity. Do not use `Principal`.
+- **Store** is an external byte/durable-data boundary. **Repository** is keyed lookup or dispatch
+  over data/behavior. **Catalog** is an immutable known set. **Config** is immutable runtime policy.
+  **Module** means host-only DI wiring, not a runtime object.
+- Use the established words exactly. Do not introduce synonyms such as `Mailbox`, `Intent`, or
+  `Admission`, and do not create vague `Manager`, `Util`, `Common`, or `Misc` buckets.
 
 ## Code style
 
@@ -104,9 +143,10 @@ review.
 
 ## Process
 
-16. **TDD.** Write the failing test first; every change ships with tests; keep the whole suite
-    green (`./gradlew build`). Wire/protocol behavior is validated against the **real client** —
-    the client is the oracle when the decompile and the wire disagree.
+16. **Test behavior, not repository shape.** Add focused tests for behavior and regressions; do not
+    assert exact file names, declaration counts, package depth, or folder inventories. Keep the
+    normal suite green (`./gradlew build`). Wire/protocol behavior is validated against the **real
+    client** — the client is the oracle when the decompile and the wire disagree.
 17. **Never change wire behavior in a cleanup/refactor.** Byte-for-byte tests must still pass.
 18. **Independent blocking review is mandatory for every code-changing task.** Before each commit,
     dispatch a read-only agent that did not author the change to review the complete commit-sized

@@ -2,16 +2,24 @@ package emu.server.host
 
 import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
-import emu.server.gateway.GatewayService
-import emu.server.js5.Js5Service
-import emu.server.login.LoginService
-import emu.persistence.postgres.character.CharacterSaveWriterConfig
+import emu.persistence.postgres.character.writeback.CharacterSaveWriterConfig
 import emu.persistence.postgres.database.PostgresMigrator
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
-import emu.server.world.GameService
-import emu.server.world.map.CacheCollisionMap
-import emu.server.world.network.loadHuffmanCodec
+import emu.server.game.GameService
+import emu.server.game.network.chat.loadHuffmanCodec
+import emu.server.game.world.map.CacheCollisionMap
+import emu.server.gateway.GatewayListener
+import emu.server.host.asset.loadRuntimeAssets
+import emu.server.host.composition.gameModule
+import emu.server.host.composition.js5Module
+import emu.server.host.composition.loginModule
+import emu.server.host.composition.persistenceModule
+import emu.server.host.config.ServerConfig
+import emu.server.host.handoff.ServerCoordinator
+import emu.server.host.lifecycle.shutdownServer
+import emu.server.js5.Js5Service
+import emu.server.login.LoginService
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -41,11 +49,11 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             modules(
                 persistenceModule(
                     config.database,
-                    CharacterSaveWriterConfig(capacity = config.world.maxConcurrentSessions),
+                    CharacterSaveWriterConfig(capacity = config.game.maxConcurrentSessions),
                 ),
                 js5Module(assets.store, buildJs5CodecRepository(), config.js5),
                 loginModule(assets.rsaKeyPair, config.login),
-                gameModule(buildGameCodecRepository(), collision, huffman, config.world),
+                gameModule(buildGameCodecRepository(), collision, huffman, config.game),
             )
         }
     val koin = koinApplication.koin
@@ -55,17 +63,17 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
 
         val js5 = koin.get<Js5Service>()
         val login = koin.get<LoginService>()
-        val world = koin.get<GameService>()
-        world.start()
+        val game = koin.get<GameService>()
+        game.start()
         var shutdownHook: Thread? = null
         var gatewayJob: Job? = null
-        var worldMonitor: Job? = null
+        var gameMonitor: Job? = null
         val listener =
             try {
-                val coordinator = ServerCoordinator(js5, login, world, config.coordinator)
-                GatewayService(config.gateway, coordinator.gatewayRoutes()).bind()
+                val coordinator = ServerCoordinator(js5, login, game, config.coordinator)
+                GatewayListener.bind(config.gateway, coordinator.gatewayRoutes())
             } catch (failure: Throwable) {
-                withContext(NonCancellable) { world.stop() }
+                withContext(NonCancellable) { game.stop() }
                 throw failure
             }
         try {
@@ -74,9 +82,9 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             shutdownHook = Thread({ stop.complete(Unit) }, "server-shutdown")
             Runtime.getRuntime().addShutdownHook(shutdownHook)
             gatewayJob = launch { listener.run() }
-            worldMonitor = launch {
-                world.awaitTermination()
-                error("world server stopped unexpectedly")
+            gameMonitor = launch {
+                game.awaitTermination()
+                error("game server stopped unexpectedly")
             }
             logger.info {
                 "server listening on ${listener.localAddress}; startup total=${millis(startupStarted, listening)}ms " +
@@ -86,7 +94,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             }
             stop.await()
         } finally {
-            shutdownServer(world, listener, gatewayJob, worldMonitor, shutdownHook)
+            shutdownServer(game, listener, gatewayJob, gameMonitor, shutdownHook)
         }
     } finally {
         koinApplication.close()

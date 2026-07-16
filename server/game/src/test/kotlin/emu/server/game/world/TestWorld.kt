@@ -1,0 +1,45 @@
+package emu.server.game.world
+
+import emu.game.action.IncomingPlayerActionQueue
+import emu.game.content.player.login.LoginNotices
+import emu.game.content.ui.config.UiContentCatalog
+import emu.persistence.character.model.CharacterRecord
+import emu.server.game.network.output.GameOutputSink
+import emu.server.game.world.entry.PlayerCapacity
+import emu.server.game.world.entry.WorldAttachment
+import emu.server.game.world.player.ConnectedPlayer
+import emu.server.session.account.AccountPrivilege
+import emu.server.session.handoff.GameSessionToken
+import emu.server.session.handoff.ReservationDecision
+
+internal fun testWorld(
+    maxPlayerIndex: Int = PlayerCapacity.PER_WORLD,
+    sessionStartedNanos: () -> Long = System::nanoTime,
+): World =
+    World(
+        UiContentCatalog.load().gameframe,
+        LoginNotices.ALL,
+        maxPlayerIndex,
+        sessionStartedNanos,
+    )
+
+internal fun World.addTestPlayer(
+    record: CharacterRecord,
+    actions: IncomingPlayerActionQueue,
+    output: GameOutputSink,
+    privilege: AccountPrivilege = AccountPrivilege.PLAYER,
+    sessionToken: GameSessionToken = GameSessionToken("test-${record.id}"),
+): ConnectedPlayer {
+    val reservation = reserve(record.id, sessionToken)
+    check(reservation is ReservationDecision.Accepted) { "test player reservation failed: $reservation" }
+    val attachment = WorldAttachment()
+    stageLogin(sessionToken, record, privilege, actions, output, attachment)
+    enterPendingPlayers()
+    return allPlayers().single { it.connection.token == sessionToken }
+}
+
+internal fun World.activateTestPlayer(token: GameSessionToken) {
+    requestActivation(token)
+    val connected = checkNotNull(nextPendingActivation()) { "test player activation was not pending" }
+    activate(connected) { }
+}

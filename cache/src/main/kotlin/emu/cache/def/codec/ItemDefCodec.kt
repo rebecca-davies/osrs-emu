@@ -3,7 +3,10 @@ package emu.cache.def.codec
 import emu.buffer.JagexBuffer
 import emu.cache.def.ItemDefinition
 import emu.cache.def.ParamValue
-import emu.cache.def.Params
+import emu.cache.def.codec.field.FragmentWriter
+import emu.cache.def.codec.field.Params
+import emu.cache.def.codec.field.readSignedShort
+import emu.cache.def.codec.field.writePairs
 
 /**
  * Rev-239 item definition codec. Model fields have a u16

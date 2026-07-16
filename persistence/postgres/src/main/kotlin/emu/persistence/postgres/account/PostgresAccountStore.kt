@@ -44,7 +44,7 @@ private fun ResultSet.toStoredAccount(): StoredAccount =
                 id = getLong("id"),
                 username = getString("username"),
                 displayName = getString("display_name"),
-                rank = PostgresPlayerRankMapper.fromId(getInt("rank")),
+                rank = PostgresAccountRankMapper.fromId(getInt("rank")),
             ),
         passwordHash = getString("password_hash"),
     )

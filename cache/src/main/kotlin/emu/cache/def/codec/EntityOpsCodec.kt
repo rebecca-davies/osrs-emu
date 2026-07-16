@@ -2,6 +2,7 @@ package emu.cache.def.codec
 
 import emu.buffer.JagexBuffer
 import emu.cache.def.EntityOps
+import emu.cache.def.codec.field.FragmentWriter
 
 /**
  * Decodes and encodes [EntityOps] with a definition-specific opcode set. Plain operations use

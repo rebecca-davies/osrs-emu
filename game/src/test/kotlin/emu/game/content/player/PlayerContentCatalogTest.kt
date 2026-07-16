@@ -1,10 +1,10 @@
 package emu.game.content.player
 
-import emu.game.content.ui.UiContentCatalog
-import emu.game.pathfinding.Tile
+import emu.game.content.ui.config.UiContentCatalog
+import emu.game.map.Tile
 import emu.game.player.Player
-import emu.game.script.PlayerScriptRunner
-import emu.game.script.ServerTriggerType
+import emu.game.script.execution.PlayerScriptRunner
+import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
 import kotlin.test.Test
 import kotlin.test.assertFalse

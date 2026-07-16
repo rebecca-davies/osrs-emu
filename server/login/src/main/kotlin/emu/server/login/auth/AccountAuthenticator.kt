@@ -1,13 +1,13 @@
 package emu.server.login.auth
 
+import emu.persistence.account.AccountRank
 import emu.persistence.account.AccountRecord
 import emu.persistence.account.AccountStore
-import emu.persistence.account.PlayerRank
 import emu.persistence.account.StoredAccount
-import emu.server.session.AccountId
-import emu.server.session.AccountPrivilege
-import emu.server.session.AuthenticatedAccount
-import emu.server.session.AuthenticationDecision
+import emu.server.session.account.AccountId
+import emu.server.session.account.AccountPrivilege
+import emu.server.session.account.AuthenticatedAccount
+import emu.server.session.authentication.AuthenticationDecision
 
 /** Bcrypt authentication and atomic first-login account creation policy. */
 class AccountAuthenticator(
@@ -15,7 +15,7 @@ class AccountAuthenticator(
     private val passwords: PasswordHasher,
 ) : LoginAuthenticator {
     override fun authenticate(username: String, password: CharArray): AuthenticationDecision {
-        val identity = PlayerIdentity.parse(username) ?: return AuthenticationDecision.Rejected
+        val identity = AccountIdentity.parse(username) ?: return AuthenticationDecision.Rejected
         val existing = accounts.findByUsername(identity.username)
         if (existing != null) return authenticate(existing, password)
 
@@ -44,9 +44,9 @@ private fun AccountRecord.authenticatedDecision(): AuthenticationDecision =
         ),
     )
 
-private fun PlayerRank.toPrivilege(): AccountPrivilege =
+private fun AccountRank.toPrivilege(): AccountPrivilege =
     when (this) {
-        PlayerRank.PLAYER -> AccountPrivilege.PLAYER
-        PlayerRank.MODERATOR -> AccountPrivilege.MODERATOR
-        PlayerRank.ADMINISTRATOR -> AccountPrivilege.ADMINISTRATOR
+        AccountRank.PLAYER -> AccountPrivilege.PLAYER
+        AccountRank.MODERATOR -> AccountPrivilege.MODERATOR
+        AccountRank.ADMINISTRATOR -> AccountPrivilege.ADMINISTRATOR
     }

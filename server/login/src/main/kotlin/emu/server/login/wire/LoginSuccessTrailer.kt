@@ -1,6 +1,6 @@
 package emu.server.login.wire
 
-import emu.server.session.AccountPrivilege
+import emu.server.session.account.AccountPrivilege
 
 private const val LOGIN_INFO_SPAN = 37
 private const val LOGIN_INFO_PAYLOAD_LENGTH = 34
@@ -24,7 +24,7 @@ internal fun loginSuccessTrailer(
 }
 
 private val AccountPrivilege.staffModLevel: Int
-    get() = ordinal
+    get() = level
 
 private val AccountPrivilege.playerModerator: Boolean
     get() = this != AccountPrivilege.PLAYER

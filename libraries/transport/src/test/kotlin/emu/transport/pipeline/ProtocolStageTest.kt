@@ -8,15 +8,16 @@ import emu.transport.codec.MessageDecoder
 import emu.transport.codec.MessageEncoder
 import emu.transport.message.IncomingMessage
 import emu.transport.message.OutgoingMessage
+import emu.transport.pipeline.handler.HandlerRepositoryBuilder
 import emu.transport.prot.Prot
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 private data class Ask(val n: Int) : IncomingMessage
 private data class Reply(val n: Int) : OutgoingMessage

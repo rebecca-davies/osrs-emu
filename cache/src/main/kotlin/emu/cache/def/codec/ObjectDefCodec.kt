@@ -4,8 +4,12 @@ import emu.buffer.JagexBuffer
 import emu.cache.def.EntityOps
 import emu.cache.def.ObjectDefinition
 import emu.cache.def.ParamValue
-import emu.cache.def.Params
 import emu.cache.def.VarTransform
+import emu.cache.def.codec.field.FragmentWriter
+import emu.cache.def.codec.field.Params
+import emu.cache.def.codec.field.readSignedShort
+import emu.cache.def.codec.field.writePairs
+import emu.cache.def.codec.field.writeVarTransform
 
 /**
  * Rev-239 object definition codec. [decode] runs the tagged opcode loop; [encode] re-emits every
@@ -284,35 +288,5 @@ object ObjectDefCodec {
         EntityOpsCodec.encode(fw, def.ops, subOpcode = 100, condOpcode = 101, condSubOpcode = 102)
         def.params?.let { p -> fw.field(249) { Params.encode(this, p) } }
         return fw.build()
-    }
-}
-
-/** Emits a [VarTransform] as a base or extended opcode fragment. */
-internal fun writeVarTransform(fw: FragmentWriter, vt: VarTransform, baseOpcode: Int, extendedOpcode: Int) {
-    val len = vt.configChangeDest.size - 1
-    if (vt.trailingVar != null) {
-        fw.field(extendedOpcode) {
-            writeShort(if (vt.varbitId == -1) 0xFFFF else vt.varbitId)
-            writeShort(if (vt.varpId == -1) 0xFFFF else vt.varpId)
-            writeShort(if (vt.trailingVar == -1) 0xFFFF else vt.trailingVar)
-            writeByte(len)
-            for (c in vt.configChangeDest) writeShort(if (c == -1) 0xFFFF else c)
-        }
-    } else {
-        fw.field(baseOpcode) {
-            writeShort(if (vt.varbitId == -1) 0xFFFF else vt.varbitId)
-            writeShort(if (vt.varpId == -1) 0xFFFF else vt.varpId)
-            writeByte(len)
-            for (c in vt.configChangeDest) writeShort(if (c == -1) 0xFFFF else c)
-        }
-    }
-}
-
-/** Emits paired find/replace colour or texture values under [opcode]. */
-internal fun writePairs(fw: FragmentWriter, opcode: Int, find: List<Int>?, replace: List<Int>?) {
-    if (find == null || replace == null) return
-    fw.field(opcode) {
-        writeByte(find.size)
-        for (i in find.indices) { writeShort(find[i]); writeShort(replace[i]) }
     }
 }

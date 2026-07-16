@@ -5,7 +5,7 @@ import emu.cache.def.codec.ItemDefCodec
 import emu.cache.def.codec.NpcDefCodec
 import emu.cache.def.codec.ObjectDefCodec
 import emu.cache.group.Group
-import emu.cache.index.Js5IndexDecoder
+import emu.cache.index.codec.Js5IndexDecoder
 import java.io.File
 import kotlin.test.Test
 

@@ -1,10 +1,10 @@
 package emu.protocol.osrs239.login
 
+import emu.protocol.osrs239.login.codec.LoginResponseEncoder
+import emu.protocol.osrs239.login.codec.ServerSessionKeyEncoder
 import emu.transport.codec.CodecRepository
 import emu.transport.codec.CodecRepositoryBuilder
 import emu.transport.codec.MessageEncoder
-import emu.protocol.osrs239.login.codec.LoginResponseEncoder
-import emu.protocol.osrs239.login.codec.ServerSessionKeyEncoder
 
 /** Rev-239 login codecs. */
 object LoginCodecs {
@@ -15,6 +15,7 @@ object LoginCodecs {
 }
 
 /** Builds an immutable repository containing only rev-239 login codecs. */
-fun buildLoginCodecRepository(): CodecRepository = CodecRepositoryBuilder()
-    .also { builder -> LoginCodecs.encoders.forEach(builder::bindEncoder) }
-    .build()
+fun buildLoginCodecRepository(): CodecRepository =
+    CodecRepositoryBuilder()
+        .also { builder -> LoginCodecs.encoders.forEach(builder::bindEncoder) }
+        .build()

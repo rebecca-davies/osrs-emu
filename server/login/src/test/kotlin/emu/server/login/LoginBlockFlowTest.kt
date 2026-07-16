@@ -1,12 +1,11 @@
 package emu.server.login
 
-import emu.protocol.osrs239.login.codec.LoginBlockParser
-
 import emu.buffer.JagexBuffer
 import emu.crypto.Rsa
 import emu.crypto.RsaKeyPair
-import emu.server.session.AuthenticationCompletion
+import emu.protocol.osrs239.login.codec.LoginBlockParser
 import emu.server.login.auth.LoginAuthenticator
+import emu.server.session.authentication.AuthenticationCompletion
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
 import io.ktor.network.sockets.aSocket
@@ -16,11 +15,11 @@ import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
+import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
 class LoginBlockFlowTest {
 

@@ -6,21 +6,21 @@ import emu.server.js5.handler.Js5RequestHandler
 import emu.server.js5.wire.installJs5Handlers
 import emu.server.js5.wire.performHandshake
 import emu.transport.codec.CodecRepository
-import emu.transport.pipeline.HandlerRepositoryBuilder
 import emu.transport.pipeline.ProtocolStage
+import emu.transport.pipeline.handler.HandlerRepositoryBuilder
 import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.readByte
 import io.ktor.utils.io.readFully
-import java.util.concurrent.Executors
 import java.io.EOFException
+import java.util.concurrent.Executors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.TimeoutCancellationException
 
 /** Owns JS5 handshakes, cache requests, connection limits, and worker execution. */
 class Js5Server(

@@ -3,8 +3,14 @@ package emu.cache.def.codec
 import emu.buffer.JagexBuffer
 import emu.cache.def.NpcDefinition
 import emu.cache.def.ParamValue
-import emu.cache.def.Params
 import emu.cache.def.VarTransform
+import emu.cache.def.codec.field.DefWriter
+import emu.cache.def.codec.field.FragmentWriter
+import emu.cache.def.codec.field.Params
+import emu.cache.def.codec.field.readBigSmart2
+import emu.cache.def.codec.field.readUnsignedShortSmartMinusOne
+import emu.cache.def.codec.field.writePairs
+import emu.cache.def.codec.field.writeVarTransform
 
 /**
  * Rev-239 NPC definition codec. Revision gates are fixed:

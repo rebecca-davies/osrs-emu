@@ -1,6 +1,5 @@
 package emu.game.map
 
-import emu.game.pathfinding.Tile
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

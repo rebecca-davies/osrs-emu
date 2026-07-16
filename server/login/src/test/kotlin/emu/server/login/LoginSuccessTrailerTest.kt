@@ -1,8 +1,7 @@
 package emu.server.login
 
 import emu.server.login.wire.loginSuccessTrailer
-
-import emu.server.session.AccountPrivilege
+import emu.server.session.account.AccountPrivilege
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

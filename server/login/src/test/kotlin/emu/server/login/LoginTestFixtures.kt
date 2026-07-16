@@ -1,10 +1,10 @@
 package emu.server.login
 
 import emu.crypto.Xtea
-import emu.server.session.AccountId
-import emu.server.session.AccountPrivilege
-import emu.server.session.AuthenticationDecision
-import emu.server.session.AuthenticatedAccount
+import emu.server.session.account.AccountId
+import emu.server.session.account.AccountPrivilege
+import emu.server.session.account.AuthenticatedAccount
+import emu.server.session.authentication.AuthenticationDecision
 
 internal const val TEST_LOGIN_NAME = "Test_Player"
 

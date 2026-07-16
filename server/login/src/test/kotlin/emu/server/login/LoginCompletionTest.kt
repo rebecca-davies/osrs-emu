@@ -3,17 +3,17 @@ package emu.server.login
 import emu.crypto.RsaKeyPair
 import emu.server.login.auth.LoginAuthenticator
 import emu.server.login.config.LoginExecutionConfig
-import emu.server.session.AuthenticatedSession
-import emu.server.session.AuthenticationCompletion
-import emu.server.session.AuthenticationDecision
-import emu.server.session.AuthenticationRejection
-import emu.server.session.IsaacBootstrap
+import emu.server.session.authentication.AuthenticatedSession
+import emu.server.session.authentication.AuthenticationCompletion
+import emu.server.session.authentication.AuthenticationDecision
+import emu.server.session.authentication.AuthenticationRejection
+import emu.server.session.authentication.IsaacBootstrap
 import io.ktor.utils.io.ByteChannel
 import io.ktor.utils.io.readByte
 import java.math.BigInteger
-import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlinx.coroutines.runBlocking
 
 class LoginCompletionTest {
     @Test

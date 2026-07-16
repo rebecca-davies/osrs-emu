@@ -5,7 +5,7 @@ data class AccountRecord(
     val id: Long,
     val username: String,
     val displayName: String,
-    val rank: PlayerRank,
+    val rank: AccountRank,
 ) {
     override fun toString(): String = "AccountRecord(id=$id, rank=$rank)"
 }
