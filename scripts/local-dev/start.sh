@@ -30,10 +30,23 @@ start_database() {
 
 rollback() {
   local status=$?
-  trap - EXIT
+  trap - EXIT INT TERM
   if (( status != 0 )); then
     echo "local-dev: startup failed; rolling back owned processes and services" >&2
     "$LOCAL_DEV_DIRECTORY/stop.sh" >&2 || true
+  fi
+  exit "$status"
+}
+
+build_pid=""
+
+cancel_startup() {
+  local status="$1"
+  trap - INT TERM
+  if [[ -n "$build_pid" ]]; then
+    kill -KILL -- "-$build_pid" "$build_pid" 2>/dev/null || true
+    wait "$build_pid" 2>/dev/null || true
+    build_pid=""
   fi
   exit "$status"
 }
@@ -56,10 +69,21 @@ if runtime_state_exists; then
 fi
 reset_runtime_files
 trap rollback EXIT
+trap 'cancel_startup 130' INT
+trap 'cancel_startup 143' TERM
 
 require_positive_integer "Build timeout" "$BUILD_TIMEOUT_SECONDS"
+# Keep Gradle in a scoped process group without letting it consume launcher input.
 timeout --kill-after=10s "${BUILD_TIMEOUT_SECONDS}s" \
-  "$REPOSITORY_ROOT/gradlew" --no-daemon :server-host:installDist
+  "$REPOSITORY_ROOT/gradlew" --no-daemon --console=plain :server-host:installDist </dev/null &
+build_pid=$!
+if wait "$build_pid"; then
+  build_pid=""
+else
+  build_status=$?
+  build_pid=""
+  exit "$build_status"
+fi
 start_database
 
 spawn_recorded_process \
@@ -104,5 +128,5 @@ wait_for_file "$STATE_DIR/ready" 700 ||
 
 echo "local-dev: isolated server is ready on 127.0.0.1:$GATEWAY_PORT"
 "$LOCAL_DEV_DIRECTORY/client.sh"
-trap - EXIT
+trap - EXIT INT TERM
 unlock_stack
