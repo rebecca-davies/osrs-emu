@@ -9,6 +9,8 @@ import emu.protocol.osrs239.game.codec.chat.MessageGameEncoder
 import emu.protocol.osrs239.game.codec.chat.MessagePublicDecoder
 import emu.protocol.osrs239.game.codec.chat.SetChatFilterSettingsDecoder
 import emu.protocol.osrs239.game.codec.client.ClientCheatDecoder
+import emu.protocol.osrs239.game.codec.client.EventAppletFocusDecoder
+import emu.protocol.osrs239.game.codec.client.NoTimeoutDecoder
 import emu.protocol.osrs239.game.codec.client.RunClientScriptEncoder
 import emu.protocol.osrs239.game.codec.client.SiteSettingsEncoder
 import emu.protocol.osrs239.game.codec.component.IfButtonXDecoder
@@ -54,6 +56,8 @@ object GameCodecs {
         ClientCheatDecoder,
         MessagePublicDecoder,
         SetChatFilterSettingsDecoder,
+        EventAppletFocusDecoder,
+        NoTimeoutDecoder,
     )
 
     val encoders: List<MessageEncoder<*>> = listOf(

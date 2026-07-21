@@ -42,6 +42,9 @@ object GameClientProt {
     /** Public or clan-channel text with colour/effect metadata and Huffman payload. */
     val MESSAGE_PUBLIC: Prot = protocols[69]
 
+    /** Applet focus transition reported as a one-byte boolean. */
+    val EVENT_APPLET_FOCUS: Prot = protocols[29]
+
     /** Periodic zero-length packet that keeps an otherwise idle game connection alive. */
     val NO_TIMEOUT: Prot = protocols[89]
 
@@ -54,6 +57,7 @@ object GameClientProt {
         require(CLIENT_CHEAT.size == Prot.VAR_BYTE)
         require(SET_CHAT_FILTER_SETTINGS.size == 3)
         require(MESSAGE_PUBLIC.size == Prot.VAR_BYTE)
+        require(EVENT_APPLET_FOCUS.size == 1)
         require(NO_TIMEOUT.size == 0)
     }
 }

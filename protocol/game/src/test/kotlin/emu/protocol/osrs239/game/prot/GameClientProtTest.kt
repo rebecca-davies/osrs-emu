@@ -21,4 +21,10 @@ class GameClientProtTest {
         assertEquals(Prot(114, Prot.VAR_BYTE), GameClientProt.MOVE_GAMECLICK)
         assertEquals(GameClientProt.MOVE_GAMECLICK, GameClientProt.find(114))
     }
+
+    @Test
+    fun `client event packets have their injected client opcodes and fixed sizes`() {
+        assertEquals(Prot(29, 1), GameClientProt.EVENT_APPLET_FOCUS)
+        assertEquals(Prot(89, 0), GameClientProt.NO_TIMEOUT)
+    }
 }
