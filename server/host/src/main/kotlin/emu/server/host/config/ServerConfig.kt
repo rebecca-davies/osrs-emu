@@ -19,6 +19,12 @@ data class ServerConfig(
     val database: PostgresConfig,
 ) {
     init {
+        require(bots.maxClients < game.maxConcurrentSessions) {
+            "bot client limit must leave a game session available for the administrator"
+        }
+        require(bots.maxConcurrentLogins <= login.maxConcurrentAttempts) {
+            "concurrent bot logins must not exceed the login attempt limit"
+        }
         require(bots.movement.interval < game.connection.idleTimeout) {
             "bot movement interval must be shorter than the game idle timeout"
         }

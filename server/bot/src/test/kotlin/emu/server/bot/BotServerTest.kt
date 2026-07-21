@@ -12,6 +12,18 @@ import kotlinx.coroutines.runBlocking
 
 class BotServerTest {
     @Test
+    fun `defaults reserve one thousand client slots in one request`() = runBlocking {
+        val server = BotServer(BotConfig(), BotConnection { _, _, _ -> awaitCancellation() })
+        server.start(LOOPBACK_ENDPOINT)
+        try {
+            assertEquals(BotLaunchResult.Accepted(1_000, 1_000), server.add(1_000))
+            assertEquals(BotLaunchResult.CapacityReached, server.add(1))
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
     fun `hard client and per-request limits are reserved before connection work`() = runBlocking {
         val server =
             BotServer(

@@ -203,7 +203,7 @@ class PlayerOutputProcessTest {
         assertEquals(MovementUpdate.Walk(1, 0), player.movement.update)
 
         val output = PlayerOutputProcess()
-        output.prepare(connected, output.snapshot(world.allPlayers()), world.cycleProfile)
+        output.prepare(connected, output.snapshot(world.allPlayers()), null)
         output.publish(connected)
         output.cleanup(world, connected)
 
@@ -232,10 +232,12 @@ class PlayerOutputProcessTest {
                 GameOutputSink { batch -> batches += batch; true },
             )
         world.activateTestPlayer(connected.connection.token)
-        world.recordCycleProfile(CycleProfileSnapshot(50, 2_000_000, 8_000_000, 1, 30_000_000_000))
+        val snapshot = CycleProfileSnapshot(50, 2_000_000, 8_000_000, 1, 30_000_000_000)
+        world.recordCycleProfile(snapshot)
 
         val output = PlayerOutputProcess()
-        output.prepare(connected, output.snapshot(world.allPlayers()), world.cycleProfile)
+        val view = output.snapshot(world.allPlayers())
+        output.prepare(connected, view, output.profileMessage(snapshot, view.playerCount))
         output.publish(connected)
 
         val messages =
@@ -243,6 +245,7 @@ class PlayerOutputProcessTest {
                 .filterIsInstance<GameOutputSegment.Packets>()
                 .flatMap(GameOutputSegment.Packets::messages)
         val report = messages.filterIsInstance<MessageGame>().single()
+        assertTrue("players=1" in report.text)
         assertTrue("avg=2.0ms" in report.text)
         assertTrue("max=8.0ms" in report.text)
     }

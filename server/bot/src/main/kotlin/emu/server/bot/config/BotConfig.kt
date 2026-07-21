@@ -4,18 +4,23 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-/** Bounded localhost policy for generated headless clients. */
+private const val MAX_SUPPORTED_CLIENTS = 1_000
+private const val DEFAULT_CONCURRENT_LOGINS = 32
+
+/** Bounded localhost policy for up to one thousand generated headless clients. */
 data class BotConfig(
-    val maxClients: Int = 128,
-    val maxPerRequest: Int = 32,
+    val maxClients: Int = MAX_SUPPORTED_CLIENTS,
+    val maxPerRequest: Int = maxClients,
     val requestQueueCapacity: Int = 8,
-    val maxConcurrentLogins: Int = 4,
+    val maxConcurrentLogins: Int = DEFAULT_CONCURRENT_LOGINS,
     val workerThreads: Int = 2,
     val loginTimeout: Duration = 15.seconds,
     val movement: BotMovementConfig = BotMovementConfig(),
 ) {
     init {
-        require(maxClients > 0) { "bot client limit must be positive" }
+        require(maxClients in 1..MAX_SUPPORTED_CLIENTS) {
+            "bot client limit must be between 1 and $MAX_SUPPORTED_CLIENTS"
+        }
         require(maxPerRequest in 1..maxClients) { "bot request limit must be between 1 and maxClients" }
         require(requestQueueCapacity > 0) { "bot request queue capacity must be positive" }
         require(maxConcurrentLogins > 0) { "concurrent bot login limit must be positive" }

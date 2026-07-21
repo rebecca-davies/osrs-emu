@@ -38,7 +38,7 @@ class PlayerOutputProcess {
     internal fun prepare(
         connected: ConnectedPlayer,
         view: PlayerInfoView,
-        profile: CycleProfileSnapshot?,
+        profileMessage: MessageGame?,
     ) {
         val player = connected.player
         val connection = connected.connection
@@ -46,7 +46,7 @@ class PlayerOutputProcess {
             when {
                 !connection.isConnected -> null
                 connected.writeBack.durable -> GameOutputBatch.packet(Logout)
-                player.active && !player.loggingOut -> regularOutput(connected, view, profile)
+                player.active && !player.loggingOut -> regularOutput(connected, view, profileMessage)
                 else -> null
             }
     }
@@ -87,7 +87,7 @@ class PlayerOutputProcess {
     private fun regularOutput(
         connected: ConnectedPlayer,
         view: PlayerInfoView,
-        profile: CycleProfileSnapshot?,
+        profileMessage: MessageGame?,
     ): GameOutputBatch {
         val player = connected.player
         val connection = connected.connection
@@ -123,14 +123,15 @@ class PlayerOutputProcess {
                     NpcInfo,
                 ),
             )
-            profile?.let(::cycleProfileMessage)?.let(::packet)
+            profileMessage?.let(::packet)
             packet(ServerTickEnd)
         }
     }
 
-    private fun cycleProfileMessage(snapshot: CycleProfileSnapshot): MessageGame {
+    internal fun profileMessage(snapshot: CycleProfileSnapshot, playerCount: Int): MessageGame {
         val text =
-            "Cycle profile: cycles=${snapshot.cycles}, avg=${millis(snapshot.averageNanos)}ms, " +
+            "Cycle profile: players=$playerCount, cycles=${snapshot.cycles}, " +
+                "avg=${millis(snapshot.averageNanos)}ms, " +
                 "max=${millis(snapshot.maxNanos)}ms, lag spikes=${snapshot.lagSpikes}."
         return MessageGame(MessageGame.GAME_MESSAGE, text)
     }

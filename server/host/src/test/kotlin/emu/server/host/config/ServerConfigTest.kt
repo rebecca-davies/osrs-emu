@@ -131,8 +131,9 @@ class ServerConfigTest {
         assertEquals(30.seconds, config.js5.frameIdleTimeout)
         assertEquals(30.seconds, config.game.connection.idleTimeout)
         assertEquals(128, config.game.connection.incomingActions.capacity)
-        assertEquals(128, config.bots.maxClients)
-        assertEquals(32, config.bots.maxPerRequest)
+        assertEquals(1_000, config.bots.maxClients)
+        assertEquals(1_000, config.bots.maxPerRequest)
+        assertEquals(32, config.bots.maxConcurrentLogins)
         assertEquals(32, config.game.connection.incomingActions.maxPerCycle)
         assertEquals(15.seconds, config.coordinator.worldEntryTimeout)
         assertEquals(12, config.login.authentication.cost)
@@ -149,6 +150,47 @@ class ServerConfigTest {
         assertFailsWith<IllegalArgumentException> {
             loadServerConfig(mapOf("OSRS_DATABASE_WORLD_POOL_MAXIMUM_SIZE" to "many"))
         }
+    }
+
+    @Test
+    fun `environment loader enforces the supported bot ceiling`() {
+        assertFailsWith<IllegalArgumentException> {
+            loadServerConfig(mapOf("OSRS_BOT_MAX_CLIENTS" to "1001"))
+        }
+    }
+
+    @Test
+    fun `bot capacity leaves a game session for its administrator`() {
+        assertFailsWith<IllegalArgumentException> {
+            loadServerConfig(mapOf("OSRS_GAME_MAX_CONCURRENT_SESSIONS" to "1000"))
+        }
+
+        val config =
+            loadServerConfig(
+                mapOf(
+                    "OSRS_GAME_MAX_CONCURRENT_SESSIONS" to "1000",
+                    "OSRS_BOT_MAX_CLIENTS" to "999",
+                ),
+            )
+        assertEquals(999, config.bots.maxClients)
+        assertEquals(999, config.bots.maxPerRequest)
+    }
+
+    @Test
+    fun `bot login fan-out stays within the login attempt limit`() {
+        assertFailsWith<IllegalArgumentException> {
+            loadServerConfig(mapOf("OSRS_LOGIN_MAX_CONCURRENT_ATTEMPTS" to "16"))
+        }
+
+        val config =
+            loadServerConfig(
+                mapOf(
+                    "OSRS_LOGIN_MAX_CONCURRENT_ATTEMPTS" to "16",
+                    "OSRS_BOT_MAX_CONCURRENT_LOGINS" to "16",
+                ),
+            )
+        assertEquals(16, config.login.maxConcurrentAttempts)
+        assertEquals(16, config.bots.maxConcurrentLogins)
     }
 
     @Test

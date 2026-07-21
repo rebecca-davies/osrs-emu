@@ -115,8 +115,8 @@ class WorldCycle(
 
     private fun processOutput(players: List<ConnectedPlayer>) {
         val view = output.snapshot(players)
-        val profile = world.cycleProfile
-        processPlayers(CyclePhase.INFO, players) { output.prepare(it, view, profile) }
+        val profileMessage = world.cycleProfile?.let { output.profileMessage(it, view.playerCount) }
+        processPlayers(CyclePhase.INFO, players) { output.prepare(it, view, profileMessage) }
         output.finishInformation(players)
         processPlayers(CyclePhase.CLIENT_OUTPUT, players, process = output::publish)
         processPlayers(CyclePhase.CLEANUP, players) { output.cleanup(world, it) }
