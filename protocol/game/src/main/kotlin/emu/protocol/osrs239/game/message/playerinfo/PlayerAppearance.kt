@@ -67,6 +67,14 @@ data class PlayerAppearance(
 
         /** Base marker for an identikit model rather than a worn item. */
         private const val KIT_MODEL_BASE = 0x100
+        private const val ITEM_MODEL_BASE = 0x800
+        private val BODY_KIT_ID_RANGE = 0 until (ITEM_MODEL_BASE - KIT_MODEL_BASE)
+
+        /** Converts one cache identity-kit id into the revision-239 appearance value. */
+        fun identityKit(bodyKitId: Int): Int {
+            require(bodyKitId in BODY_KIT_ID_RANGE) { "body-kit id overlaps the worn-item appearance range" }
+            return KIT_MODEL_BASE + bodyKitId
+        }
 
         /** Default male identikit; wearable slots are empty. */
         val DEFAULT_EQUIPMENT: List<Int> = listOf(
@@ -74,14 +82,14 @@ data class PlayerAppearance(
             0, // cape
             0, // amulet
             0, // weapon
-            KIT_MODEL_BASE + 18, // torso
+            identityKit(18), // torso
             0, // shield
-            KIT_MODEL_BASE + 26, // arms
-            KIT_MODEL_BASE + 36, // legs
-            KIT_MODEL_BASE + 0, // hair
-            KIT_MODEL_BASE + 33, // hands
-            KIT_MODEL_BASE + 42, // feet
-            KIT_MODEL_BASE + 10, // jaw
+            identityKit(26), // arms
+            identityKit(36), // legs
+            identityKit(0), // hair
+            identityKit(33), // hands
+            identityKit(42), // feet
+            identityKit(10), // jaw
         )
 
         /** First palette entry for every colour slot. */

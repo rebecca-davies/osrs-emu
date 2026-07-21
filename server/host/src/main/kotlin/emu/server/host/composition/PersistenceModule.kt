@@ -1,5 +1,7 @@
 package emu.server.host.composition
 
+import emu.game.player.appearance.CharacterAppearance
+import emu.game.player.appearance.RandomCharacterAppearance
 import emu.persistence.account.AccountStore
 import emu.persistence.character.CharacterStore
 import emu.persistence.character.write.CharacterWriteQueue
@@ -22,6 +24,8 @@ import org.koin.dsl.onClose
 fun persistenceModule(
     config: PostgresConfig,
     characterSaveConfig: CharacterSaveWriterConfig = CharacterSaveWriterConfig(),
+    newCharacterAppearance: () -> CharacterAppearance =
+        RandomCharacterAppearance()::generate,
 ) =
     module {
         single { config }
@@ -32,7 +36,9 @@ fun persistenceModule(
             PostgresDatabase(get(), config.loginPool, "osrsemu-login-postgres")
         }
         single { PostgresMigrator(get(DatabaseQualifier.world)) }
-        single<AccountStore> { PostgresAccountStore(get(DatabaseQualifier.login)) }
+        single<AccountStore> {
+            PostgresAccountStore(get(DatabaseQualifier.login), newCharacterAppearance)
+        }
         single<CharacterStore> { PostgresCharacterStore(get(DatabaseQualifier.world)) }
         single { CharacterSaveWriter(get(), characterSaveConfig) }
         single<CharacterWriteQueue> { get<CharacterSaveWriter>() }

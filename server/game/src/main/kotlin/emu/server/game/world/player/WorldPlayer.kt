@@ -3,6 +3,7 @@ package emu.server.game.world.player
 import emu.game.map.Tile
 import emu.game.player.Player
 import emu.game.player.PlayerChatFilters
+import emu.game.player.appearance.CharacterAppearance
 import emu.persistence.character.model.CharacterRecord
 import emu.server.session.account.AccountPrivilege
 
@@ -19,4 +20,11 @@ internal class WorldPlayer(record: CharacterRecord, val privilege: AccountPrivil
     ) {
     val id: Long = record.id
     val displayName: String = record.displayName
+    var appearance = record.appearance
+        private set
+
+    fun changeAppearance(value: CharacterAppearance) {
+        if (appearance == value) return
+        appearance = value
+    }
 }

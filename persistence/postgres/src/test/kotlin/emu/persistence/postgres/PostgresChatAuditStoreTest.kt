@@ -1,5 +1,6 @@
 package emu.persistence.postgres
 
+import emu.game.player.appearance.CharacterAppearance
 import emu.persistence.chat.ChatAuditMessage
 import emu.persistence.chat.ChatChannel
 import emu.persistence.postgres.account.PostgresAccountStore
@@ -13,7 +14,7 @@ class PostgresChatAuditStoreTest {
     @Test
     fun `append stores channel text and server timestamp`() {
         migratedTestDatabase().use { database ->
-            val accounts = PostgresAccountStore(database)
+            val accounts = PostgresAccountStore(database) { CharacterAppearance.DEFAULT }
             val name = "C${UUID.randomUUID().toString().take(8)}"
             val account = requireNotNull(accounts.create(name.lowercase(), name, "bcrypt-hash")).account
             val at = Instant.parse("2026-07-15T00:00:00Z")

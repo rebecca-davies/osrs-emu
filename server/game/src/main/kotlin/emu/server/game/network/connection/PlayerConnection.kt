@@ -2,9 +2,9 @@ package emu.server.game.network.connection
 
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.PlayerAction
-import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.server.game.network.output.GameOutputBatch
 import emu.server.game.network.output.GameOutputSink
+import emu.server.game.network.output.playerinfo.PlayerAppearanceOutput
 import emu.server.game.network.output.playerinfo.PlayerInfoState
 import emu.server.game.network.output.playerinfo.PlayerPublicChatState
 import emu.server.game.world.entry.WorldAttachment
@@ -16,10 +16,9 @@ internal class PlayerConnection(
     val playerIndex: Int,
     val actions: IncomingPlayerActionQueue,
     val output: GameOutputSink,
-    displayName: String,
+    val appearanceOutput: PlayerAppearanceOutput,
     val attachment: WorldAttachment,
 ) {
-    val appearance = PlayerAppearance(name = displayName)
     val publicChat = PlayerPublicChatState()
     val playerInfo = PlayerInfoState(playerIndex)
     private val gameMessages = ArrayDeque<String>(MAX_PENDING_GAME_MESSAGES)

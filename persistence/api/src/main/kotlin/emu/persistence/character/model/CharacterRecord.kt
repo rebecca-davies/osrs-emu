@@ -1,5 +1,7 @@
 package emu.persistence.character.model
 
+import emu.game.player.appearance.CharacterAppearance
+
 /** Character state loaded for one live world session. */
 data class CharacterRecord(
     val id: Long,
@@ -7,7 +9,8 @@ data class CharacterRecord(
     val position: CharacterPosition,
     val playTimeSeconds: Long,
     val varps: Map<Int, Int> = emptyMap(),
-    val chatFilters: CharacterChatFilters = CharacterChatFilters()
+    val chatFilters: CharacterChatFilters = CharacterChatFilters(),
+    val appearance: CharacterAppearance = CharacterAppearance.DEFAULT,
 ) {
     init {
         require(id > 0) { "character id must be positive" }

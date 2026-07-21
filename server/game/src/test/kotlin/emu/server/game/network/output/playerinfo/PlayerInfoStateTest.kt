@@ -5,9 +5,14 @@ import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.route.PathRoute
+import emu.game.player.appearance.CharacterAppearance
+import emu.game.player.appearance.CharacterBodyKits
+import emu.game.player.appearance.CharacterColors
+import emu.game.player.appearance.CharacterGender
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
+import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
@@ -75,6 +80,25 @@ class PlayerInfoStateTest {
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(PlayerSequence(1234, 2), update.update?.sequence)
+    }
+
+    @Test
+    fun `changed character appearance invalidates output and reaches existing observers`() {
+        val (world, observer, target) = twoPlayers(targetX = 3210)
+        observer.connection.playerInfo.next(view(world))
+        val changed =
+            CharacterAppearance(
+                CharacterGender.FEMALE,
+                CharacterBodyKits(hair = 55, jaw = 306, torso = 60, arms = 66, hands = 68, legs = 78, feet = 80),
+                CharacterColors(hair = 29, torso = 28, legs = 27, feet = 5, skin = 13),
+            )
+        target.player.changeAppearance(changed)
+
+        val info = observer.connection.playerInfo.next(view(world))
+
+        val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
+        assertEquals(PlayerAppearance.GENDER_FEMALE, update.update?.appearance?.gender)
+        assertEquals(PlayerAppearance.identityKit(306), update.update?.appearance?.body?.equipment?.get(11))
     }
 
     @Test

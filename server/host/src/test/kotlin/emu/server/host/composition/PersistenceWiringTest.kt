@@ -1,5 +1,6 @@
 package emu.server.host.composition
 
+import emu.game.player.appearance.CharacterAppearance
 import emu.persistence.account.AccountStore
 import emu.persistence.character.CharacterStore
 import emu.persistence.character.model.CharacterPosition
@@ -50,7 +51,16 @@ class PersistenceModuleTest {
         application.close()
 
         assertTrue(databases.all(PostgresDatabase::isClosed))
-        assertNull(characterSaves.submit(CharacterSave(1, CharacterPosition(3222, 3218, 0), 0)))
+        assertNull(
+            characterSaves.submit(
+                CharacterSave(
+                    1,
+                    CharacterPosition(3222, 3218, 0),
+                    0,
+                    CharacterAppearance.DEFAULT,
+                ),
+            ),
+        )
         assertFalse(chatAudits.submit(ChatAuditMessage(1, ChatChannel.PUBLIC, "late", Instant.EPOCH)))
     }
 }

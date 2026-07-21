@@ -1,6 +1,7 @@
 package emu.persistence.postgres.character.writeback
 
 import emu.persistence.character.CharacterStore
+import emu.game.player.appearance.CharacterAppearance
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.character.model.CharacterSave
@@ -221,7 +222,12 @@ class CharacterSaveWriterTest {
     }
 
     private fun save(characterId: Long) =
-        CharacterSave(characterId, CharacterPosition(3222, 3218, 0), playTimeSeconds = 1)
+        CharacterSave(
+            characterId,
+            CharacterPosition(3222, 3218, 0),
+            playTimeSeconds = 1,
+            appearance = CharacterAppearance.DEFAULT,
+        )
 
     private fun characterStore(write: (CharacterSave) -> Unit): CharacterStore =
         object : CharacterStore {

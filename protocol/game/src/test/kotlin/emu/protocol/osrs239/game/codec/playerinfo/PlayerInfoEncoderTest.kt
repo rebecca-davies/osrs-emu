@@ -202,6 +202,14 @@ class PlayerInfoEncoderTest {
     }
 
     @Test
+    fun `identity kits remain below the worn-item appearance range`() {
+        assertEquals(0x100, PlayerAppearance.identityKit(0))
+        assertEquals(0x7FF, PlayerAppearance.identityKit(1_791))
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance.identityKit(-1) }
+        assertFailsWith<IllegalArgumentException> { PlayerAppearance.identityKit(1_792) }
+    }
+
+    @Test
     fun `pattern byte count is derived exclusively from public chat colour`() {
         assertFailsWith<IllegalArgumentException> {
             PlayerPublicChat(0, 0, 255, byteArrayOf(1), pattern = byteArrayOf(1))

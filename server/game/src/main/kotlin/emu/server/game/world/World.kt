@@ -8,6 +8,7 @@ import emu.persistence.character.model.CharacterRecord
 import emu.server.game.network.connection.PlayerConnection
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.network.output.login.InitialPlayerOutput
+import emu.server.game.network.output.playerinfo.PlayerAppearanceOutput
 import emu.server.game.persistence.PlayerWriteBack
 import emu.server.game.world.entry.PlayerCapacity
 import emu.server.game.world.entry.WorldAttachment
@@ -90,13 +91,14 @@ class World(
     private fun enterPlayer(pending: PendingLogin) {
         try {
             val player = WorldPlayer(pending.record, pending.privilege)
+            val appearanceOutput = PlayerAppearanceOutput(player)
             val connection =
                 PlayerConnection(
                     token = pending.sessionToken,
                     playerIndex = pending.reservation.playerIndex,
                     actions = pending.actions,
                     output = pending.output,
-                    displayName = player.displayName,
+                    appearanceOutput = appearanceOutput,
                     attachment = pending.attachment,
                 )
             val connected =
@@ -108,7 +110,11 @@ class World(
             val login =
                 WorldLogin(
                     connection.playerIndex,
-                    initialPlayerOutput.build(player, connection.playerIndex),
+                    initialPlayerOutput.build(
+                        player,
+                        connection.playerIndex,
+                        appearanceOutput.message(player),
+                    ),
                 )
             players[player.id] = connected
             playersByToken[connection.token] = connected

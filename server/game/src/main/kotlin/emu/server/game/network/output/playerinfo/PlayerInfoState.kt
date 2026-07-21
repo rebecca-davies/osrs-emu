@@ -1,12 +1,13 @@
 package emu.server.game.network.output.playerinfo
 
+import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoSections
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoUpdate
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
 
-/** Per-observer rev-239 GPI flags, tracked slots, coordinates, and movement-speed cache. */
+/** Per-observer rev-239 GPI flags, tracked slots, coordinates, appearance, and movement-speed caches. */
 internal class PlayerInfoState(private val localIndex: Int) {
     private val tracked = BooleanArray(PLAYER_SLOTS)
     private val flags = ByteArray(PLAYER_SLOTS)
@@ -19,6 +20,7 @@ internal class PlayerInfoState(private val localIndex: Int) {
     private val lowRegionY = IntArray(PLAYER_SLOTS)
     private val lowRegionPlane = IntArray(PLAYER_SLOTS)
     private val knownMoveSpeed = IntArray(PLAYER_SLOTS) { STATIONARY_SPEED }
+    private val knownAppearance = arrayOfNulls<PlayerAppearance>(PLAYER_SLOTS)
 
     init {
         require(localIndex in 1 until PLAYER_SLOTS) { "local player index must be in 1..2047" }
@@ -134,6 +136,10 @@ internal class PlayerInfoState(private val localIndex: Int) {
         includeAppearance: Boolean,
         includeTemporarySpeed: Boolean,
     ): PlayerInfoUpdate? {
+        val previousAppearance = knownAppearance[snapshot.index]
+        val appearanceChanged = previousAppearance != null && previousAppearance !== snapshot.appearance
+        knownAppearance[snapshot.index] = snapshot.appearance
+        val appearance = snapshot.appearance.takeIf { includeAppearance || appearanceChanged }
         val selectedSpeed = if (snapshot.runEnabled) RUN_SPEED else WALK_SPEED
         val moveSpeed = selectedSpeed.takeIf { it != knownMoveSpeed[snapshot.index] }
         knownMoveSpeed[snapshot.index] = selectedSpeed
@@ -145,13 +151,13 @@ internal class PlayerInfoState(private val localIndex: Int) {
                 null
             }
         if (
-            !includeAppearance && moveSpeed == null && temporarySpeed == null &&
+            appearance == null && moveSpeed == null && temporarySpeed == null &&
                 snapshot.publicChat == null && snapshot.sequence == null
         ) {
             return null
         }
         return PlayerInfoUpdate(
-            appearance = snapshot.appearance.takeIf { includeAppearance },
+            appearance = appearance,
             moveSpeed = moveSpeed,
             temporaryMoveSpeed = temporarySpeed,
             publicChat = snapshot.publicChat,
@@ -170,6 +176,7 @@ internal class PlayerInfoState(private val localIndex: Int) {
             if (removals[index]) {
                 tracked[index] = false
                 knownMoveSpeed[index] = STATIONARY_SPEED
+                knownAppearance[index] = null
             }
             if (additions[index]) tracked[index] = true
             flags[index] = (flags[index].toInt() ushr 1).toByte()

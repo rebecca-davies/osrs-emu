@@ -30,7 +30,7 @@ class PlayerOutputProcess {
                     position = player.movement.position,
                     movement = player.movement.update,
                     runEnabled = player.movement.runEnabled,
-                    appearance = connection.appearance,
+                    appearance = connection.appearanceOutput.message(player),
                     publicChat = connection.publicChat.current(),
                     sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
                 )

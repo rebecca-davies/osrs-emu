@@ -17,6 +17,7 @@ private val MIGRATIONS =
         Migration(4, "/db/migration/V4__chat_messages.sql"),
         Migration(5, "/db/migration/V5__character_defaults.sql"),
         Migration(6, "/db/migration/V6__player_chat_filters.sql"),
+        Migration(7, "/db/migration/V7__character_appearance.sql"),
     )
 
 /** Applies bundled schema migrations once under a PostgreSQL advisory lock. */

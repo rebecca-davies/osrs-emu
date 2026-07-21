@@ -1,5 +1,7 @@
 package emu.persistence.character.model
 
+import emu.game.player.appearance.CharacterAppearance
+
 private val VARP_IDS = 0..0xFFFF
 
 /** Dirty character state flushed at a write-behind save point. */
@@ -7,6 +9,7 @@ data class CharacterSave(
     val characterId: Long,
     val position: CharacterPosition,
     val playTimeSeconds: Long,
+    val appearance: CharacterAppearance,
     val dirtyVarps: Map<Int, Int> = emptyMap(),
     val chatFilters: CharacterChatFilters = CharacterChatFilters(),
 ) {

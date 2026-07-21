@@ -42,6 +42,7 @@ internal class PlayerWriteBack(
                         player.chatFilters.privateMode,
                         player.chatFilters.tradeMode,
                     ),
+                appearance = player.appearance,
             ).also { snapshot = it }
 
     private fun elapsedSeconds(nowNanos: Long): Long =

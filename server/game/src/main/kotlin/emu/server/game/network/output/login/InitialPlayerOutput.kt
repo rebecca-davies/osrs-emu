@@ -30,7 +30,11 @@ internal class InitialPlayerOutput(
     private val interfaces = PlayerInterfaceOutput(gameframe)
     private val loginNotices = loginNotices.toList()
 
-    fun build(player: WorldPlayer, localPlayerIndex: Int): GameOutputBatch {
+    fun build(
+        player: WorldPlayer,
+        localPlayerIndex: Int,
+        appearance: PlayerAppearance,
+    ): GameOutputBatch {
         val position = player.movement.position
         val buildArea = PlayerBuildArea(position)
         return GameOutputBatch.build {
@@ -44,7 +48,7 @@ internal class InitialPlayerOutput(
             packets(PlayerVarpOutput.loginSync(player.varps))
             packetGroup(
                 InitialWorldOutput.messages(
-                    PlayerAppearance(name = player.displayName),
+                    appearance,
                     localPlayerIndex,
                     buildArea.localX(position.x),
                     buildArea.localY(position.y),
