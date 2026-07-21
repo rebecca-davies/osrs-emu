@@ -144,12 +144,18 @@ internal class PlayerInfoState(private val localIndex: Int) {
             } else {
                 null
             }
-        if (!includeAppearance && moveSpeed == null && temporarySpeed == null && snapshot.publicChat == null) return null
+        if (
+            !includeAppearance && moveSpeed == null && temporarySpeed == null &&
+                snapshot.publicChat == null && snapshot.sequence == null
+        ) {
+            return null
+        }
         return PlayerInfoUpdate(
             appearance = snapshot.appearance.takeIf { includeAppearance },
             moveSpeed = moveSpeed,
             temporaryMoveSpeed = temporarySpeed,
             publicChat = snapshot.publicChat,
+            sequence = snapshot.sequence,
         )
     }
 

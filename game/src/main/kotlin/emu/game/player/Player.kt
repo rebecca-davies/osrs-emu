@@ -29,6 +29,9 @@ open class Player(
     val interfaces = PlayerInterfaces()
     val chatFilters = initialChatFilters
 
+    var animationUpdate: PlayerAnimation? = null
+        private set
+
     init {
         movement.runEnabled = varps[PlayerVarpCatalog.RUN_MODE] == 1
     }
@@ -56,6 +59,17 @@ open class Player(
     fun closeModal(): Boolean {
         actionQueue.clearWeak()
         return interfaces.closeModal()
+    }
+
+    /** Requests an animation for this cycle; `-1` stops the current client animation. */
+    fun playAnimation(id: Int, delay: Int = 0) {
+        animationUpdate = PlayerAnimation(id, delay)
+    }
+
+    /** Clears per-cycle movement and player-info state after the global output phases. */
+    fun finishCycle() {
+        movement.finishCycle()
+        animationUpdate = null
     }
 
     /** Enables 2004Scape's unconditional shutdown access and abandons suspended content. */

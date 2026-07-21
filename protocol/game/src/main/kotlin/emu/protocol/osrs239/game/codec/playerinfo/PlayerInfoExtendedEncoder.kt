@@ -11,6 +11,7 @@ internal object PlayerInfoExtendedEncoder {
         var flags = 0
         if (update.appearance != null) flags = flags or APPEARANCE_FLAG
         if (update.publicChat != null) flags = flags or CHAT_FLAG
+        if (update.sequence != null) flags = flags or SEQUENCE_FLAG
         if (update.moveSpeed != null) flags = flags or MOVE_SPEED_FLAG
         if (update.temporaryMoveSpeed != null) flags = flags or TEMP_MOVE_SPEED_FLAG
         if (flags ushr 8 != 0) flags = flags or EXTENDED_SHORT_FLAG
@@ -23,6 +24,7 @@ internal object PlayerInfoExtendedEncoder {
                 flagBytes +
                     (if (update.moveSpeed != null) 1 else 0) +
                     (chat?.size ?: 0) +
+                    (if (update.sequence != null) SEQUENCE_SIZE else 0) +
                     (if (update.temporaryMoveSpeed != null) 1 else 0) +
                     (appearance?.let { 1 + it.size } ?: 0),
             )
@@ -30,6 +32,10 @@ internal object PlayerInfoExtendedEncoder {
         if (flags and EXTENDED_SHORT_FLAG != 0) out.writeByte(flags ushr 8)
         update.moveSpeed?.let(out::writeByteAlt2)
         if (chat != null) out.writeBytes(chat)
+        update.sequence?.let { sequence ->
+            out.writeShortAlt2(sequence.id)
+            out.writeByte(sequence.delay)
+        }
         update.temporaryMoveSpeed?.let(out::writeByte)
         if (appearance != null) {
             out.writeByteAlt3(appearance.size)
@@ -82,9 +88,11 @@ internal object PlayerInfoExtendedEncoder {
 
     private const val APPEARANCE_FLAG = 0x20
     private const val CHAT_FLAG = 0x100
+    private const val SEQUENCE_FLAG = 0x40
     private const val EXTENDED_SHORT_FLAG = 0x8
     private const val MOVE_SPEED_FLAG = 0x400
     private const val TEMP_MOVE_SPEED_FLAG = 0x1000
+    private const val SEQUENCE_SIZE = 3
     private const val APPEARANCE_BASE_SIZE = 57
     private val CP1252 = charset("windows-1252")
 }

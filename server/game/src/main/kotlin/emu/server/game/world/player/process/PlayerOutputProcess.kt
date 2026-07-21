@@ -6,6 +6,7 @@ import emu.protocol.osrs239.game.message.cycle.ServerTickEnd
 import emu.protocol.osrs239.game.message.npc.NpcInfo
 import emu.protocol.osrs239.game.message.npc.SetNpcUpdateOrigin
 import emu.protocol.osrs239.game.message.player.Logout
+import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.protocol.osrs239.game.message.scene.RebuildNormal
 import emu.protocol.osrs239.game.message.scene.SetActiveWorld
 import emu.server.game.network.output.GameOutputBatch
@@ -31,6 +32,7 @@ class PlayerOutputProcess {
                     runEnabled = player.movement.runEnabled,
                     appearance = connection.appearance,
                     publicChat = connection.publicChat.current(),
+                    sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
                 )
             },
         )
@@ -75,7 +77,7 @@ class PlayerOutputProcess {
 
     internal fun cleanup(world: World, connected: ConnectedPlayer) {
         val player = connected.player
-        player.movement.finishCycle()
+        player.finishCycle()
         if (
             connected.writeBack.durable &&
                 (connected.connection.logoutPublished || !connected.connection.isConnected)

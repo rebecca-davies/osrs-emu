@@ -11,6 +11,7 @@ import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
+import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
@@ -62,6 +63,18 @@ class PlayerInfoStateTest {
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(chat, update.update?.publicChat)
+    }
+
+    @Test
+    fun `animation is visible to every nearby observer during the same information phase`() {
+        val (world, observer, target) = twoPlayers(targetX = 3210)
+        observer.connection.playerInfo.next(view(world))
+        target.player.playAnimation(id = 1234, delay = 2)
+
+        val info = observer.connection.playerInfo.next(view(world))
+
+        val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
+        assertEquals(PlayerSequence(1234, 2), update.update?.sequence)
     }
 
     @Test

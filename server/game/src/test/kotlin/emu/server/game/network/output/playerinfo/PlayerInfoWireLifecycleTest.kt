@@ -7,6 +7,7 @@ import emu.protocol.osrs239.game.codec.playerinfo.PlayerInfoEncoder
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
+import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.server.game.network.wire.Rev239PlayerInfoOracle
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -74,6 +75,25 @@ class PlayerInfoWireLifecycleTest {
         assertEquals(true, patterned.autotyper)
         assertContentEquals(patternedChat.encodedText, patterned.chatText)
         assertContentEquals(patternedChat.pattern, patterned.pattern)
+
+        val animated =
+            decode(
+                oracle,
+                state.next(
+                    PlayerInfoView(
+                        listOf(
+                            observer,
+                            movedTarget.copy(
+                                movement = MovementUpdate.Idle,
+                                publicChat = null,
+                                sequence = PlayerSequence(1234, delay = 2),
+                            ),
+                        ),
+                    ),
+                ),
+            ).updates.getValue(target.index)
+        assertEquals(1234, animated.sequenceId)
+        assertEquals(2, animated.sequenceDelay)
 
         val removal = decode(oracle, state.next(PlayerInfoView(listOf(observer))))
         assertEquals(Rev239PlayerInfoOracle.UpdateType.REMOVE, removal.updates[target.index]?.type)

@@ -14,8 +14,9 @@ data class PlayerInfo(
         moveSpeed: Int? = null,
         temporaryMoveSpeed: Int? = null,
         publicChat: PlayerPublicChat? = null,
+        sequence: PlayerSequence? = null,
     ) : this(
-        localSections(appearance, movement, moveSpeed, temporaryMoveSpeed, publicChat),
+        localSections(appearance, movement, moveSpeed, temporaryMoveSpeed, publicChat, sequence),
     )
 
     private companion object {
@@ -27,10 +28,20 @@ data class PlayerInfo(
             moveSpeed: Int?,
             temporaryMoveSpeed: Int?,
             publicChat: PlayerPublicChat?,
+            sequence: PlayerSequence?,
         ): PlayerInfoSections {
             val update =
-                if (appearance != null || moveSpeed != null || temporaryMoveSpeed != null || publicChat != null) {
-                    PlayerInfoUpdate(appearance, moveSpeed, temporaryMoveSpeed, publicChat)
+                if (
+                    appearance != null || moveSpeed != null || temporaryMoveSpeed != null ||
+                        publicChat != null || sequence != null
+                ) {
+                    PlayerInfoUpdate(
+                        appearance = appearance,
+                        moveSpeed = moveSpeed,
+                        temporaryMoveSpeed = temporaryMoveSpeed,
+                        publicChat = publicChat,
+                        sequence = sequence,
+                    )
                 } else {
                     null
                 }

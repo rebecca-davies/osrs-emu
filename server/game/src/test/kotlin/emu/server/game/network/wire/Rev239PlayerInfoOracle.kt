@@ -132,6 +132,10 @@ internal class Rev239PlayerInfoOracle(localIndex: Int, localPosition: Tile) {
         val update = updates.getOrPut(index) { Update(UpdateType.IDLE, checkNotNull(players[index]).position) }
         if (extendedFlags and MOVE_SPEED != 0) update.moveSpeed = -wire.u8() and 0xFF
         if (extendedFlags and CHAT != 0) decodeChat(wire, update)
+        if (extendedFlags and SEQUENCE != 0) {
+            update.sequenceId = wire.u16Alt2().let { if (it == 0xFFFF) -1 else it }
+            update.sequenceDelay = wire.u8()
+        }
         if (extendedFlags and TEMP_MOVE_SPEED != 0) update.temporaryMoveSpeed = wire.u8()
         if (extendedFlags and APPEARANCE != 0) decodeAppearance(wire, update)
         check(extendedFlags and SUPPORTED_FLAGS.inv() == 0) { "oracle saw unsupported flags $extendedFlags" }
@@ -247,6 +251,8 @@ internal class Rev239PlayerInfoOracle(localIndex: Int, localPosition: Tile) {
         var autotyper: Boolean = false
         var chatText: ByteArray? = null
         var pattern: ByteArray? = null
+        var sequenceId: Int? = null
+        var sequenceDelay: Int? = null
     }
     enum class UpdateType { IDLE, ADD, REMOVE, WALK, RUN, TELEPORT }
 
@@ -282,9 +288,11 @@ internal class Rev239PlayerInfoOracle(localIndex: Int, localPosition: Tile) {
         const val EXTENDED_SHORT = 0x8
         const val APPEARANCE = 0x20
         const val CHAT = 0x100
+        const val SEQUENCE = 0x40
         const val MOVE_SPEED = 0x400
         const val TEMP_MOVE_SPEED = 0x1000
-        const val SUPPORTED_FLAGS = EXTENDED_SHORT or APPEARANCE or CHAT or MOVE_SPEED or TEMP_MOVE_SPEED
+        const val SUPPORTED_FLAGS =
+            EXTENDED_SHORT or APPEARANCE or CHAT or SEQUENCE or MOVE_SPEED or TEMP_MOVE_SPEED
         val WALK_DELTAS =
             listOf(-1 to -1, 0 to -1, 1 to -1, -1 to 0, 1 to 0, -1 to 1, 0 to 1, 1 to 1)
         val RUN_DELTAS =

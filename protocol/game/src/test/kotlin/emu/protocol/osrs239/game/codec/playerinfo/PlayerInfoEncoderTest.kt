@@ -10,6 +10,7 @@ import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoSections
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoUpdate
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
+import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -123,6 +124,28 @@ class PlayerInfoEncoderTest {
         assertEquals(listOf(0x08, 0x14), body.slice(3..4).map { it.toInt() and 0xFF })
         assertEquals(0xFE, body[5].toInt() and 0xFF, "cached run via p1Alt2")
         assertEquals(1, body[6].toInt() and 0xFF, "temporary walk as signed plain byte")
+    }
+
+    @Test fun `sequence uses the rev239 flag and transformed id before its plain delay`() {
+        val body =
+            PlayerInfoEncoder.encode(
+                NopStreamCipher,
+                PlayerInfo(sequence = PlayerSequence(id = 0x1234, delay = 5)),
+            )
+
+        assertEquals(0xC0, body[0].toInt() and 0xFF, "active+extended idle")
+        assertEquals(0x40, body[3].toInt() and 0xFF, "SEQUENCE extended-info flag")
+        assertEquals(
+            listOf(0x12, 0xB4, 0x05),
+            body.slice(4..6).map { it.toInt() and 0xFF },
+            "g2Alt2 sequence id then unsigned-byte delay",
+        )
+    }
+
+    @Test fun `sequence minus one encodes as the client stop sentinel`() {
+        val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(sequence = PlayerSequence(-1)))
+
+        assertEquals(listOf(0xFF, 0x7F, 0x00), body.slice(4..6).map { it.toInt() and 0xFF })
     }
 
     @Test fun `move speed precedes appearance in rev239 extended-info order`() {

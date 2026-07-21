@@ -6,6 +6,7 @@ import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
+import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 
 /** Immutable information-phase view of one active player. */
 internal data class PlayerInfoSnapshot(
@@ -15,6 +16,7 @@ internal data class PlayerInfoSnapshot(
     val runEnabled: Boolean,
     val appearance: PlayerAppearance,
     val publicChat: PlayerPublicChat? = null,
+    val sequence: PlayerSequence? = null,
 ) {
     val movementOnlyCode: PlayerInfoBitCode.HighResolution? =
         when (movement) {

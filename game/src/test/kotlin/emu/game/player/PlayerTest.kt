@@ -8,6 +8,8 @@ import emu.game.script.execution.PlayerScriptRequest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PlayerTest {
@@ -35,5 +37,26 @@ class PlayerTest {
         assertFalse(player.closeModal())
 
         assertEquals(0, player.actionQueue.weakSize)
+    }
+
+    @Test
+    fun `animation request remains available until cycle cleanup`() {
+        val player = Player(Tile(3200, 3200))
+
+        player.playAnimation(id = 1234, delay = 2)
+
+        assertEquals(PlayerAnimation(1234, 2), player.animationUpdate)
+        player.finishCycle()
+        assertNull(player.animationUpdate)
+    }
+
+    @Test
+    fun `animation request accepts stop and rejects values outside the wire range`() {
+        val player = Player(Tile(3200, 3200))
+
+        player.playAnimation(-1)
+        assertEquals(PlayerAnimation(-1), player.animationUpdate)
+        assertFailsWith<IllegalArgumentException> { player.playAnimation(0xFFFF) }
+        assertFailsWith<IllegalArgumentException> { player.playAnimation(1, delay = 0x100) }
     }
 }
