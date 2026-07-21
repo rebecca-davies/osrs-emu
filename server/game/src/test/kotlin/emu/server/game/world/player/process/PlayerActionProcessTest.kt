@@ -144,14 +144,14 @@ class PlayerActionProcessTest {
         assertEquals(1, player.chatFilters.privateMode)
         assertEquals(2, player.chatFilters.tradeMode)
         assertEquals("hello", audits.single().text)
-        val published = assertNotNull(connection.publicChat.take())
+        val published = assertNotNull(connection.publicChat.current())
         assertEquals(AccountPrivilege.MODERATOR.level, published.modIcon)
         assertEquals("hello", huffman.decode(published.encodedText))
 
         val (rejected, rejectedConnection) = player(id = 2)
         PlayerChatActionProcess(huffman, ChatAuditSink { false })
             .process(rejected, rejectedConnection.publicChat, PublicChatInput(0, 0, "not audited"))
-        assertNull(rejectedConnection.publicChat.take())
+        assertNull(rejectedConnection.publicChat.current())
     }
 
     @Test

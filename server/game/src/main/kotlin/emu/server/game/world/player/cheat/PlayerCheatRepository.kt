@@ -17,10 +17,12 @@ class PlayerCheatRepository internal constructor(
     }
 }
 
+/** Handles one registered developer-console command on the world thread. */
 internal fun interface PlayerCheatHandler {
     fun execute(privilege: AccountPrivilege, arguments: String): String?
 }
 
+/** Builds a command repository while rejecting ambiguous duplicate names. */
 internal class PlayerCheatRepositoryBuilder {
     private val handlers = HashMap<String, PlayerCheatHandler>()
 

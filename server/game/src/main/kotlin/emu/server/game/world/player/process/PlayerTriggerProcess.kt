@@ -22,7 +22,7 @@ class PlayerTriggerProcess(private val runner: PlayerScriptRunner) {
         try {
             runner.trigger(player, ServerTriggerType.LOGOUT)
         } finally {
-            runner.discard(player)
+            player.discardActiveScript()
         }
     }
 }

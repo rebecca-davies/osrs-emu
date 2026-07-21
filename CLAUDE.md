@@ -60,6 +60,12 @@ review.
     helpers. Companion objects contain only factories or conversions intrinsic to their owning
     type; environment keys, service defaults, SQL, migrations, registries, caches and unrelated
     constants belong to typed configuration, named catalogs, or file-private implementation values.
+5f. **Put intrinsic state operations on their natural domain receiver.** An operation that only
+    maintains a player's own invariants should read as `player.closeModal()` or
+    `player.discardActiveScript()`, not as a pass-through process function taking that player.
+    Gameplay policy stays in feature-local content, and coordinators/processes remain responsible
+    for external capabilities and cross-object ordering. Never inject services into `Player`
+    merely for fluent syntax.
 
 ## Architecture vocabulary
 

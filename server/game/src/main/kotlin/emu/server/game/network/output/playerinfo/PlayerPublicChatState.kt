@@ -2,7 +2,7 @@ package emu.server.game.network.output.playerinfo
 
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
 
-/** One pending public-chat update consumed by the next player-info packet. */
+/** One public-chat update retained through the shared information phase, then cleared. */
 internal class PlayerPublicChatState {
     private var publicChat: PlayerPublicChat? = null
 
@@ -18,6 +18,4 @@ internal class PlayerPublicChatState {
     fun clear() {
         publicChat = null
     }
-
-    fun take(): PlayerPublicChat? = publicChat.also { publicChat = null }
 }

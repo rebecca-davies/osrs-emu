@@ -60,7 +60,8 @@ open class Player(
         discardActiveScript()
     }
 
-    internal fun discardActiveScript() {
+    /** Abandons suspended content and releases its protected player access. */
+    fun discardActiveScript() {
         activeScript?.discard()
         activeScript = null
         isAccessProtected = false

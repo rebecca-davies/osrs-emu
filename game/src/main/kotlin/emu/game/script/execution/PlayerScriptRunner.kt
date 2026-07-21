@@ -65,9 +65,6 @@ class PlayerScriptRunner(
         }
     }
 
-    /** Abandons a suspended script after a non-resumable lifecycle trigger. */
-    fun discard(player: Player) = player.discardActiveScript()
-
     private fun retainIfSuspended(
         player: Player,
         execution: PlayerScriptExecution,
