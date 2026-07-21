@@ -9,9 +9,8 @@ import emu.server.game.world.player.WorldPlayer
 class PlayerTriggerProcess(private val runner: PlayerScriptRunner) {
     internal fun processInterfaceCloses(player: Player) {
         while (true) {
-            val interfaces = player.interfaces.drainCloseTriggers()
-            if (interfaces.isEmpty()) return
-            interfaces.forEach { runner.trigger(player, ServerTriggerType.IF_CLOSE, it, protect = false) }
+            val interfaceId = player.interfaces.pollCloseTrigger() ?: return
+            runner.trigger(player, ServerTriggerType.IF_CLOSE, interfaceId, protect = false)
         }
     }
 

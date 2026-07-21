@@ -12,3 +12,25 @@ dependencies {
     implementation(libs.slf4j.api)
     testImplementation(libs.kotlin.test)
 }
+
+tasks.register<JavaExec>("cycleBenchmark") {
+    group = "verification"
+    description = "Benchmarks stationary players through the complete authoritative world cycle."
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("emu.server.game.world.cycle.CycleBenchmarkKt")
+    javaLauncher.set(
+        javaToolchains.launcherFor {
+            languageVersion.set(JavaLanguageVersion.of(21))
+        },
+    )
+    args(
+        providers.gradleProperty("cycleBenchmarkPlayers").getOrElse("250"),
+        providers.gradleProperty("cycleBenchmarkWarmup").getOrElse("100"),
+        providers.gradleProperty("cycleBenchmarkCycles").getOrElse("200"),
+    )
+    jvmArgs("-Xms2g", "-Xmx2g")
+    providers.gradleProperty("cycleBenchmarkJfr").orNull?.let { recording ->
+        jvmArgs("-XX:StartFlightRecording=filename=$recording,settings=profile")
+    }
+}

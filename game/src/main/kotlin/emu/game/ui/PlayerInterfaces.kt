@@ -55,10 +55,8 @@ class PlayerInterfaces {
         return destinations.isNotEmpty()
     }
 
-    /** Removes and returns interface ids whose `IF_CLOSE` content still needs to run. */
-    fun drainCloseTriggers(): List<Int> = buildList {
-        while (closeTriggers.isNotEmpty()) add(closeTriggers.removeFirst())
-    }
+    /** Removes the next interface id whose `IF_CLOSE` content still needs to run. */
+    fun pollCloseTrigger(): Int? = closeTriggers.removeFirstOrNull()
 
     /** Marks the current base tree as published without replaying its construction. */
     fun markClientSynchronized() {
@@ -67,8 +65,11 @@ class PlayerInterfaces {
     }
 
     /** Removes and returns ordered interface-tree changes awaiting client publication. */
-    fun drainClientUpdates(): List<PlayerInterfaceUpdate> = buildList {
-        while (clientUpdates.isNotEmpty()) add(clientUpdates.removeFirst())
+    fun drainClientUpdates(): List<PlayerInterfaceUpdate> {
+        if (clientUpdates.isEmpty()) return emptyList()
+        return buildList(clientUpdates.size) {
+            while (clientUpdates.isNotEmpty()) add(clientUpdates.removeFirst())
+        }
     }
 
     private fun openSubInterface(destination: Component, interfaceId: Int, modal: Boolean) {

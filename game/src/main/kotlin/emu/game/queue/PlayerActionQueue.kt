@@ -53,16 +53,18 @@ class PlayerActionQueue<A : Any> {
         loggingOut: Boolean = false,
         execute: (A) -> Unit,
     ) {
+        if (primary.size == 0 && weak.size == 0) return
         if (primary.any { it.priority == PlayerActionPriority.STRONG }) {
             weak.clear()
             closeModal()
         }
-        process(primary, canAccess, loggingOut, execute)
-        process(weak, canAccess, loggingOut = false, execute)
+        if (primary.size > 0) process(primary, canAccess, loggingOut, execute)
+        if (weak.size > 0) process(weak, canAccess, loggingOut = false, execute)
     }
 
     /** Processes engine-generated actions at their later point in the player phase. */
     fun processEngine(canAccess: () -> Boolean, execute: (A) -> Unit) {
+        if (engine.size == 0) return
         val cursor = engine.cursor()
         while (true) {
             val entry = cursor.next() ?: return

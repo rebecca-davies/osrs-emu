@@ -25,24 +25,27 @@ internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
                 abs(observer.position.y - target.position.y),
             ) <= VIEW_DISTANCE
 
-    fun additions(
+    /** Marks up to [limit] newly visible player slots in the caller-cleared [destination]. */
+    fun selectAdditions(
         observer: PlayerInfoSnapshot,
         tracked: BooleanArray,
+        destination: BooleanArray,
         limit: Int,
-    ): List<PlayerInfoSnapshot> {
-        if (limit <= 0) return emptyList()
-        val result = ArrayList<PlayerInfoSnapshot>(limit)
+    ) {
+        if (limit <= 0) return
+        var selected = 0
         val zoneX = observer.position.x shr ZONE_SHIFT
         val zoneY = observer.position.y shr ZONE_SHIFT
         for ((deltaX, deltaY) in ZONE_OFFSETS) {
             val key = zoneKey(observer.position.plane, zoneX + deltaX, zoneY + deltaY)
-            for (target in zones[key].orEmpty()) {
+            val players = zones[key] ?: continue
+            for (target in players) {
                 if (target.index == observer.index || tracked[target.index] || !isVisible(observer, target)) continue
-                result += target
-                if (result.size == limit) return result
+                destination[target.index] = true
+                selected++
+                if (selected == limit) return
             }
         }
-        return result
     }
 
     private fun zoneKey(snapshot: PlayerInfoSnapshot): Int =

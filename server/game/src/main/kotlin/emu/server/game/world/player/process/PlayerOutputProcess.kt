@@ -92,12 +92,14 @@ class PlayerOutputProcess {
         val player = connected.player
         val connection = connected.connection
         return GameOutputBatch.build {
-            packets(
-                player.interfaces
-                    .drainClientUpdates()
-                    .map(PlayerInterfaceOutput::message),
-            )
-            packets(player.varps.drainClientUpdates().map(PlayerVarpOutput::message))
+            val interfaceUpdates = player.interfaces.drainClientUpdates()
+            if (interfaceUpdates.isNotEmpty()) {
+                packets(interfaceUpdates.map(PlayerInterfaceOutput::message))
+            }
+            val varpUpdates = player.varps.drainClientUpdates()
+            if (varpUpdates.isNotEmpty()) {
+                packets(varpUpdates.map(PlayerVarpOutput::message))
+            }
             val position = player.movement.position
             if (player.buildArea.recenterIfRequired(position)) {
                 packet(RebuildNormal(player.buildArea.centreZoneX, player.buildArea.centreZoneY))

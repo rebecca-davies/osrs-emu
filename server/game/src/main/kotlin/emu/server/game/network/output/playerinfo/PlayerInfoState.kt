@@ -38,7 +38,7 @@ internal class PlayerInfoState(private val localIndex: Int) {
             if (target != null && view.isVisible(observer, target)) survivingPlayers++ else removals[index] = true
         }
         val available = (PREFERRED_PLAYERS - 1 - survivingPlayers).coerceAtLeast(0)
-        for (target in view.additions(observer, tracked, available)) additions[target.index] = true
+        view.selectAdditions(observer, tracked, additions, available)
 
         val highActive = buildSection(view, highResolution = true, inactive = false)
         val highInactive = buildSection(view, highResolution = true, inactive = true)

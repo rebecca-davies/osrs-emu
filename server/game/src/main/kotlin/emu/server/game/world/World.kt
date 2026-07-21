@@ -179,15 +179,34 @@ class World(
     }
 
     internal fun activePlayers(): List<ConnectedPlayer> =
-        players.values.filter { it.player.active && !it.player.loggingOut }
+        buildList { collectActivePlayers(this) }
 
-    internal fun cyclePlayers(): List<ConnectedPlayer> =
-        players.values.filter {
-            !it.writeBack.snapshotTaken &&
-                (it.player.active || it.player.logoutRequested || it.player.loggingOut)
+    internal fun collectActivePlayers(destination: MutableCollection<ConnectedPlayer>) {
+        for (connected in players.values) {
+            if (connected.player.active && !connected.player.loggingOut) destination += connected
         }
+    }
+
+    internal fun collectCyclePlayers(destination: MutableCollection<ConnectedPlayer>) {
+        for (connected in players.values) {
+            if (
+                !connected.writeBack.snapshotTaken &&
+                    (connected.player.active ||
+                        connected.player.logoutRequested ||
+                        connected.player.loggingOut)
+            ) {
+                destination += connected
+            }
+        }
+    }
 
     internal fun allPlayers(): List<ConnectedPlayer> = players.values.toList()
+
+    internal fun collectAllPlayers(destination: MutableCollection<ConnectedPlayer>) {
+        for (connected in players.values) destination += connected
+    }
+
+    internal fun isEmpty(): Boolean = players.isEmpty()
 
     internal fun contains(playerId: Long): Boolean = players.containsKey(playerId)
 

@@ -66,8 +66,10 @@ class PlayerVarps(
         clientSynchronized = true
     }
 
-    fun drainClientUpdates(): List<VarpValue> =
-        pendingClient.map { VarpValue(it.key, it.value) }.also { pendingClient.clear() }
+    fun drainClientUpdates(): List<VarpValue> {
+        if (pendingClient.isEmpty()) return emptyList()
+        return pendingClient.map { VarpValue(it.key, it.value) }.also { pendingClient.clear() }
+    }
 
     /** Sparse permanent values whose effective value differs from the last database load. */
     fun dirtyPersistentValues(): Map<Int, Int> =
