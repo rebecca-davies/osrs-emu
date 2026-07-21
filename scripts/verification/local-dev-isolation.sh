@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Host-only integration check: nested network namespaces are unavailable inside act containers.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

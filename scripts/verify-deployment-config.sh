@@ -8,6 +8,5 @@ bash -n "$0" "$VERIFICATION_DIRECTORY"/*.sh
 "$VERIFICATION_DIRECTORY/production-deployment.sh"
 "$VERIFICATION_DIRECTORY/local-dev-configuration.sh"
 "$VERIFICATION_DIRECTORY/local-dev-processes.sh"
-"$VERIFICATION_DIRECTORY/local-dev-isolation.sh"
 
 echo "deployment configuration verified"

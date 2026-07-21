@@ -45,8 +45,12 @@ open class Player(
         private set
     var loggingOut: Boolean = false
         private set
-    /** Whether protected content may start for this player. */
-    fun canAccess(): Boolean = shutdownAccess || activeScript == null && !isAccessProtected
+    /** Whether ordinary queued work may run without violating protected or modal state. */
+    fun canAccess(): Boolean = shutdownAccess || canAcquireProtectedAccess() && !interfaces.hasModal()
+
+    /** Whether a script may take protected access, independently of the interface it handles. */
+    internal fun canAcquireProtectedAccess(): Boolean =
+        shutdownAccess || activeScript == null && !isAccessProtected
 
     /** Clears weak work, closes protected interfaces, and reports whether close scripts were queued. */
     fun closeModal(): Boolean {

@@ -186,3 +186,10 @@ Additional clients share that local game world while retaining separate throwawa
 The launcher creates a rootless network namespace with no external default route. It starts and
 stops only PIDs recorded beneath its private runtime directory; unrelated RuneLite or Bolt
 processes are never searched for or signalled.
+
+The namespace confinement can be exercised separately on the Linux host (it intentionally is not
+part of the containerized CI/CD gate, where nested network namespaces are unavailable):
+
+```bash
+./scripts/verification/local-dev-isolation.sh
+```

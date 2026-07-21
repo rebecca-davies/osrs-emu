@@ -8,6 +8,7 @@ import emu.game.script.queue.PlayerQueueType
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
+import emu.game.ui.Component
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -35,6 +36,25 @@ class PlayerScriptRunnerTest {
         assertTrue(player.movement.runEnabled)
         assertEquals(1, player.varps[PlayerVarpCatalog.RUN_MODE])
         assertFalse(player.isAccessProtected)
+    }
+
+    @Test
+    fun `visible modal button may acquire protected access while queued work is blocked`() {
+        var invoked = false
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onButton("test:button") { invoked = true }
+            }
+        val player = player()
+        player.interfaces.openTopLevel(161)
+        player.interfaces.openModal(Component.of(161, 1), 1)
+        val script = requireNotNull(scripts.findSpecific(ServerTriggerType.IF_BUTTON, 65538))
+
+        assertFalse(player.canAccess())
+        assertTrue(PlayerScriptRunner(scripts).start(player, script, ButtonClick(1, 2)))
+
+        assertTrue(invoked)
+        assertFalse(player.canAccess())
     }
 
     @Test

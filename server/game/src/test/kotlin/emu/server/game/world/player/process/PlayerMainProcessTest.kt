@@ -91,19 +91,46 @@ class PlayerMainProcessTest {
     }
 
     @Test
-    fun `timer interface close runs before the engine queue`() {
+    fun `modal blocks ordinary queues without consuming them`() {
+        val calls = mutableListOf<String>()
+        val normal = PlayerQueueType.unit("normal_modal")
+        val weak = PlayerQueueType.unit("weak_modal")
+        val engine = PlayerQueueType.unit("engine_modal")
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onQueue(normal) { calls += "normal" }
+                onQueue(weak) { calls += "weak" }
+                onQueue(engine) { calls += "engine" }
+            }
+        val player = player()
+        player.interfaces.openModal(Component.of(161, 1), 200)
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(normal)))
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(weak)), PlayerActionPriority.WEAK)
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(engine)), PlayerActionPriority.ENGINE)
+        val process = process(PlayerScriptRunner(scripts))
+
+        process.process(player)
+
+        assertEquals(emptyList(), calls)
+        assertEquals(1, player.actionQueue.primarySize)
+        assertEquals(1, player.actionQueue.weakSize)
+        assertEquals(1, player.actionQueue.engineSize)
+    }
+
+    @Test
+    fun `soft timer interface close runs before the engine queue`() {
         val calls = mutableListOf<String>()
         val timer = PlayerTimerType.unit("close_modal")
         val engine = PlayerQueueType.unit("engine")
         val scripts =
             PlayerScriptRepository.build(components) {
                 onClose("test:modal") { calls += "close" }
-                onTimer(timer) {
+                onSoftTimer(timer) {
                     calls += "timer"
                     ifClose()
                 }
                 onQueue(engine) { calls += "engine" }
-                onButton("test:button") { setTimer(timer, intervalTicks = 0) }
+                onButton("test:button") { softTimer(timer, intervalTicks = 0) }
             }
         val player = player()
         player.interfaces.openModal(Component.of(161, 1), 200)

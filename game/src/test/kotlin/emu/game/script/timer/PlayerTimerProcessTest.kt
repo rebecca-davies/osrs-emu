@@ -8,6 +8,7 @@ import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.timer.PlayerTimerType
 import emu.game.ui.ButtonClick
+import emu.game.ui.Component
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -88,6 +89,48 @@ class PlayerTimerProcessTest {
         process.process(player)
 
         assertEquals(listOf("busy", "soft", "resumed", "normal", "soft"), calls)
+    }
+
+    @Test
+    fun `soft timer fires behind a modal while normal timer waits for access`() {
+        val calls = mutableListOf<String>()
+        val normal = PlayerTimerType.unit("normal_modal")
+        val soft = PlayerTimerType.unit("soft_modal")
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onTimer(normal) {
+                    calls += "normal"
+                    clearTimer(normal)
+                }
+                onSoftTimer(soft) {
+                    calls += "soft"
+                    clearSoftTimer(soft)
+                }
+                onButton("test:setup") {
+                    setTimer(normal, intervalTicks = 1)
+                    softTimer(soft, intervalTicks = 1)
+                }
+            }
+        val player = Player(Tile(3200, 3200, 0))
+        val runner = PlayerScriptRunner(scripts)
+        val process = PlayerTimerProcess(runner)
+        runner.beginCycle(0)
+        runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
+        player.interfaces.openTopLevel(161)
+        player.interfaces.openModal(Component.of(161, 1), 200)
+
+        runner.beginCycle(1)
+        process.process(player)
+
+        assertEquals(listOf("soft"), calls)
+        assertTrue(normal in player.timers)
+        assertFalse(soft in player.timers)
+
+        player.closeModal()
+        runner.beginCycle(2)
+        process.process(player)
+
+        assertEquals(listOf("soft", "normal"), calls)
     }
 
     @Test

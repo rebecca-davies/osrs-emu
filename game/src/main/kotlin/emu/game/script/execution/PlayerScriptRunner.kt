@@ -38,7 +38,7 @@ class PlayerScriptRunner(
         argument: Any = Unit,
         protect: Boolean = true,
     ): Boolean {
-        if (protect && !player.canAccess()) return false
+        if (protect && !player.canAcquireProtectedAccess()) return false
         if (protect && player.shutdownAccess) player.discardActiveScript()
         val context = PlayerScriptContext(player, lastButton, argument, scripts)
         val execution = PlayerScriptExecution(script, context, protect)

@@ -6,6 +6,7 @@ build/
 /tmp/
 cache-data/
 /client/
+/osrsemu-asset.7z
 .git-pat
 
 # Generated server RSA keypair (tools:client-patch). Never commit.

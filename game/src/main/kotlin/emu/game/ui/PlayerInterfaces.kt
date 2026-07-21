@@ -7,6 +7,7 @@ class PlayerInterfaces {
     private val closeTriggers = ArrayDeque<Int>()
     private val clientUpdates = ArrayDeque<PlayerInterfaceUpdate>()
     private var topLevel: Int? = null
+    private var modalCount = 0
     private var clientSynchronized = false
 
     /** Replaces the top-level frame and clears interfaces attached to the old frame. */
@@ -15,6 +16,7 @@ class PlayerInterfaces {
         topLevel = interfaceId
         subInterfaces.clear()
         visibleSubInterfaces.clear()
+        modalCount = 0
         closeTriggers.clear()
         clientUpdates.clear()
         if (clientSynchronized) {
@@ -37,8 +39,12 @@ class PlayerInterfaces {
     fun isVisible(component: Component): Boolean =
         component.interfaceId == topLevel || visibleSubInterfaces.containsKey(component.interfaceId)
 
+    /** Whether a protected modal currently blocks ordinary player work. */
+    fun hasModal(): Boolean = modalCount != 0
+
     /** Closes all protected modal subinterface trees. */
     fun closeModal(): Boolean {
+        if (modalCount == 0) return false
         val destinations =
             subInterfaces.entries
                 .filter { it.value.modal }
@@ -77,6 +83,7 @@ class PlayerInterfaces {
         require(isVisible(destination)) { "subinterface destination is not visible: $destination" }
         removeAt(destination)
         subInterfaces[destination] = OpenSubInterface(interfaceId, modal)
+        if (modal) modalCount++
         visibleSubInterfaces.merge(interfaceId, 1, Int::plus)
         if (clientSynchronized) {
             clientUpdates.addLast(
@@ -87,6 +94,7 @@ class PlayerInterfaces {
 
     private fun removeAt(destination: Component) {
         val removed = subInterfaces.remove(destination) ?: return
+        if (removed.modal) modalCount--
         val remaining = checkNotNull(visibleSubInterfaces[removed.interfaceId]) - 1
         if (remaining == 0) visibleSubInterfaces.remove(removed.interfaceId)
         else visibleSubInterfaces[removed.interfaceId] = remaining
