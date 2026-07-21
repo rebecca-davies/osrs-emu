@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class AddBotCheatHandlerTest {
+class AddBotsCheatHandlerTest {
     @Test
     fun `administrator command submits the requested bounded client count`() {
         var requested = 0
@@ -15,10 +15,10 @@ class AddBotCheatHandlerTest {
                 BotClientRequestResult.Accepted(count, reservedClients = count + 1)
             }
 
-        val response = cheats.execute("  AdDbOt   4  ", AccountPrivilege.ADMINISTRATOR)
+        val response = cheats.execute("  AdDbOtS   4  ", AccountPrivilege.ADMINISTRATOR)
 
         assertEquals(4, requested)
-        assertEquals("Starting 4 bot client(s); 5 slot(s) reserved.", response)
+        assertEquals("Starting 4 moving bot client(s); 5 slot(s) reserved.", response)
     }
 
     @Test
@@ -30,7 +30,7 @@ class AddBotCheatHandlerTest {
                 BotClientRequestResult.Accepted(it, it)
             }
 
-        val response = cheats.execute("addbot 4", AccountPrivilege.MODERATOR)
+        val response = cheats.execute("addbots 4", AccountPrivilege.MODERATOR)
 
         assertNull(response)
         assertEquals(false, requested)

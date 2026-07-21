@@ -15,13 +15,13 @@ class ClientCheatHandlerTest {
     @Test
     fun `stages console input as one ordered player action`() = runBlocking {
         val actions = IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig(capacity = 2, maxPerCycle = 2))
-        ClientCheatHandler(actions).handle(ClientCheat("addbot 3"), NoOutput)
+        ClientCheatHandler(actions).handle(ClientCheat("addbots 3"), NoOutput)
 
         val drained = mutableListOf<PlayerAction>()
         actions.drain(drained::add)
 
         val action = assertIs<PlayerAction.Cheat>(drained.single())
-        assertEquals("addbot 3", action.input.text)
+        assertEquals("addbots 3", action.input.text)
     }
 
     private object NoOutput : HandlerContext {

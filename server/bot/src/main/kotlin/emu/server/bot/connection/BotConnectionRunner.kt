@@ -3,11 +3,11 @@ package emu.server.bot.connection
 import emu.buffer.JagexBuffer
 import emu.crypto.IsaacCipher
 import emu.crypto.RsaPublicKey
-import emu.protocol.osrs239.game.prot.GameClientProt
 import emu.protocol.osrs239.login.message.LoginResponse
 import emu.protocol.osrs239.login.prot.LoginProt
 import emu.server.bot.account.BotAccountGenerator
 import emu.server.bot.config.BotConfig
+import emu.server.bot.wire.BotGamePacketWriter
 import emu.server.bot.wire.BotLoginBlock
 import io.ktor.network.selector.SelectorManager
 import io.ktor.network.sockets.InetSocketAddress
@@ -23,6 +23,7 @@ import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
 import java.security.SecureRandom
+import java.util.concurrent.ThreadLocalRandom
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -50,6 +51,7 @@ class BotConnectionRunner(
             lateinit var read: ByteReadChannel
             lateinit var write: ByteWriteChannel
             val seeds = IntArray(ISAAC_SEED_COUNT) { random.nextInt() }
+            val movementSeed = random.nextLong()
             withTimeout(config.loginTimeout) {
                 socket =
                     aSocket(selector)
@@ -61,7 +63,7 @@ class BotConnectionRunner(
             }
             loginPermits.release()
             loginPermitHeld = false
-            runGame(read, write, seeds)
+            runGame(read, write, seeds, movementSeed)
         } finally {
             if (loginPermitHeld) loginPermits.release()
             socket?.close()
@@ -96,13 +98,18 @@ class BotConnectionRunner(
         read.readFully(ByteArray(LOGIN_SUCCESS_TRAILER_SIZE))
     }
 
-    private suspend fun runGame(read: ByteReadChannel, write: ByteWriteChannel, seeds: IntArray) = coroutineScope {
+    private suspend fun runGame(
+        read: ByteReadChannel,
+        write: ByteWriteChannel,
+        seeds: IntArray,
+        movementSeed: Long,
+    ) = coroutineScope {
         val drain = launch { drainOutput(read) }
-        val keepAlive = launch { keepAlive(write, IsaacCipher(seeds)) }
+        val movement = launch { sendMovement(write, seeds, movementSeed) }
         try {
             drain.join()
         } finally {
-            keepAlive.cancelAndJoin()
+            movement.cancelAndJoin()
         }
     }
 
@@ -113,11 +120,16 @@ class BotConnectionRunner(
         }
     }
 
-    private suspend fun keepAlive(write: ByteWriteChannel, cipher: IsaacCipher) {
+    private suspend fun sendMovement(write: ByteWriteChannel, seeds: IntArray, movementSeed: Long) {
+        val packets = BotGamePacketWriter(write, IsaacCipher(seeds))
+        val movement = BotMovementPlan(config.movement, movementSeed)
+        val intervalMillis = config.movement.interval.inWholeMilliseconds
+        delay(ThreadLocalRandom.current().nextLong(intervalMillis))
         while (true) {
-            delay(config.keepAliveInterval)
-            write.writeByte(((GameClientProt.NO_TIMEOUT.opcode + cipher.nextInt()) and 0xFF).toByte())
-            write.flush()
+            movement.chooseNext()
+            packets.writeMoveGameClick(movement.x, movement.z)
+            packets.flush()
+            delay(config.movement.interval)
         }
     }
 

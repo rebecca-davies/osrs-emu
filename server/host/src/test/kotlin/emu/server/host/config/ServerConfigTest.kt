@@ -40,7 +40,10 @@ class ServerConfigTest {
                     "OSRS_BOT_MAX_CONCURRENT_LOGINS" to "3",
                     "OSRS_BOT_WORKER_THREADS" to "2",
                     "OSRS_BOT_LOGIN_TIMEOUT_SECONDS" to "9",
-                    "OSRS_BOT_KEEP_ALIVE_SECONDS" to "8",
+                    "OSRS_BOT_MOVEMENT_CENTRE_X" to "3200",
+                    "OSRS_BOT_MOVEMENT_CENTRE_Z" to "3201",
+                    "OSRS_BOT_MOVEMENT_RADIUS" to "8",
+                    "OSRS_BOT_MOVEMENT_INTERVAL_MS" to "2500",
                     "OSRS_COORDINATOR_WORLD_ENTRY_TIMEOUT_SECONDS" to "7",
                     "OSRS_DATABASE_URL" to "jdbc:postgresql://database/osrsemu",
                     "OSRS_DATABASE_USER" to "server-user",
@@ -90,7 +93,10 @@ class ServerConfigTest {
         assertEquals(3, config.bots.maxConcurrentLogins)
         assertEquals(2, config.bots.workerThreads)
         assertEquals(9.seconds, config.bots.loginTimeout)
-        assertEquals(8.seconds, config.bots.keepAliveInterval)
+        assertEquals(3200, config.bots.movement.centreX)
+        assertEquals(3201, config.bots.movement.centreZ)
+        assertEquals(8, config.bots.movement.radius)
+        assertEquals(2500, config.bots.movement.interval.inWholeMilliseconds)
         assertEquals(7.seconds, config.coordinator.worldEntryTimeout)
         assertEquals("jdbc:postgresql://database/osrsemu", config.database.jdbcUrl)
         assertEquals("server-user", config.database.username)

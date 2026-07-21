@@ -4,6 +4,7 @@ import emu.persistence.postgres.database.PostgresConfig
 import emu.persistence.postgres.database.PostgresOperationConfig
 import emu.persistence.postgres.database.PostgresPoolConfig
 import emu.server.bot.config.BotConfig
+import emu.server.bot.config.BotMovementConfig
 import emu.server.game.config.GameExecutionConfig
 import emu.server.game.config.RouteSearchConfig
 import emu.server.gateway.GatewayConfig
@@ -49,11 +50,19 @@ private fun Map<String, String>.botConfig(): BotConfig =
                     "OSRS_BOT_LOGIN_TIMEOUT_SECONDS",
                     defaults.loginTimeout.inWholeSeconds,
                 ).seconds,
-            keepAliveInterval =
-                long(
-                    "OSRS_BOT_KEEP_ALIVE_SECONDS",
-                    defaults.keepAliveInterval.inWholeSeconds,
-                ).seconds,
+            movement =
+                defaults.movement.let { movement ->
+                    BotMovementConfig(
+                        centreX = int("OSRS_BOT_MOVEMENT_CENTRE_X", movement.centreX),
+                        centreZ = int("OSRS_BOT_MOVEMENT_CENTRE_Z", movement.centreZ),
+                        radius = int("OSRS_BOT_MOVEMENT_RADIUS", movement.radius),
+                        interval =
+                            long(
+                                "OSRS_BOT_MOVEMENT_INTERVAL_MS",
+                                movement.interval.inWholeMilliseconds,
+                            ).milliseconds,
+                    )
+                },
         )
     }
 

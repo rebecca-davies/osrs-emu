@@ -19,8 +19,8 @@ data class ServerConfig(
     val database: PostgresConfig,
 ) {
     init {
-        require(bots.keepAliveInterval < game.connection.idleTimeout) {
-            "bot keep-alive interval must be shorter than the game idle timeout"
+        require(bots.movement.interval < game.connection.idleTimeout) {
+            "bot movement interval must be shorter than the game idle timeout"
         }
     }
 }

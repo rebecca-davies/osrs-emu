@@ -170,13 +170,13 @@ class PlayerActionProcessTest {
                 },
                 RouteSearchBudget(RouteSearchConfig()),
             )
-        connection.actions.submit(PlayerAction.Cheat(PlayerCheatInput("addbot 2")))
+        connection.actions.submit(PlayerAction.Cheat(PlayerCheatInput("addbots 2")))
 
         process.process(player, connection)
 
         assertEquals(2, requested)
         assertEquals(
-            listOf("Starting 2 bot client(s); 2 slot(s) reserved."),
+            listOf("Starting 2 moving bot client(s); 2 slot(s) reserved."),
             connection.drainGameMessages(),
         )
     }
