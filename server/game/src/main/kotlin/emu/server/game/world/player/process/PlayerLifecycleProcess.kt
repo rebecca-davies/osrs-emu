@@ -17,8 +17,8 @@ class PlayerLifecycleProcess(
         val writeBack = connected.writeBack
         if (!player.logoutRequested && !player.loggingOut) return
         player.beginLogout()
-        triggers.closeModal(player)
-        player.actionQueue.clearWeak()
+        player.closeModal()
+        triggers.processInterfaceCloses(player)
         when (writeBack.completion?.state()) {
             CharacterWriteState.PENDING,
             CharacterWriteState.DURABLE -> return

@@ -23,7 +23,7 @@ class PlayerScriptExecution internal constructor(
         check(state == PlayerScriptExecutionState.READY) { "script has already started" }
         executingWorldTick = worldTick
         state = PlayerScriptExecutionState.RUNNING
-        execute { script.body.startCoroutine(context, completion) }
+        execute(worldTick) { script.body.startCoroutine(context, completion) }
         throwFailure()
     }
 
@@ -34,7 +34,7 @@ class PlayerScriptExecution internal constructor(
         continuation = null
         executingWorldTick = worldTick
         state = PlayerScriptExecutionState.RUNNING
-        execute { next.resume(Unit) }
+        execute(worldTick) { next.resume(Unit) }
         throwFailure()
     }
 
@@ -58,8 +58,8 @@ class PlayerScriptExecution internal constructor(
         state = PlayerScriptExecutionState.FINISHED
     }
 
-    private fun execute(action: () -> Unit) {
-        context.attach(this)
+    private fun execute(worldTick: Long, action: () -> Unit) {
+        context.attach(this, worldTick)
         try {
             action()
         } finally {

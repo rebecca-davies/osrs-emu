@@ -46,7 +46,7 @@ class PlayerOutputProcessTest {
             )
         world.activateTestPlayer(connected.connection.token)
         connected.player.interfaces.openModal(Component.of(161, 1), 200)
-        connected.player.interfaces.closeModal()
+        connected.player.closeModal()
 
         val output = PlayerOutputProcess()
         output.prepare(connected, output.snapshot(world.allPlayers()), null)

@@ -9,7 +9,8 @@ import emu.game.ui.ButtonClick
 class PlayerScriptRunner(
     private val scripts: PlayerScriptRepository,
 ) {
-    private var worldTick = 0L
+    internal var worldTick = 0L
+        private set
 
     /** Sets the authoritative tick used by every script started or resumed in this cycle. */
     fun beginCycle(worldTick: Long) {

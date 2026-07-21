@@ -8,6 +8,7 @@ import emu.game.pathfinding.movement.PlayerMovement
 import emu.game.queue.PlayerActionQueue
 import emu.game.script.execution.PlayerScriptExecution
 import emu.game.script.execution.PlayerScriptRequest
+import emu.game.timer.PlayerTimers
 import emu.game.ui.PlayerInterfaces
 import emu.game.varp.PlayerVarps
 
@@ -24,6 +25,7 @@ open class Player(
             this[PlayerVarpCatalog.HAS_DISPLAY_NAME] = 1
         }
     val actionQueue = PlayerActionQueue<PlayerScriptRequest>()
+    val timers = PlayerTimers()
     val interfaces = PlayerInterfaces()
     val chatFilters = initialChatFilters
 
@@ -45,6 +47,12 @@ open class Player(
         private set
     /** Whether protected content may start for this player. */
     fun canAccess(): Boolean = shutdownAccess || activeScript == null && !isAccessProtected
+
+    /** Clears weak work, closes protected interfaces, and reports whether close scripts were queued. */
+    fun closeModal(): Boolean {
+        actionQueue.clearWeak()
+        return interfaces.closeModal()
+    }
 
     /** Enables 2004Scape's unconditional shutdown access and abandons suspended content. */
     fun enableShutdownAccess() {

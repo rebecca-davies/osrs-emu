@@ -9,8 +9,12 @@ import emu.game.queue.PlayerActionPriority
 import emu.game.script.execution.PlayerScriptRequest
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.queue.PlayerQueueType
+import emu.game.script.queue.ifClose
+import emu.game.script.timer.setTimer
+import emu.game.script.timer.softTimer
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
+import emu.game.timer.PlayerTimerType
 import emu.game.ui.ButtonClick
 import emu.game.ui.Component
 import emu.persistence.character.model.CharacterPosition
@@ -29,16 +33,24 @@ class PlayerMainProcessTest {
         )
 
     @Test
-    fun `player phase runs primary weak and engine scripts in order with typed arguments`() {
+    fun `player phase runs queues and timers in RuneScape order with typed arguments`() {
         val calls = mutableListOf<String>()
         val primary = PlayerQueueType("primary", String::class)
         val weak = PlayerQueueType.unit("weak")
         val engine = PlayerQueueType.unit("engine")
+        val normalTimerType = PlayerTimerType.unit("normal")
+        val softTimerType = PlayerTimerType.unit("soft")
         val scripts =
             PlayerScriptRepository.build(components) {
                 onQueue(primary) { calls += it }
                 onQueue(weak) { calls += "weak" }
                 onQueue(engine) { calls += "engine" }
+                onTimer(normalTimerType) { calls += "normal" }
+                onSoftTimer(softTimerType) { calls += "soft" }
+                onButton("test:button") {
+                    setTimer(normalTimerType, intervalTicks = 0)
+                    softTimer(softTimerType, intervalTicks = 0)
+                }
             }
         val player = player()
         player.actionQueue.add(PlayerScriptRequest(scripts.require(primary), "primary"))
@@ -46,9 +58,13 @@ class PlayerMainProcessTest {
         player.actionQueue.add(PlayerScriptRequest(scripts.require(engine)), PlayerActionPriority.ENGINE)
 
         val runner = PlayerScriptRunner(scripts)
-        process(runner).process(player)
+        runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
+        process(runner).apply {
+            beginCycle(0)
+            process(player)
+        }
 
-        assertEquals(listOf("primary", "weak", "engine"), calls)
+        assertEquals(listOf("primary", "weak", "normal", "soft", "engine"), calls)
     }
 
     @Test
@@ -72,6 +88,35 @@ class PlayerMainProcessTest {
 
         assertEquals(listOf("close", "strong"), calls)
         assertFalse(player.interfaces.isVisible(Component.of(200, 0)))
+    }
+
+    @Test
+    fun `timer interface close runs before the engine queue`() {
+        val calls = mutableListOf<String>()
+        val timer = PlayerTimerType.unit("close_modal")
+        val engine = PlayerQueueType.unit("engine")
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onClose("test:modal") { calls += "close" }
+                onTimer(timer) {
+                    calls += "timer"
+                    ifClose()
+                }
+                onQueue(engine) { calls += "engine" }
+                onButton("test:button") { setTimer(timer, intervalTicks = 0) }
+            }
+        val player = player()
+        player.interfaces.openModal(Component.of(161, 1), 200)
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(engine)), PlayerActionPriority.ENGINE)
+        val runner = PlayerScriptRunner(scripts)
+        runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
+
+        process(runner).apply {
+            beginCycle(0)
+            process(player)
+        }
+
+        assertEquals(listOf("timer", "close", "engine"), calls)
     }
 
     @Test

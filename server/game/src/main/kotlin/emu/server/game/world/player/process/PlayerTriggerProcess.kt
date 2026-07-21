@@ -1,17 +1,13 @@
 package emu.server.game.world.player.process
 
+import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.ServerTriggerType
 import emu.server.game.world.player.WorldPlayer
 
 /** Runs world-owned interface and player-lifecycle triggers at their authoritative phase. */
 class PlayerTriggerProcess(private val runner: PlayerScriptRunner) {
-    internal fun closeModal(player: WorldPlayer) {
-        player.interfaces.closeModal()
-        processInterfaceCloses(player)
-    }
-
-    internal fun processInterfaceCloses(player: WorldPlayer) {
+    internal fun processInterfaceCloses(player: Player) {
         while (true) {
             val interfaces = player.interfaces.drainCloseTriggers()
             if (interfaces.isEmpty()) return

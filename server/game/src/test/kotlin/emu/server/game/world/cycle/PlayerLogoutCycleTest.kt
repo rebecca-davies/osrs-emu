@@ -8,6 +8,7 @@ import emu.game.content.ui.config.UiComponentMap
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.game.queue.LongActionLogout
+import emu.game.queue.PlayerActionPriority
 import emu.game.script.content.PlayerContent
 import emu.game.script.execution.PlayerScriptRequest
 import emu.game.script.execution.PlayerScriptRunner
@@ -127,6 +128,40 @@ class PlayerLogoutCycleTest {
 
         assertEquals(listOf("login", "logout"), calls)
         assertFalse(world.contains(connected.player.id))
+    }
+
+    @Test
+    fun `logout close clears old weak work before close content queues new work`() {
+        val calls = mutableListOf<String>()
+        val closeQueue = PlayerQueueType.unit("close_queue")
+        val components =
+            UiComponentMap.parse(
+                "[components]\n\"test:modal\" = 13107200",
+            )
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onQueue(closeQueue) { calls += "weak" }
+                onClose("test:modal") {
+                    calls += "close"
+                    weakQueue(closeQueue)
+                }
+            }
+        val runner = PlayerScriptRunner(scripts)
+        val world = testWorld(maxPlayerIndex = 1)
+        val cycle = cycle(world, scripts, runner)
+        val player = player(world)
+        player.interfaces.openModal(Component.of(161, 500), 200)
+        player.actionQueue.add(
+            PlayerScriptRequest(scripts.require(closeQueue)),
+            PlayerActionPriority.WEAK,
+            delayTicks = 10,
+        )
+        player.requestLogout()
+
+        cycle.tick(worldTick = 0)
+
+        assertEquals(listOf("close"), calls)
+        assertEquals(1, player.actionQueue.weakSize)
     }
 
     @Test

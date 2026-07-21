@@ -13,9 +13,11 @@ class PlayerScriptContext internal constructor(
     val player: Player,
     val lastButton: ButtonClick?,
     internal val argument: Any,
-    scripts: PlayerScriptRepository,
+    internal val scripts: PlayerScriptRepository,
 ) : PlayerQueueDsl(player, scripts) {
     private var execution: PlayerScriptExecution? = null
+    internal var worldTick: Long = 0
+        private set
 
     /** Implements `P_DELAY`: resumes at the current world tick plus one plus [ticks]. */
     suspend fun delay(ticks: Int) {
@@ -26,9 +28,11 @@ class PlayerScriptContext internal constructor(
         }
     }
 
-    internal fun attach(execution: PlayerScriptExecution) {
+    internal fun attach(execution: PlayerScriptExecution, worldTick: Long) {
         check(this.execution == null) { "script context is already executing" }
+        require(worldTick >= 0) { "script world tick must be non-negative" }
         this.execution = execution
+        this.worldTick = worldTick
     }
 
     internal fun detach(execution: PlayerScriptExecution) {
