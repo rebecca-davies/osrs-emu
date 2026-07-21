@@ -4,6 +4,7 @@ import com.sun.management.ThreadMXBean
 import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
+import emu.game.action.PlayerAction
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.persistence.character.model.CharacterPosition
@@ -17,6 +18,7 @@ import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.entry.PlayerCapacity
+import emu.server.game.world.player.ConnectedPlayer
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
@@ -28,6 +30,7 @@ fun main(args: Array<String>) {
     val playerCount = args.intAt(0, 250, "players")
     val warmupCycles = args.intAt(1, 100, "warmup cycles")
     val measuredCycles = args.intAt(2, 200, "measured cycles")
+    val workload = BenchmarkWorkload.parse(args.getOrNull(3) ?: "idle")
     require(playerCount in 1..PlayerCapacity.PER_WORLD) {
         "players must be in 1..${PlayerCapacity.PER_WORLD}"
     }
@@ -36,13 +39,12 @@ fun main(args: Array<String>) {
 
     var publishedBatches = 0L
     val world = testWorld(maxPlayerIndex = playerCount)
+    val players = ArrayList<ConnectedPlayer>(playerCount)
     repeat(playerCount) { ordinal ->
         val id = ordinal + 1L
-        val x = SPAWN_X + ordinal % LOCAL_WIDTH
-        val y = SPAWN_Y + ordinal / LOCAL_WIDTH % LOCAL_WIDTH
         val connected =
             world.addTestPlayer(
-                CharacterRecord(id, "Bench$id", CharacterPosition(x, y, 0), 0),
+                CharacterRecord(id, "Bench$id", workload.initialPosition(ordinal), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink {
                     publishedBatches++
@@ -50,6 +52,7 @@ fun main(args: Array<String>) {
                 },
             )
         world.activateTestPlayer(connected.connection.token)
+        players += connected
     }
 
     val movement = PlayerMovementProcess(OpenCollisionMap)
@@ -71,6 +74,7 @@ fun main(args: Array<String>) {
 
     var worldTick = 0L
     repeat(warmupCycles) {
+        workload.prepare(worldTick, players)
         val batchesBefore = publishedBatches
         cycle.tick(worldTick++)
         checkPublishedPlayerCount(publishedBatches - batchesBefore, playerCount, worldTick - 1)
@@ -78,15 +82,23 @@ fun main(args: Array<String>) {
     val thread = Thread.currentThread().threadId()
     val allocation = allocationCounter()
     val timings = LongArray(measuredCycles)
-    val allocatedBefore = allocation?.getThreadAllocatedBytes(thread) ?: -1L
+    var allocatedBytes = 0L
+    var allocationAvailable = allocation != null
     repeat(measuredCycles) { index ->
+        workload.prepare(worldTick, players)
         val batchesBefore = publishedBatches
+        val allocatedBefore = allocation?.getThreadAllocatedBytes(thread) ?: -1L
         val started = System.nanoTime()
         cycle.tick(worldTick++)
         timings[index] = System.nanoTime() - started
+        val allocatedAfter = allocation?.getThreadAllocatedBytes(thread) ?: -1L
+        if (allocatedBefore >= 0 && allocatedAfter >= allocatedBefore) {
+            allocatedBytes += allocatedAfter - allocatedBefore
+        } else {
+            allocationAvailable = false
+        }
         checkPublishedPlayerCount(publishedBatches - batchesBefore, playerCount, worldTick - 1)
     }
-    val allocatedAfter = allocation?.getThreadAllocatedBytes(thread) ?: -1L
     check(world.activePlayers().size == playerCount) {
         "benchmark world lost active players: expected=$playerCount actual=${world.activePlayers().size}"
     }
@@ -95,13 +107,10 @@ fun main(args: Array<String>) {
     val total = timings.sum()
     val average = total.toDouble() / measuredCycles
     val allocatedPerCycle =
-        if (allocatedBefore >= 0 && allocatedAfter >= allocatedBefore) {
-            (allocatedAfter - allocatedBefore).toDouble() / measuredCycles
-        } else {
-            Double.NaN
-        }
+        if (allocationAvailable) allocatedBytes.toDouble() / measuredCycles else Double.NaN
     println(
-        "cycle-benchmark players=$playerCount warmup=$warmupCycles cycles=$measuredCycles " +
+        "cycle-benchmark workload=${workload.argument} players=$playerCount " +
+            "warmup=$warmupCycles cycles=$measuredCycles " +
             "avg=${average.milliseconds()}ms p50=${timings.percentile(0.50).toDouble().milliseconds()}ms " +
             "p95=${timings.percentile(0.95).toDouble().milliseconds()}ms " +
             "max=${timings.last().toDouble().milliseconds()}ms " +
@@ -134,6 +143,68 @@ private fun Double.milliseconds(): String = String.format(Locale.ROOT, "%.3f", t
 
 private fun Double.bytes(): String = String.format(Locale.ROOT, "%.0f", this)
 
-private const val SPAWN_X = 3_200
-private const val SPAWN_Y = 3_200
+private enum class BenchmarkWorkload(val argument: String) {
+    IDLE("idle") {
+        override fun initialPosition(ordinal: Int): CharacterPosition =
+            CharacterPosition(
+                BENCHMARK_CENTRE_X + ordinal % LOCAL_WIDTH,
+                BENCHMARK_CENTRE_Y + ordinal / LOCAL_WIDTH % LOCAL_WIDTH,
+                0,
+            )
+
+        override fun prepare(worldTick: Long, players: List<ConnectedPlayer>) = Unit
+    },
+    MOVING_BOTS("moving-bots") {
+        override fun initialPosition(ordinal: Int): CharacterPosition =
+            CharacterPosition(BOT_MOVEMENT_CENTRE_X, BOT_MOVEMENT_CENTRE_Y, 0)
+
+        override fun prepare(worldTick: Long, players: List<ConnectedPlayer>) {
+            for (index in players.indices) {
+                if ((worldTick + index) % BOT_MOVEMENT_CYCLES != 0L) continue
+                val movementNumber = (worldTick + index) / BOT_MOVEMENT_CYCLES
+                val destination = botDestination(index, movementNumber)
+                check(
+                    destination.x in BOT_MOVEMENT_CENTRE_X - BOT_MOVEMENT_RADIUS..
+                        BOT_MOVEMENT_CENTRE_X + BOT_MOVEMENT_RADIUS &&
+                        destination.y in BOT_MOVEMENT_CENTRE_Y - BOT_MOVEMENT_RADIUS..
+                        BOT_MOVEMENT_CENTRE_Y + BOT_MOVEMENT_RADIUS,
+                ) {
+                    "moving-bot destination escaped the shared movement area: $destination"
+                }
+                check(players[index].connection.actions.submit(PlayerAction.Route(destination.x, destination.y))) {
+                    "benchmark action queue rejected player ${index + 1}"
+                }
+            }
+        }
+    };
+
+    abstract fun initialPosition(ordinal: Int): CharacterPosition
+
+    abstract fun prepare(worldTick: Long, players: List<ConnectedPlayer>)
+
+    companion object {
+        fun parse(argument: String): BenchmarkWorkload =
+            entries.firstOrNull { it.argument == argument.lowercase() }
+                ?: error("workload must be one of ${entries.joinToString { it.argument }}")
+    }
+}
+
+private fun botDestination(index: Int, movementNumber: Long): CharacterPosition =
+    CharacterPosition(
+        BOT_MOVEMENT_CENTRE_X +
+            Math.floorMod(index.toLong() + movementNumber, BOT_MOVEMENT_DIAMETER.toLong()).toInt() -
+            BOT_MOVEMENT_RADIUS,
+        BOT_MOVEMENT_CENTRE_Y +
+            Math.floorMod(index.toLong() * 7 + movementNumber * 5, BOT_MOVEMENT_DIAMETER.toLong()).toInt() -
+            BOT_MOVEMENT_RADIUS,
+        0,
+    )
+
+private const val BENCHMARK_CENTRE_X = 3_200
+private const val BENCHMARK_CENTRE_Y = 3_200
 private const val LOCAL_WIDTH = 16
+private const val BOT_MOVEMENT_CENTRE_X = 3_222
+private const val BOT_MOVEMENT_CENTRE_Y = 3_218
+private const val BOT_MOVEMENT_CYCLES = 5
+private const val BOT_MOVEMENT_RADIUS = 6
+private const val BOT_MOVEMENT_DIAMETER = BOT_MOVEMENT_RADIUS * 2 + 1

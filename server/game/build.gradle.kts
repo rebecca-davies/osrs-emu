@@ -15,7 +15,7 @@ dependencies {
 
 tasks.register<JavaExec>("cycleBenchmark") {
     group = "verification"
-    description = "Benchmarks stationary players through the complete authoritative world cycle."
+    description = "Benchmarks a selected player workload through the complete authoritative world cycle."
     dependsOn(tasks.named("testClasses"))
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("emu.server.game.world.cycle.CycleBenchmarkKt")
@@ -28,6 +28,7 @@ tasks.register<JavaExec>("cycleBenchmark") {
         providers.gradleProperty("cycleBenchmarkPlayers").getOrElse("250"),
         providers.gradleProperty("cycleBenchmarkWarmup").getOrElse("100"),
         providers.gradleProperty("cycleBenchmarkCycles").getOrElse("200"),
+        providers.gradleProperty("cycleBenchmarkWorkload").getOrElse("idle"),
     )
     jvmArgs("-Xms2g", "-Xmx2g")
     providers.gradleProperty("cycleBenchmarkJfr").orNull?.let { recording ->

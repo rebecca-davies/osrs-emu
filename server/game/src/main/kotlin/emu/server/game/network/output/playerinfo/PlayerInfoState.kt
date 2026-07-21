@@ -1,6 +1,5 @@
 package emu.server.game.network.output.playerinfo
 
-import emu.game.pathfinding.movement.MovementUpdate
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoSections
@@ -35,7 +34,11 @@ internal class PlayerInfoState(private val localIndex: Int) {
         for (index in 1 until PLAYER_SLOTS) {
             if (!tracked[index] || index == localIndex) continue
             val target = view[index]
-            if (target != null && view.isVisible(observer, target)) survivingPlayers++ else removals[index] = true
+            if (target != null && view.isVisible(observer, target)) {
+                survivingPlayers++
+            } else {
+                removals[index] = true
+            }
         }
         val available = (PREFERRED_PLAYERS - 1 - survivingPlayers).coerceAtLeast(0)
         view.selectAdditions(observer, tracked, additions, available)
@@ -85,9 +88,12 @@ internal class PlayerInfoState(private val localIndex: Int) {
         }
         val snapshot = checkNotNull(view[index]) { "tracked player $index is absent without a removal" }
         remember(snapshot)
-        val movement = snapshot.movement.toProtocolMovement()
         val update = extendedInfo(snapshot, includeAppearance = false, includeTemporarySpeed = true)
-        return if (movement == null && update == null) null else PlayerInfoBitCode.HighResolution(movement, update)
+        return if (update == null) {
+            snapshot.movementOnlyCode
+        } else {
+            PlayerInfoBitCode.HighResolution(snapshot.protocolMovement, update)
+        }
     }
 
     private fun lowResolutionCode(view: PlayerInfoView, index: Int): PlayerInfoBitCode? {
@@ -132,8 +138,8 @@ internal class PlayerInfoState(private val localIndex: Int) {
         val moveSpeed = selectedSpeed.takeIf { it != knownMoveSpeed[snapshot.index] }
         knownMoveSpeed[snapshot.index] = selectedSpeed
         val temporarySpeed =
-            if (includeTemporarySpeed && snapshot.movement != MovementUpdate.Idle) {
-                val actual = if (snapshot.movement is MovementUpdate.Run) RUN_SPEED else WALK_SPEED
+            if (includeTemporarySpeed && snapshot.protocolMovement != null) {
+                val actual = if (snapshot.protocolMovement is PlayerMovement.Run) RUN_SPEED else WALK_SPEED
                 actual.takeIf { it != selectedSpeed }
             } else {
                 null
@@ -165,13 +171,6 @@ internal class PlayerInfoState(private val localIndex: Int) {
     }
 
     private fun isInactive(index: Int): Boolean = flags[index].toInt() and CURRENT_CYCLE_INACTIVE != 0
-
-    private fun MovementUpdate.toProtocolMovement(): PlayerMovement? =
-        when (this) {
-            MovementUpdate.Idle -> null
-            is MovementUpdate.Walk -> PlayerMovement.Walk(deltaX, deltaY)
-            is MovementUpdate.Run -> PlayerMovement.Run(deltaX, deltaY)
-        }
 
     private companion object {
         const val PLAYER_SLOTS = 2_048
