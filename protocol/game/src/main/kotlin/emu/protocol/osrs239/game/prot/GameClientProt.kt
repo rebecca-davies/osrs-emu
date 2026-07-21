@@ -33,11 +33,17 @@ object GameClientProt {
     /** Generic interface button operation with packed component, slot, object, and operation. */
     val IF_BUTTONX: Prot = protocols[47]
 
+    /** Developer-console input, sent without the leading `::` marker. */
+    val CLIENT_CHEAT: Prot = protocols[34]
+
     /** Public/private/trade visibility triplet selected from the chatbox controls. */
     val SET_CHAT_FILTER_SETTINGS: Prot = protocols[59]
 
     /** Public or clan-channel text with colour/effect metadata and Huffman payload. */
     val MESSAGE_PUBLIC: Prot = protocols[69]
+
+    /** Periodic zero-length packet that keeps an otherwise idle game connection alive. */
+    val NO_TIMEOUT: Prot = protocols[89]
 
     /** Returns the declared protocol entry, or null for an opcode outside rev 239's table. */
     fun find(opcode: Int): Prot? = protocols.getOrNull(opcode)
@@ -45,7 +51,9 @@ object GameClientProt {
     init {
         require(MOVE_GAMECLICK.size == Prot.VAR_BYTE)
         require(IF_BUTTONX.size == 9)
+        require(CLIENT_CHEAT.size == Prot.VAR_BYTE)
         require(SET_CHAT_FILTER_SETTINGS.size == 3)
         require(MESSAGE_PUBLIC.size == Prot.VAR_BYTE)
+        require(NO_TIMEOUT.size == 0)
     }
 }

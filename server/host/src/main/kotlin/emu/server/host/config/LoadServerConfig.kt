@@ -3,6 +3,7 @@ package emu.server.host.config
 import emu.persistence.postgres.database.PostgresConfig
 import emu.persistence.postgres.database.PostgresOperationConfig
 import emu.persistence.postgres.database.PostgresPoolConfig
+import emu.server.bot.config.BotConfig
 import emu.server.game.config.GameExecutionConfig
 import emu.server.game.config.RouteSearchConfig
 import emu.server.gateway.GatewayConfig
@@ -15,21 +16,46 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** Builds validated service configuration from process environment values. */
-fun loadServerConfig(environment: Map<String, String> = System.getenv()): ServerConfig =
-    ServerConfig(
+fun loadServerConfig(environment: Map<String, String> = System.getenv()): ServerConfig {
+    val gateway = environment.gatewayConfig()
+    return ServerConfig(
         assets =
             RuntimeAssetConfig(
                 cacheDirectory = File(environment["OSRS_CACHE_DIR"] ?: "cache-data"),
                 rsaPropertiesFile =
                     File(environment["OSRS_SERVER_RSA_PROPERTIES"] ?: "server-rsa.properties"),
             ),
-        gateway = environment.gatewayConfig(),
+        gateway = gateway,
         login = environment.loginConfig(),
         js5 = environment.js5Config(),
         game = environment.gameConfig(),
+        bots = environment.botConfig(),
         coordinator = environment.coordinatorConfig(),
         database = environment.postgresConfig(),
     )
+}
+
+private fun Map<String, String>.botConfig(): BotConfig =
+    BotConfig().let { defaults ->
+        val maxClients = int("OSRS_BOT_MAX_CLIENTS", defaults.maxClients)
+        BotConfig(
+            maxClients = maxClients,
+            maxPerRequest = int("OSRS_BOT_MAX_PER_REQUEST", minOf(defaults.maxPerRequest, maxClients)),
+            requestQueueCapacity = int("OSRS_BOT_REQUEST_QUEUE_CAPACITY", defaults.requestQueueCapacity),
+            maxConcurrentLogins = int("OSRS_BOT_MAX_CONCURRENT_LOGINS", defaults.maxConcurrentLogins),
+            workerThreads = int("OSRS_BOT_WORKER_THREADS", defaults.workerThreads),
+            loginTimeout =
+                long(
+                    "OSRS_BOT_LOGIN_TIMEOUT_SECONDS",
+                    defaults.loginTimeout.inWholeSeconds,
+                ).seconds,
+            keepAliveInterval =
+                long(
+                    "OSRS_BOT_KEEP_ALIVE_SECONDS",
+                    defaults.keepAliveInterval.inWholeSeconds,
+                ).seconds,
+        )
+    }
 
 private fun Map<String, String>.gatewayConfig(): GatewayConfig =
     GatewayConfig().let { defaults ->

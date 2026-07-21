@@ -5,12 +5,21 @@ import java.security.KeyPairGenerator
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 
+/** Public RSA material safe to provide to login clients. */
+data class RsaPublicKey(
+    val modulus: BigInteger,
+    val exponent: BigInteger,
+)
+
 /** RSA modulus and exponents used by the login protocol. */
 data class RsaKeyPair(
     val modulus: BigInteger,
     val publicExp: BigInteger,
     val privateExp: BigInteger,
 ) {
+    val publicKey: RsaPublicKey
+        get() = RsaPublicKey(modulus, publicExp)
+
     /** Describes the public key while excluding private key material. */
     override fun toString(): String =
         "RsaKeyPair(modulusBits=${modulus.bitLength()}, publicExp=$publicExp, privateExp=<redacted>)"

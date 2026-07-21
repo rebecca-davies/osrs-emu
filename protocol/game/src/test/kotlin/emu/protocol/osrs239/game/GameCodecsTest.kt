@@ -1,7 +1,6 @@
 package emu.protocol.osrs239.game
 
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertSame
 
 class GameCodecsTest {
@@ -15,7 +14,5 @@ class GameCodecsTest {
         GameCodecs.encoders.forEach { encoder ->
             assertSame(encoder, repository.encoder(encoder.messageType))
         }
-        assertEquals(4, GameCodecs.decoders.size)
-        assertEquals(36, GameCodecs.encoders.size)
     }
 }

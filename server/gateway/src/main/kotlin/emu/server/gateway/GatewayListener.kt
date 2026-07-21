@@ -8,6 +8,8 @@ import io.ktor.network.sockets.openReadChannel
 import io.ktor.network.sockets.openWriteChannel
 import io.ktor.utils.io.readByte
 import java.io.EOFException
+import java.net.InetAddress
+import java.net.InetSocketAddress as JavaInetSocketAddress
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
@@ -25,6 +27,7 @@ class GatewayListener internal constructor(
     private val socket: ServerSocket,
     private val selector: SelectorManager,
     private val routes: GatewayRoutes,
+    val localEndpoint: JavaInetSocketAddress,
     maxPendingClassifications: Int,
     private val classificationTimeout: Duration,
 ) : AutoCloseable {
@@ -85,14 +88,17 @@ class GatewayListener internal constructor(
         suspend fun bind(config: GatewayConfig, routes: GatewayRoutes): GatewayListener {
             val selector = SelectorManager(Dispatchers.IO)
             return try {
+                val bindAddress = InetAddress.getByName(config.bindHost)
                 val socket =
                     aSocket(selector)
                         .tcp()
-                        .bind(InetSocketAddress(config.bindHost, config.port))
+                        .bind(InetSocketAddress(bindAddress.hostAddress, config.port))
+                val localAddress = socket.localAddress as InetSocketAddress
                 GatewayListener(
                     socket,
                     selector,
                     routes,
+                    JavaInetSocketAddress(bindAddress, localAddress.port),
                     config.maxPendingClassifications,
                     config.classificationTimeout,
                 )

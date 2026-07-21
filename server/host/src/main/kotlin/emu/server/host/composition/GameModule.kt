@@ -28,6 +28,7 @@ import emu.server.game.world.entry.WorldEntry
 import emu.server.game.world.map.CacheCollisionMap
 import emu.server.game.world.map.CollisionLoadQueue
 import emu.server.game.world.map.CollisionMapLoader
+import emu.server.game.world.player.cheat.buildPlayerCheatRepository
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
@@ -79,7 +80,8 @@ internal fun gameModule(
     single { PlayerContentCatalog.load(get<UiContent>().components) }
     single { PlayerScriptRunner(get()) }
     single { PlayerTriggerProcess(get()) }
-    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get()) }
+    single { buildPlayerCheatRepository(get()) }
+    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get(), get()) }
     single { PlayerMainProcess(get(), get(), get()) }
     single { PlayerLifecycleProcess(get<CharacterWriteQueue>(), get()) }
     single { PlayerOutputProcess() }

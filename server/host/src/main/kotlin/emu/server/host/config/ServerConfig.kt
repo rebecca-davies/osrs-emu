@@ -1,6 +1,7 @@
 package emu.server.host.config
 
 import emu.persistence.postgres.database.PostgresConfig
+import emu.server.bot.config.BotConfig
 import emu.server.game.config.GameExecutionConfig
 import emu.server.gateway.GatewayConfig
 import emu.server.js5.config.Js5ExecutionConfig
@@ -13,6 +14,13 @@ data class ServerConfig(
     val login: LoginExecutionConfig,
     val js5: Js5ExecutionConfig,
     val game: GameExecutionConfig,
+    val bots: BotConfig,
     val coordinator: CoordinatorConfig,
-    val database: PostgresConfig
-)
+    val database: PostgresConfig,
+) {
+    init {
+        require(bots.keepAliveInterval < game.connection.idleTimeout) {
+            "bot keep-alive interval must be shorter than the game idle timeout"
+        }
+    }
+}

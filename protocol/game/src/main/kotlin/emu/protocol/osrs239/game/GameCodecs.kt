@@ -8,6 +8,7 @@ import emu.protocol.osrs239.game.codec.chat.ChatFilterSettingsEncoder
 import emu.protocol.osrs239.game.codec.chat.MessageGameEncoder
 import emu.protocol.osrs239.game.codec.chat.MessagePublicDecoder
 import emu.protocol.osrs239.game.codec.chat.SetChatFilterSettingsDecoder
+import emu.protocol.osrs239.game.codec.client.ClientCheatDecoder
 import emu.protocol.osrs239.game.codec.client.RunClientScriptEncoder
 import emu.protocol.osrs239.game.codec.client.SiteSettingsEncoder
 import emu.protocol.osrs239.game.codec.component.IfButtonXDecoder
@@ -50,6 +51,7 @@ object GameCodecs {
     val decoders: List<MessageDecoder<*>> = listOf(
         MoveGameClickDecoder,
         IfButtonXDecoder,
+        ClientCheatDecoder,
         MessagePublicDecoder,
         SetChatFilterSettingsDecoder,
     )

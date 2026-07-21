@@ -9,6 +9,7 @@ import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
 import emu.server.game.config.RouteSearchConfig
 import emu.server.game.world.map.CollisionMapLoader
+import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
@@ -31,6 +32,7 @@ internal object TestPlayerContent {
         routeFinder,
         chat,
         runner,
+        PlayerCheatRepositoryBuilder().build(),
         RouteSearchBudget(RouteSearchConfig(routeSearchesPerCycle)),
     )
 

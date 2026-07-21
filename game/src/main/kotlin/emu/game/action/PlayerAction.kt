@@ -1,6 +1,7 @@
 package emu.game.action
 
 import emu.game.chat.ChatInput
+import emu.game.cheat.PlayerCheatInput
 import emu.game.ui.ButtonClick
 
 /** Immutable client action queued by network IO for ordered world-thread processing. */
@@ -16,6 +17,8 @@ sealed interface PlayerAction {
     data class Button(val click: ButtonClick) : PlayerAction
 
     data class Chat(val input: ChatInput) : PlayerAction
+
+    data class Cheat(val input: PlayerCheatInput) : PlayerAction
 
     private companion object {
         val WORLD_COORDINATES = 0..0x3FFF

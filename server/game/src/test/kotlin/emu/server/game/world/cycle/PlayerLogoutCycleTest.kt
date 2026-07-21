@@ -33,6 +33,7 @@ import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.player.WorldPlayer
+import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
@@ -301,6 +302,7 @@ class PlayerLogoutCycleTest {
                     ChatAuditSink { true },
                 ),
                 runner,
+                PlayerCheatRepositoryBuilder().build(),
                 RouteSearchBudget(RouteSearchConfig()),
             ),
             PlayerMainProcess(runner, triggers, TestPlayerContent.movementCycle(movement)),

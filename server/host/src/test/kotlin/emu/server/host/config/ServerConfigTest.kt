@@ -34,6 +34,13 @@ class ServerConfigTest {
                     "OSRS_GAME_COLLISION_LOAD_SHUTDOWN_TIMEOUT_SECONDS" to "4",
                     "OSRS_WORLD_COMMAND_QUEUE_CAPACITY" to "512",
                     "OSRS_WORLD_COMMAND_LIMIT_PER_CYCLE" to "48",
+                    "OSRS_BOT_MAX_CLIENTS" to "96",
+                    "OSRS_BOT_MAX_PER_REQUEST" to "24",
+                    "OSRS_BOT_REQUEST_QUEUE_CAPACITY" to "6",
+                    "OSRS_BOT_MAX_CONCURRENT_LOGINS" to "3",
+                    "OSRS_BOT_WORKER_THREADS" to "2",
+                    "OSRS_BOT_LOGIN_TIMEOUT_SECONDS" to "9",
+                    "OSRS_BOT_KEEP_ALIVE_SECONDS" to "8",
                     "OSRS_COORDINATOR_WORLD_ENTRY_TIMEOUT_SECONDS" to "7",
                     "OSRS_DATABASE_URL" to "jdbc:postgresql://database/osrsemu",
                     "OSRS_DATABASE_USER" to "server-user",
@@ -77,6 +84,13 @@ class ServerConfigTest {
         assertEquals(4.seconds, config.game.collisionLoads.shutdownTimeout)
         assertEquals(512, config.game.commands.capacity)
         assertEquals(48, config.game.commands.maxPerCycle)
+        assertEquals(96, config.bots.maxClients)
+        assertEquals(24, config.bots.maxPerRequest)
+        assertEquals(6, config.bots.requestQueueCapacity)
+        assertEquals(3, config.bots.maxConcurrentLogins)
+        assertEquals(2, config.bots.workerThreads)
+        assertEquals(9.seconds, config.bots.loginTimeout)
+        assertEquals(8.seconds, config.bots.keepAliveInterval)
         assertEquals(7.seconds, config.coordinator.worldEntryTimeout)
         assertEquals("jdbc:postgresql://database/osrsemu", config.database.jdbcUrl)
         assertEquals("server-user", config.database.username)
@@ -111,6 +125,8 @@ class ServerConfigTest {
         assertEquals(30.seconds, config.js5.frameIdleTimeout)
         assertEquals(30.seconds, config.game.connection.idleTimeout)
         assertEquals(128, config.game.connection.incomingActions.capacity)
+        assertEquals(128, config.bots.maxClients)
+        assertEquals(32, config.bots.maxPerRequest)
         assertEquals(32, config.game.connection.incomingActions.maxPerCycle)
         assertEquals(15.seconds, config.coordinator.worldEntryTimeout)
         assertEquals(12, config.login.authentication.cost)

@@ -100,6 +100,14 @@ class PlayerOutputProcess {
             if (varpUpdates.isNotEmpty()) {
                 packets(varpUpdates.map(PlayerVarpOutput::message))
             }
+            val gameMessages = connection.drainGameMessages()
+            if (gameMessages.isNotEmpty()) {
+                packets(
+                    gameMessages.map { text ->
+                        MessageGame(MessageGame.GAME_MESSAGE, text)
+                    },
+                )
+            }
             val position = player.movement.position
             if (player.buildArea.recenterIfRequired(position)) {
                 packet(RebuildNormal(player.buildArea.centreZoneX, player.buildArea.centreZoneY))

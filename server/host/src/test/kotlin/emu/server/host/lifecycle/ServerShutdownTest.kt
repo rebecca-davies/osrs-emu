@@ -1,5 +1,8 @@
 package emu.server.host.lifecycle
 
+import emu.server.bot.BotLaunchResult
+import emu.server.bot.BotService
+import emu.server.bot.connection.BotEndpoint
 import emu.server.game.GameService
 import emu.server.session.account.AccountId
 import emu.server.session.handoff.ConnectionHandoff
@@ -21,12 +24,14 @@ class ServerShutdownTest {
     fun `cancelled owner still closes listener and jobs before stopping game`() = runBlocking {
         val listenerClosed = AtomicBoolean(false)
         val game = RecordingGameService()
+        val bots = RecordingBotService()
         val gatewayJob = launch { awaitCancellation() }
         val gameMonitor = launch { awaitCancellation() }
         val owner =
             launch {
                 coroutineContext[Job]?.cancel()
                 shutdownServer(
+                    bots = bots,
                     game = game,
                     listener = AutoCloseable { listenerClosed.set(true) },
                     gatewayJob = gatewayJob,
@@ -39,7 +44,20 @@ class ServerShutdownTest {
         assertTrue(listenerClosed.get())
         assertTrue(gatewayJob.isCompleted)
         assertTrue(gameMonitor.isCompleted)
+        assertEquals(1, bots.stopCount)
         assertEquals(1, game.stopCount)
+    }
+
+    private class RecordingBotService : BotService {
+        var stopCount = 0
+
+        override fun start(endpoint: BotEndpoint) = Unit
+
+        override fun add(count: Int): BotLaunchResult = error("not used")
+
+        override suspend fun stop() {
+            stopCount++
+        }
     }
 
     private class RecordingGameService : GameService {

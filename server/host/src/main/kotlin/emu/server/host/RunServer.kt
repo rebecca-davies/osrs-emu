@@ -6,11 +6,14 @@ import emu.persistence.postgres.character.writeback.CharacterSaveWriterConfig
 import emu.persistence.postgres.database.PostgresMigrator
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.js5.buildJs5CodecRepository
+import emu.server.bot.BotService
 import emu.server.game.GameService
 import emu.server.game.network.chat.loadHuffmanCodec
 import emu.server.game.world.map.CacheCollisionMap
 import emu.server.gateway.GatewayListener
 import emu.server.host.asset.loadRuntimeAssets
+import emu.server.host.composition.botModule
+import emu.server.host.composition.botEndpointOrNull
 import emu.server.host.composition.gameModule
 import emu.server.host.composition.js5Module
 import emu.server.host.composition.loginModule
@@ -53,6 +56,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
                 ),
                 js5Module(assets.store, buildJs5CodecRepository(), config.js5),
                 loginModule(assets.rsaKeyPair, config.login),
+                botModule(config.bots, assets.rsaKeyPair.publicKey),
                 gameModule(buildGameCodecRepository(), collision, huffman, config.game),
             )
         }
@@ -64,6 +68,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
         val js5 = koin.get<Js5Service>()
         val login = koin.get<LoginService>()
         val game = koin.get<GameService>()
+        val bots = koin.get<BotService>()
         game.start()
         var shutdownHook: Thread? = null
         var gatewayJob: Job? = null
@@ -82,6 +87,15 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             shutdownHook = Thread({ stop.complete(Unit) }, "server-shutdown")
             Runtime.getRuntime().addShutdownHook(shutdownHook)
             gatewayJob = launch { listener.run() }
+            val botEndpoint = listener.localEndpoint.botEndpointOrNull()
+            if (botEndpoint == null) {
+                logger.warn {
+                    "headless bot clients unavailable because gateway endpoint " +
+                        "${listener.localAddress} has no loopback route"
+                }
+            } else {
+                bots.start(botEndpoint)
+            }
             gameMonitor = launch {
                 game.awaitTermination()
                 error("game server stopped unexpectedly")
@@ -94,7 +108,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
             }
             stop.await()
         } finally {
-            shutdownServer(game, listener, gatewayJob, gameMonitor, shutdownHook)
+            shutdownServer(bots, game, listener, gatewayJob, gameMonitor, shutdownHook)
         }
     } finally {
         koinApplication.close()

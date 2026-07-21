@@ -6,6 +6,10 @@ import emu.transport.prot.Prot
  * Login opcode/size table for OSRS rev 239.
  */
 object LoginProt {
+    const val REVISION = 239
+    const val SUBVERSION = 1
+    const val BUILD_FLAGS = Int.MAX_VALUE
+
     /** Login init: single opcode byte, no payload. */
     val INIT = Prot(14, 0)
 

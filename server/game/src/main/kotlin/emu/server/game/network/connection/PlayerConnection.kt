@@ -22,6 +22,7 @@ internal class PlayerConnection(
     val appearance = PlayerAppearance(name = displayName)
     val publicChat = PlayerPublicChatState()
     val playerInfo = PlayerInfoState(playerIndex)
+    private val gameMessages = ArrayDeque<String>(MAX_PENDING_GAME_MESSAGES)
     var pendingOutput: GameOutputBatch? = null
     var pendingRoute: PlayerAction.Route? = null
     var logoutPublished: Boolean = false
@@ -34,4 +35,21 @@ internal class PlayerConnection(
     }
 
     fun recordLogoutOutputFailure(): Int = ++logoutOutputFailures
+
+    fun queueGameMessage(text: String): Boolean {
+        if (gameMessages.size >= MAX_PENDING_GAME_MESSAGES) return false
+        gameMessages.addLast(text)
+        return true
+    }
+
+    fun drainGameMessages(): List<String> {
+        if (gameMessages.isEmpty()) return emptyList()
+        val drained = ArrayList<String>(gameMessages.size)
+        while (gameMessages.isNotEmpty()) drained += gameMessages.removeFirst()
+        return drained
+    }
+
+    private companion object {
+        const val MAX_PENDING_GAME_MESSAGES = 8
+    }
 }

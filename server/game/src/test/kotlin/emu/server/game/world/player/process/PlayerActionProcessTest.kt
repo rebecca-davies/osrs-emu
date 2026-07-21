@@ -6,6 +6,7 @@ import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
 import emu.game.chat.ChatFilterInput
 import emu.game.chat.PublicChatInput
+import emu.game.cheat.PlayerCheatInput
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
@@ -25,6 +26,9 @@ import emu.server.game.network.output.GameOutputSink
 import emu.server.game.world.World
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.player.ConnectedPlayer
+import emu.server.game.world.player.cheat.BotClientRequestResult
+import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
+import emu.server.game.world.player.cheat.buildPlayerCheatRepository
 import emu.server.game.world.player.route.RouteSearchBudget
 import emu.server.game.world.testWorld
 import emu.server.session.account.AccountPrivilege
@@ -101,6 +105,7 @@ class PlayerActionProcessTest {
                 PlayerMovementProcess(OpenCollisionMap),
                 PlayerChatActionProcess(huffman, ChatAuditSink { true }),
                 PlayerScriptRunner(scripts),
+                PlayerCheatRepositoryBuilder().build(),
                 RouteSearchBudget(RouteSearchConfig()),
             )
         val click = ButtonClick(182, 8, sub = 3, obj = 4_151, op = 4)
@@ -127,6 +132,7 @@ class PlayerActionProcessTest {
                 PlayerMovementProcess(OpenCollisionMap),
                 chat,
                 PlayerScriptRunner(scripts),
+                PlayerCheatRepositoryBuilder().build(),
                 RouteSearchBudget(RouteSearchConfig()),
             )
         connection.actions.submit(PlayerAction.Chat(ChatFilterInput(3, 1, 2)))
@@ -148,12 +154,40 @@ class PlayerActionProcessTest {
         assertNull(rejectedConnection.publicChat.take())
     }
 
+    @Test
+    fun `administrator bot cheat is selected on the world thread and queues feedback`() {
+        val (player, connection) = player(privilege = AccountPrivilege.ADMINISTRATOR)
+        val scripts = PlayerContentCatalog.load(UiContentCatalog.load().components)
+        var requested = 0
+        val process =
+            PlayerActionProcess(
+                PlayerMovementProcess(OpenCollisionMap),
+                PlayerChatActionProcess(huffman, ChatAuditSink { true }),
+                PlayerScriptRunner(scripts),
+                buildPlayerCheatRepository { count ->
+                    requested = count
+                    BotClientRequestResult.Accepted(count, count)
+                },
+                RouteSearchBudget(RouteSearchConfig()),
+            )
+        connection.actions.submit(PlayerAction.Cheat(PlayerCheatInput("addbot 2")))
+
+        process.process(player, connection)
+
+        assertEquals(2, requested)
+        assertEquals(
+            listOf("Starting 2 bot client(s); 2 slot(s) reserved."),
+            connection.drainGameMessages(),
+        )
+    }
+
     private fun process(movement: PlayerMovementProcess): PlayerActionProcess {
         val scripts = PlayerContentCatalog.load(UiContentCatalog.load().components)
         return PlayerActionProcess(
             movement,
             PlayerChatActionProcess(huffman, ChatAuditSink { true }),
             PlayerScriptRunner(scripts),
+            PlayerCheatRepositoryBuilder().build(),
             RouteSearchBudget(RouteSearchConfig()),
         )
     }

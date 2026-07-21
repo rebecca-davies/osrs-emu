@@ -10,6 +10,8 @@ import emu.persistence.chat.ChatAuditSink
 import emu.server.game.GameService
 import emu.server.game.config.GameExecutionConfig
 import emu.server.game.world.map.CacheCollisionMap
+import emu.server.game.world.player.cheat.BotClientRequestResult
+import emu.server.game.world.player.cheat.BotClientRequestSink
 import emu.transport.codec.CodecRepositoryBuilder
 import kotlin.test.Test
 import kotlin.test.assertSame
@@ -26,6 +28,9 @@ class GameWiringTest {
                     CharacterWriteQueue { DurableCharacterWrite }
                 }
                 single<ChatAuditSink> { ChatAuditSink { true } }
+                single<BotClientRequestSink> {
+                    BotClientRequestSink { BotClientRequestResult.Unavailable }
+                }
             }
         val application =
             koinApplication {
