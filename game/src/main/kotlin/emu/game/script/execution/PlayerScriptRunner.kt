@@ -22,10 +22,11 @@ class PlayerScriptRunner(
         player: Player,
         type: ServerTriggerType,
         subject: Int? = null,
+        lastButton: ButtonClick? = null,
         protect: Boolean = true,
     ): Boolean {
         val script = scripts.findSpecific(type, subject) ?: return false
-        return start(player, script, protect = protect)
+        return start(player, script, lastButton = lastButton, protect = protect)
     }
 
     /** Starts [script] with protected player access when available. */

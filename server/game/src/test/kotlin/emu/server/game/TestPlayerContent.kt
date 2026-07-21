@@ -12,8 +12,8 @@ import emu.server.game.world.map.CollisionMapLoader
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
+import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerMovementCycleProcess
-import emu.server.game.world.player.process.PlayerScriptProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.server.game.world.player.route.RouteSearchBudget
 
@@ -30,12 +30,12 @@ internal object TestPlayerContent {
     ) = PlayerActionProcess(
         routeFinder,
         chat,
-        repository,
         runner,
         RouteSearchBudget(RouteSearchConfig(routeSearchesPerCycle)),
     )
 
-    fun scripts() = PlayerScriptProcess(runner, triggers)
+    fun main(movement: PlayerMovementProcess) =
+        PlayerMainProcess(runner, triggers, movementCycle(movement))
 
     fun lifecycle(writes: CharacterWriteQueue) = PlayerLifecycleProcess(writes, triggers)
 

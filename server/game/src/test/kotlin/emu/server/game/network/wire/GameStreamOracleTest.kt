@@ -154,8 +154,7 @@ class GameStreamOracleTest {
                         ChatAuditSink { true },
                     ),
                 ),
-                TestPlayerContent.scripts(),
-                TestPlayerContent.movementCycle(movement),
+                TestPlayerContent.main(movement),
                 TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 PlayerOutputProcess(),
             )

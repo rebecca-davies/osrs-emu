@@ -56,8 +56,7 @@ class WorldWriteBackTest {
                             ChatAuditSink { true },
                         ),
                     ),
-                scripts = TestPlayerContent.scripts(),
-                movement = TestPlayerContent.movementCycle(movement),
+                playerMain = TestPlayerContent.main(movement),
                 lifecycle =
                     PlayerLifecycleProcess(
                         writes =

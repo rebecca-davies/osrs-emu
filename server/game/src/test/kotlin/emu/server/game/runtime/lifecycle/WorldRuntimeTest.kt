@@ -26,7 +26,7 @@ import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerScriptProcess
+import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.server.game.world.testWorld
 import kotlin.test.Test
@@ -93,8 +93,7 @@ class WorldRuntimeTest {
                     ChatAuditSink { true },
                 ),
             ),
-            TestPlayerContent.scripts(),
-            TestPlayerContent.movementCycle(movement),
+            TestPlayerContent.main(movement),
             TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
             PlayerOutputProcess(),
         )
@@ -113,8 +112,7 @@ class WorldRuntimeTest {
                     ChatAuditSink { true },
                 ),
             ),
-            PlayerScriptProcess(runner, triggers),
-            TestPlayerContent.movementCycle(movement),
+            PlayerMainProcess(runner, triggers, TestPlayerContent.movementCycle(movement)),
             PlayerLifecycleProcess(CharacterWriteQueue { DurableCharacterWrite }, triggers),
             PlayerOutputProcess(),
         )

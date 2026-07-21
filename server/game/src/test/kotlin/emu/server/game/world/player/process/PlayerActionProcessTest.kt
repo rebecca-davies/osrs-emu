@@ -100,7 +100,6 @@ class PlayerActionProcessTest {
             PlayerActionProcess(
                 PlayerMovementProcess(OpenCollisionMap),
                 PlayerChatActionProcess(huffman, ChatAuditSink { true }),
-                scripts,
                 PlayerScriptRunner(scripts),
                 RouteSearchBudget(RouteSearchConfig()),
             )
@@ -127,7 +126,6 @@ class PlayerActionProcessTest {
             PlayerActionProcess(
                 PlayerMovementProcess(OpenCollisionMap),
                 chat,
-                scripts,
                 PlayerScriptRunner(scripts),
                 RouteSearchBudget(RouteSearchConfig()),
             )
@@ -155,7 +153,6 @@ class PlayerActionProcessTest {
         return PlayerActionProcess(
             movement,
             PlayerChatActionProcess(huffman, ChatAuditSink { true }),
-            scripts,
             PlayerScriptRunner(scripts),
             RouteSearchBudget(RouteSearchConfig()),
         )

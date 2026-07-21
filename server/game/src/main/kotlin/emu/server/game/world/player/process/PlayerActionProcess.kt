@@ -4,7 +4,6 @@ import emu.game.action.PlayerAction
 import emu.game.map.Tile
 import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
-import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
 import emu.server.game.network.connection.PlayerConnection
@@ -15,7 +14,6 @@ import emu.server.game.world.player.route.RouteSearchBudget
 class PlayerActionProcess(
     private val routeFinder: PlayerRouteFinder,
     private val chat: PlayerChatActionProcess,
-    private val scripts: PlayerScriptRepository,
     private val runner: PlayerScriptRunner,
     private val routes: RouteSearchBudget,
 ) {
@@ -38,8 +36,12 @@ class PlayerActionProcess(
 
     private fun button(player: WorldPlayer, click: ButtonClick) {
         if (!player.interfaces.isVisible(click.component)) return
-        val script = scripts.findSpecific(ServerTriggerType.IF_BUTTON, click.packedComponent) ?: return
-        runner.start(player, script, lastButton = click)
+        runner.trigger(
+            player,
+            ServerTriggerType.IF_BUTTON,
+            subject = click.packedComponent,
+            lastButton = click,
+        )
     }
 
     private fun route(player: WorldPlayer, action: PlayerAction.Route) {

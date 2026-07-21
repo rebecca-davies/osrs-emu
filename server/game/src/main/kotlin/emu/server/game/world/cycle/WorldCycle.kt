@@ -8,9 +8,8 @@ import emu.server.game.world.World
 import emu.server.game.world.player.ConnectedPlayer
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerMovementCycleProcess
+import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerScriptProcess
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -20,8 +19,7 @@ class WorldCycle(
     private val world: World,
     private val commands: WorldCommandQueue,
     private val actions: PlayerActionProcess,
-    private val scripts: PlayerScriptProcess,
-    private val movement: PlayerMovementCycleProcess,
+    private val playerMain: PlayerMainProcess,
     private val lifecycle: PlayerLifecycleProcess,
     private val output: PlayerOutputProcess
 ) {
@@ -29,7 +27,7 @@ class WorldCycle(
         require(worldTick >= 0) { "world tick must be non-negative" }
         commands.drain(world)
         actions.beginCycle()
-        scripts.beginCycle(worldTick)
+        playerMain.beginCycle(worldTick)
         processPlayers(CyclePhase.CLIENT_INPUT, rotated(world.activePlayers(), worldTick)) { connected ->
             actions.process(connected.player, connected.connection)
         }
@@ -81,9 +79,7 @@ class WorldCycle(
 
     private fun processPlayerPhase(players: List<ConnectedPlayer>) {
         processPlayers(CyclePhase.PLAYER, players) { connected ->
-            val player = connected.player
-            scripts.process(player)
-            movement.process(player.movement)
+            playerMain.process(connected.player)
         }
     }
 

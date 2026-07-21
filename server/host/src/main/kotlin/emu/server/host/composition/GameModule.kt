@@ -31,9 +31,9 @@ import emu.server.game.world.map.CollisionMapLoader
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
+import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerMovementCycleProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerScriptProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.server.game.world.player.route.RouteSearchBudget
 import emu.transport.codec.CodecRepository
@@ -79,11 +79,11 @@ internal fun gameModule(
     single { PlayerContentCatalog.load(get<UiContent>().components) }
     single { PlayerScriptRunner(get()) }
     single { PlayerTriggerProcess(get()) }
-    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get(), get()) }
-    single { PlayerScriptProcess(get(), get()) }
+    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get()) }
+    single { PlayerMainProcess(get(), get(), get()) }
     single { PlayerLifecycleProcess(get<CharacterWriteQueue>(), get()) }
     single { PlayerOutputProcess() }
-    single { WorldCycle(get(), get(), get(), get(), get(), get(), get()) }
+    single { WorldCycle(get(), get(), get(), get(), get(), get()) }
     single { WorldRuntime(get()) }
     single {
         val runtime = get<WorldRuntime>()

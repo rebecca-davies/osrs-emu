@@ -88,8 +88,7 @@ class WorldCycleTest {
                     ),
                     routeSearchesPerCycle = 32,
                 ),
-                TestPlayerContent.scripts(),
-                TestPlayerContent.movementCycle(movementProcess),
+                TestPlayerContent.main(movementProcess),
                 TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 PlayerOutputProcess(),
             )
@@ -140,8 +139,7 @@ class WorldCycleTest {
                     ),
                     routeSearchesPerCycle = 1,
                 ),
-                TestPlayerContent.scripts(),
-                TestPlayerContent.movementCycle(movement),
+                TestPlayerContent.main(movement),
                 TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 PlayerOutputProcess(),
             )
@@ -188,8 +186,7 @@ class WorldCycleTest {
                             ChatAuditSink { true },
                         ),
                     ),
-                scripts = TestPlayerContent.scripts(),
-                movement = TestPlayerContent.movementCycle(movement),
+                playerMain = TestPlayerContent.main(movement),
                 lifecycle =
                     TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 output = PlayerOutputProcess(),
@@ -231,8 +228,7 @@ class WorldCycleTest {
                             },
                         ),
                     ),
-                scripts = TestPlayerContent.scripts(),
-                movement = TestPlayerContent.movementCycle(movement),
+                playerMain = TestPlayerContent.main(movement),
                 lifecycle =
                     TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 output = PlayerOutputProcess(),
@@ -265,8 +261,7 @@ class WorldCycleTest {
                         ChatAuditSink { true },
                     ),
                 ),
-            scripts = TestPlayerContent.scripts(),
-            movement = TestPlayerContent.movementCycle(movement),
+            playerMain = TestPlayerContent.main(movement),
             lifecycle = TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
             output = PlayerOutputProcess(),
         )
