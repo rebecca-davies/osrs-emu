@@ -14,6 +14,7 @@ import emu.game.script.trigger.ServerTriggerType
 import emu.game.timer.PlayerTimerType
 import emu.game.ui.ButtonClick
 import emu.game.ui.Component
+import emu.game.ui.PlayerInterfaceUpdate
 import emu.server.game.testPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -81,6 +82,44 @@ class PlayerPhaseTest {
 
         assertEquals(listOf("close", "strong"), calls)
         assertFalse(player.interfaces.isVisible(Component.of(200, 0)))
+    }
+
+    @Test
+    fun `strong script aborts suspended client input before taking protected access`() {
+        val calls = mutableListOf<String>()
+        val strong = PlayerQueueType.unit("interrupt_input")
+        val ui = UiContentCatalog.load()
+        val scripts =
+            PlayerScriptRepository.build(ui) {
+                onButton("stats:attack") {
+                    numberDialog("Set level:")
+                    calls += "resumed"
+                }
+                onQueue(strong) { calls += "strong" }
+            }
+        val player = player()
+        val runner = PlayerScriptRunner(scripts)
+        val component = ui.components.require("stats:attack")
+        runner.trigger(
+            player,
+            ServerTriggerType.IF_BUTTON,
+            component.packed,
+            ButtonClick(component.interfaceId, component.componentId),
+        )
+        val opened = player.interfaces.drainClientUpdates().single() as PlayerInterfaceUpdate.RunClientScript
+        assertEquals(108, opened.script.id)
+        player.actionQueue.add(
+            PlayerScriptRequest(scripts.require(strong)),
+            PlayerActionPriority.STRONG,
+        )
+
+        phase(runner).run(player)
+
+        val closed = player.interfaces.drainClientUpdates().single() as PlayerInterfaceUpdate.RunClientScript
+        assertEquals(101, closed.script.id)
+        assertEquals(listOf(7), closed.arguments)
+        assertEquals(listOf("strong"), calls)
+        assertFalse(player.isAccessProtected)
     }
 
     @Test

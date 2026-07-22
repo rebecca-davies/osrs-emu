@@ -1,6 +1,8 @@
 package emu.game.script.content
 
 import emu.game.content.ui.config.UiComponentMap
+import emu.game.content.ui.config.UiClientConstantMap
+import emu.game.content.ui.config.UiClientScriptMap
 import emu.game.loc.Loc
 import emu.game.script.execution.PlayerScript
 import emu.game.script.execution.PlayerScriptContext
@@ -13,6 +15,8 @@ import emu.game.timer.PlayerTimerType
 /** Type-safe registration DSL for feature-local Kotlin player content. */
 class PlayerContent internal constructor(
     private val components: UiComponentMap,
+    private val clientScripts: UiClientScriptMap,
+    private val clientConstants: UiClientConstantMap,
 ) {
     private val triggerScripts = linkedMapOf<ScriptTrigger, PlayerScript>()
     private val queueScripts = linkedMapOf<PlayerQueueType<*>, PlayerScript>()
@@ -112,6 +116,8 @@ class PlayerContent internal constructor(
             queueScripts.toMap(),
             normalTimerScripts.toMap(),
             softTimerScripts.toMap(),
+            clientScripts,
+            clientConstants,
         )
 
     private fun bind(trigger: ScriptTrigger, script: PlayerScript) {

@@ -16,6 +16,12 @@ class UiContentParserTest {
                 [components]
                 "test:button" = 65538
 
+                [client_scripts]
+                "meslayer:countdialog" = 108
+
+                [client_constants]
+                "meslayer_mode:countdialog" = 7
+
                 [gameframe]
                 top_level = 161
 
@@ -30,6 +36,8 @@ class UiContentParserTest {
             )
 
         assertEquals(Component.of(1, 2), content.components.require("test:button"))
+        assertEquals(108, content.clientScripts.require("meslayer:countdialog").id)
+        assertEquals(7, content.clientConstants.require("meslayer_mode:countdialog"))
         assertEquals(161, content.gameframe.topLevelInterface)
         assertEquals(162, content.gameframe.subInterfaces.single().interfaceId)
         assertEquals(GameframeInventory(64209, 93), content.gameframe.initialInventories.single())
@@ -40,6 +48,6 @@ class UiContentParserTest {
         val content = UiContentCatalog.load()
 
         assertSame(content, UiContentCatalog.load())
-        PlayerContentCatalog.load(content.components)
+        PlayerContentCatalog.load(content)
     }
 }

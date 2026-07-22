@@ -34,6 +34,8 @@ import emu.protocol.osrs239.game.codec.player.UpdateRunEnergyEncoder
 import emu.protocol.osrs239.game.codec.player.UpdateRunWeightEncoder
 import emu.protocol.osrs239.game.codec.player.UpdateStatEncoder
 import emu.protocol.osrs239.game.codec.playerinfo.PlayerInfoEncoder
+import emu.protocol.osrs239.game.codec.resumed.ResumePCountDialogDecoder
+import emu.protocol.osrs239.game.codec.resumed.ResumePObjDialogDecoder
 import emu.protocol.osrs239.game.codec.scene.RebuildLoginEncoder
 import emu.protocol.osrs239.game.codec.scene.RebuildNormalEncoder
 import emu.protocol.osrs239.game.codec.scene.SetActiveWorldEncoder
@@ -60,6 +62,8 @@ object GameCodecs {
         CloseModalDecoder,
         IdleDecoder,
         OpLoc1Decoder,
+        ResumePCountDialogDecoder,
+        ResumePObjDialogDecoder,
     )
 
     val encoders: List<MessageEncoder<*>> = listOf(

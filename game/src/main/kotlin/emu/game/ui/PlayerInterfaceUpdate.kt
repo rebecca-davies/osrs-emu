@@ -1,6 +1,6 @@
 package emu.game.ui
 
-/** One authoritative interface-tree change awaiting client synchronization. */
+/** One ordered interface operation awaiting client synchronization. */
 sealed interface PlayerInterfaceUpdate {
     data class OpenTopLevel(val interfaceId: Int) : PlayerInterfaceUpdate
 
@@ -11,4 +11,9 @@ sealed interface PlayerInterfaceUpdate {
     ) : PlayerInterfaceUpdate
 
     data class CloseSubInterface(val destination: Component) : PlayerInterfaceUpdate
+
+    data class RunClientScript(
+        val script: ClientScript,
+        val arguments: List<Any>,
+    ) : PlayerInterfaceUpdate
 }

@@ -10,6 +10,7 @@ import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.MODAL
 import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.OVERLAY
 import emu.protocol.osrs239.game.message.component.IfOpenTop
 import emu.protocol.osrs239.game.message.component.IfResync
+import emu.protocol.osrs239.game.message.client.RunClientScript
 import emu.protocol.osrs239.game.message.inventory.UpdateInvFull
 import emu.transport.message.OutgoingMessage
 
@@ -57,6 +58,8 @@ internal class PlayerInterfaceOutput(private val gameframe: Gameframe) {
                         update.destination.interfaceId,
                         update.destination.componentId,
                     )
+                is PlayerInterfaceUpdate.RunClientScript ->
+                    RunClientScript(update.script.id, update.arguments)
             }
 
         private const val ROOT_INTERFACE = -1

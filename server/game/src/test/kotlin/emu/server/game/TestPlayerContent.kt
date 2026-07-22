@@ -21,7 +21,7 @@ import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
 
 /** Shared immutable Kotlin-content runtime used by world tests. */
 internal object TestPlayerContent {
-    private val repository = PlayerContentCatalog.load(UiContentCatalog.load().components)
+    private val repository = PlayerContentCatalog.load(UiContentCatalog.load())
     private val scripts = PlayerScriptRunner(repository)
     private val huffman = HuffmanCodec(ByteArray(256) { 8 })
 

@@ -6,6 +6,7 @@ import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
+import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
@@ -16,6 +17,8 @@ import emu.game.script.execution.PlayerScriptRequest
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.queue.PlayerQueueType
 import emu.game.script.trigger.PlayerScriptRepository
+import emu.game.script.trigger.ServerTriggerType
+import emu.game.ui.ButtonClick
 import emu.game.ui.Component
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
@@ -179,6 +182,32 @@ class PlayerLogoutCycleTest {
 
         cycle.tick(worldTick = 0)
         assertEquals(listOf("start"), calls)
+        assertFalse(world.contains(player.id))
+    }
+
+    @Test
+    fun `disconnect abandons suspended client input before durable removal`() {
+        val ui = UiContentCatalog.load()
+        val scripts =
+            PlayerScriptRepository.build(ui) {
+                onButton("stats:attack") { numberDialog("Set level:") }
+            }
+        val runner = PlayerScriptRunner(scripts)
+        val world = testWorld(maxPlayerIndex = 1)
+        val cycle = cycle(world, runner)
+        val player = player(world)
+        val component = ui.components.require("stats:attack")
+        runner.trigger(
+            player,
+            ServerTriggerType.IF_BUTTON,
+            component.packed,
+            ButtonClick(component.interfaceId, component.componentId),
+        )
+        assertFalse(player.canAccess())
+
+        world.disconnect(world.session(player).token)
+        cycle.tick(worldTick = 0)
+
         assertFalse(world.contains(player.id))
     }
 

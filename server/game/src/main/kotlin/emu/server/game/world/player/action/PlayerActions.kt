@@ -36,6 +36,8 @@ class PlayerActions(
             is PlayerAction.Chat -> player.applyChat(action.input)
             is PlayerAction.Command -> player.applyCommand(action.input)
             is PlayerAction.LocOp -> player.applyLocOp(action.input)
+            is PlayerAction.ResumeCountDialog -> scripts.resumeInput(player, action.input)
+            is PlayerAction.ResumeObjDialog -> scripts.resumeInput(player, action.input)
             PlayerAction.CloseModal -> player.requestModalClose()
             PlayerAction.IdleLogout -> player.requestIdleLogout()
         }

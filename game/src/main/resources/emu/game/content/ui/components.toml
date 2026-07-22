@@ -3,6 +3,38 @@
 "orbs:runbutton" = 10485788
 "settings_side:runmode" = 7602206
 "logout:logout" = 11927560
+"stats:attack" = 20971521
+"stats:strength" = 20971522
+"stats:defence" = 20971523
+"stats:ranged" = 20971524
+"stats:prayer" = 20971525
+"stats:magic" = 20971526
+"stats:runecraft" = 20971527
+"stats:construction" = 20971528
+"stats:hitpoints" = 20971529
+"stats:agility" = 20971530
+"stats:herblore" = 20971531
+"stats:thieving" = 20971532
+"stats:crafting" = 20971533
+"stats:fletching" = 20971534
+"stats:slayer" = 20971535
+"stats:hunter" = 20971536
+"stats:mining" = 20971537
+"stats:smithing" = 20971538
+"stats:fishing" = 20971539
+"stats:cooking" = 20971540
+"stats:firemaking" = 20971541
+"stats:woodcutting" = 20971542
+"stats:farming" = 20971543
+
+[client_scripts]
+"meslayer:countdialog" = 108
+"meslayer:objdialog" = 750
+"meslayer:close" = 101
+
+[client_constants]
+"meslayer_mode:countdialog" = 7
+"meslayer_mode:objdialog" = 14
 
 [gameframe]
 top_level = 161

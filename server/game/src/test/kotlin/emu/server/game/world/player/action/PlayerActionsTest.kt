@@ -194,7 +194,7 @@ class PlayerActionsTest {
         val actions =
             PlayerActions(
                 map,
-                PlayerScriptRunner(PlayerContentCatalog.load(UiContentCatalog.load().components)),
+                PlayerScriptRunner(PlayerContentCatalog.load(UiContentCatalog.load())),
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
             )
@@ -254,7 +254,7 @@ class PlayerActionsTest {
         clock: Clock = Clock.systemUTC(),
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
     ): PlayerActions {
-        val scripts = PlayerContentCatalog.load(UiContentCatalog.load().components)
+        val scripts = PlayerContentCatalog.load(UiContentCatalog.load())
         return PlayerActions(worldMap(), PlayerScriptRunner(scripts), commands, audit, clock)
     }
 

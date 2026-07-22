@@ -76,7 +76,7 @@ internal fun gameModule(
         )
     }
     single { WorldCommandQueue(config.commands) }
-    single { PlayerContentCatalog.load(get<UiContent>().components) }
+    single { PlayerContentCatalog.load(get()) }
     single { PlayerScriptRunner(get()) }
     single { buildPlayerCommandRepository(get()) }
     single {

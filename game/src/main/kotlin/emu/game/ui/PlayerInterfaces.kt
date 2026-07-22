@@ -1,6 +1,6 @@
 package emu.game.ui
 
-/** Open top-level, overlay, and modal interfaces for one player. */
+/** Interface-tree state and ordered client UI operations for one player. */
 class PlayerInterfaces {
     private val subInterfaces = linkedMapOf<Component, OpenSubInterface>()
     private val visibleSubInterfaces = mutableMapOf<Int, Int>()
@@ -41,6 +41,15 @@ class PlayerInterfaces {
 
     /** Whether a protected modal currently blocks ordinary player work. */
     fun hasModal(): Boolean = modalCount != 0
+
+    /** Queues one named cache client script after the base interface tree is synchronized. */
+    fun runClientScript(script: ClientScript, vararg arguments: Any) {
+        check(clientSynchronized) { "client scripts require a synchronized interface tree" }
+        require(arguments.all { it is Int || it is String }) {
+            "client script arguments must be Int or String"
+        }
+        clientUpdates.addLast(PlayerInterfaceUpdate.RunClientScript(script, arguments.toList()))
+    }
 
     /** Closes all protected modal subinterface trees. */
     fun closeModal(): Boolean {

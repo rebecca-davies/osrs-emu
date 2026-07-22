@@ -17,6 +17,7 @@ import emu.protocol.osrs239.game.message.scene.SetActiveWorld
 import emu.server.game.network.connection.GameSession
 import emu.server.game.network.output.playerinfo.PlayerInfoSnapshot
 import emu.server.game.network.output.playerinfo.PlayerInfoView
+import emu.server.game.network.output.stat.PlayerStatOutput
 import emu.server.game.network.output.ui.PlayerInterfaceOutput
 import emu.server.game.network.output.varp.PlayerVarpOutput
 import emu.server.game.world.World
@@ -97,6 +98,10 @@ class PlayerOutput(
             val varpUpdates = player.varps.drainClientUpdates()
             if (varpUpdates.isNotEmpty()) {
                 packets(varpUpdates.map(PlayerVarpOutput::message))
+            }
+            val statUpdates = player.stats.drainClientUpdates()
+            if (statUpdates.isNotEmpty()) {
+                packets(statUpdates.map(PlayerStatOutput::message))
             }
             val gameMessages = player.takeGameMessages()
             if (gameMessages.isNotEmpty()) {

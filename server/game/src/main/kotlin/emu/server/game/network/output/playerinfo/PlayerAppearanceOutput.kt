@@ -6,21 +6,24 @@ import emu.game.player.appearance.CharacterGender
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerBody
 
-/** Returns a rev-239 value whose object identity changes exactly when the character appearance changes. */
+/** Caches revision-239 appearance until visual state or combat level changes. */
 internal class PlayerAppearanceOutput(player: Player) {
     private var source = player.appearance
-    private var cached = build(source, player.displayName)
+    private var combatRevision = player.stats.combatRevision
+    private var cached = build(player)
 
     fun message(player: Player): PlayerAppearance {
         val appearance = player.appearance
-        if (source !== appearance) {
+        if (source !== appearance || combatRevision != player.stats.combatRevision) {
             source = appearance
-            cached = build(appearance, player.displayName)
+            combatRevision = player.stats.combatRevision
+            cached = build(player)
         }
         return cached
     }
 
-    private fun build(appearance: CharacterAppearance, displayName: String): PlayerAppearance {
+    private fun build(player: Player): PlayerAppearance {
+        val appearance = player.appearance
         val body = appearance.bodyKits
         val equipment = MutableList(PlayerAppearance.EQUIPMENT_SLOT_COUNT) { 0 }
         equipment[TORSO_SLOT] = PlayerAppearance.identityKit(body.torso)
@@ -48,7 +51,8 @@ internal class PlayerAppearanceOutput(player: Player) {
                             appearance.colors.skin,
                         ),
                 ),
-            name = displayName,
+            name = player.displayName,
+            combatLevel = player.stats.combatLevel(),
         )
     }
 

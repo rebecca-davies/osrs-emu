@@ -18,10 +18,14 @@ object UiContentParser {
         }
         return UiContent(
             components = UiComponentMap.from(components),
+            clientScripts = UiClientScriptMap.from(result.getTable(CLIENT_SCRIPT_TABLE)),
+            clientConstants = UiClientConstantMap.from(result.getTable(CLIENT_CONSTANT_TABLE)),
             gameframe = GameframeParser.from(gameframe),
         )
     }
 
     private const val COMPONENT_TABLE = "components"
+    private const val CLIENT_SCRIPT_TABLE = "client_scripts"
+    private const val CLIENT_CONSTANT_TABLE = "client_constants"
     private const val GAMEFRAME_TABLE = "gameframe"
 }

@@ -175,7 +175,7 @@ class BotConnectionIntegrationTest {
             }
         val map = GameMap(collision)
         val world = World(map, ui.gameframe, LoginNotices.ALL, maxPlayerIndex = 1)
-        val scripts = PlayerScriptRunner(PlayerContentCatalog.load(ui.components))
+        val scripts = PlayerScriptRunner(PlayerContentCatalog.load(ui))
         val actions =
             PlayerActions(
                 map,

@@ -3,6 +3,8 @@ package emu.game.action
 import emu.game.chat.ChatInput
 import emu.game.command.PlayerCommandInput
 import emu.game.loc.LocOpInput
+import emu.game.script.input.CountDialogInput
+import emu.game.script.input.ObjDialogInput
 import emu.game.ui.ButtonClick
 
 /** Immutable client action queued by network IO for ordered world-thread processing. */
@@ -22,6 +24,10 @@ sealed interface PlayerAction {
     data class Command(val input: PlayerCommandInput) : PlayerAction
 
     data class LocOp(val input: LocOpInput) : PlayerAction
+
+    data class ResumeCountDialog(val input: CountDialogInput) : PlayerAction
+
+    data class ResumeObjDialog(val input: ObjDialogInput) : PlayerAction
 
     data object CloseModal : PlayerAction
 

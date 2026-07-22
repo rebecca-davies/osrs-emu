@@ -5,6 +5,7 @@ enum class PlayerScriptExecutionState {
     READY,
     RUNNING,
     DELAYED,
+    WAITING_INPUT,
     FINISHED,
     FAILED,
 }

@@ -54,7 +54,7 @@ internal class InitialPlayerOutput(
             )
             packets(interfaces.initialInventories())
             packets(interfaces.frameMessages())
-            packets(PlayerStatOutput.initialMessages())
+            packets(PlayerStatOutput.messages(player.stats.loginSync()))
             packet(UpdateRunWeight())
             packet(UpdateRunEnergy())
             packet(ResetAnims)

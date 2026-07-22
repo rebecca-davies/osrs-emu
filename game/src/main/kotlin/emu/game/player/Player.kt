@@ -8,6 +8,7 @@ import emu.game.map.PlayerBuildArea
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.PlayerMovement
 import emu.game.player.appearance.CharacterAppearance
+import emu.game.player.stat.PlayerStats
 import emu.game.queue.PlayerActionQueue
 import emu.game.script.execution.PlayerScriptExecution
 import emu.game.script.execution.PlayerScriptRequest
@@ -42,6 +43,7 @@ class Player(
     val timers = PlayerTimers()
     val interfaces = PlayerInterfaces()
     val chatFilters = initialChatFilters
+    val stats = PlayerStats()
 
     var appearance: CharacterAppearance = initialAppearance
         private set
@@ -126,10 +128,12 @@ class Player(
     internal fun canAcquireProtectedAccess(): Boolean =
         shutdownAccess || activeScript == null && !isAccessProtected
 
-    /** Clears weak work, closes protected interfaces, and reports whether close scripts were queued. */
+    /** Clears weak work and closes any protected interface or client-input dialog. */
     fun closeModal(): Boolean {
         actionQueue.clearWeak()
-        return interfaces.closeModal()
+        val closedInterface = interfaces.closeModal()
+        val discardedInput = discardActiveInputScript()
+        return closedInterface || discardedInput
     }
 
     /** Requests an animation for this cycle; `-1` stops the current client animation. */
@@ -164,9 +168,17 @@ class Player(
 
     /** Abandons suspended content and releases its protected player access. */
     fun discardActiveScript() {
-        activeScript?.discard()
+        val execution = activeScript
         activeScript = null
         isAccessProtected = false
+        execution?.discard()
+    }
+
+    /** Abandons a script paused for client input without affecting delayed scripts. */
+    private fun discardActiveInputScript(): Boolean {
+        if (activeScript?.isWaitingForInput() != true) return false
+        discardActiveScript()
+        return true
     }
 
     /** Synchronizes the base gameframe, runs LOGIN content, then enables ordinary play. */

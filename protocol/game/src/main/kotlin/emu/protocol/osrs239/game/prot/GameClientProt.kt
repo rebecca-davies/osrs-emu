@@ -51,6 +51,12 @@ object GameClientProt {
     /** First menu operation on a loc, including its absolute tile and nested menu selection. */
     val OPLOC1: Prot = protocols[73]
 
+    /** Integer response submitted by the active count dialog. */
+    val RESUME_P_COUNTDIALOG: Prot = protocols[75]
+
+    /** Object type submitted by the active searchable object dialog. */
+    val RESUME_P_OBJDIALOG: Prot = protocols[32]
+
     /** Returns the declared protocol entry, or null for an opcode outside rev 239's table. */
     fun find(opcode: Int): Prot? = protocols.getOrNull(opcode)
 
@@ -63,5 +69,7 @@ object GameClientProt {
         require(CLOSE_MODAL.size == 0)
         require(IDLE.size == 0)
         require(OPLOC1.size == 8)
+        require(RESUME_P_COUNTDIALOG.size == 4)
+        require(RESUME_P_OBJDIALOG.size == 2)
     }
 }

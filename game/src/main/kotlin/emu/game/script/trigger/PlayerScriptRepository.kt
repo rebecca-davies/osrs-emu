@@ -1,17 +1,22 @@
 package emu.game.script.trigger
 
 import emu.game.content.ui.config.UiComponentMap
+import emu.game.content.ui.config.UiClientConstantMap
+import emu.game.content.ui.config.UiClientScriptMap
+import emu.game.content.ui.config.UiContent
 import emu.game.script.content.PlayerContent
 import emu.game.script.execution.PlayerScript
 import emu.game.script.queue.PlayerQueueType
 import emu.game.timer.PlayerTimerType
 
-/** Immutable O(1) index for player triggers, queues, and timers. */
+/** Immutable O(1) index for player scripts and their revision-pinned client values. */
 class PlayerScriptRepository internal constructor(
     private val byTrigger: Map<ScriptTrigger, PlayerScript>,
     private val byQueue: Map<PlayerQueueType<*>, PlayerScript>,
     private val normalTimers: Map<PlayerTimerType<*>, PlayerScript>,
     private val softTimers: Map<PlayerTimerType<*>, PlayerScript>,
+    internal val clientScripts: UiClientScriptMap,
+    internal val clientConstants: UiClientConstantMap,
 ) {
     /** Finds exactly the supplied trigger combination without fallback. */
     fun findSpecific(
@@ -34,6 +39,32 @@ class PlayerScriptRepository internal constructor(
         fun build(
             components: UiComponentMap,
             content: PlayerContent.() -> Unit,
-        ): PlayerScriptRepository = PlayerContent(components).apply(content).build()
+        ): PlayerScriptRepository =
+            build(
+                components,
+                UiClientScriptMap.EMPTY,
+                UiClientConstantMap.EMPTY,
+                content,
+            )
+
+        /** Builds an immutable repository with revision-pinned UI names available to content. */
+        fun build(
+            ui: UiContent,
+            content: PlayerContent.() -> Unit,
+        ): PlayerScriptRepository =
+            build(
+                ui.components,
+                ui.clientScripts,
+                ui.clientConstants,
+                content,
+            )
+
+        private fun build(
+            components: UiComponentMap,
+            clientScripts: UiClientScriptMap,
+            clientConstants: UiClientConstantMap,
+            content: PlayerContent.() -> Unit,
+        ): PlayerScriptRepository =
+            PlayerContent(components, clientScripts, clientConstants).apply(content).build()
     }
 }

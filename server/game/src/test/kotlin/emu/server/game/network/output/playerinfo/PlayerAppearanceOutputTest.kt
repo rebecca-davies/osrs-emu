@@ -4,6 +4,7 @@ import emu.game.player.appearance.CharacterAppearance
 import emu.game.player.appearance.CharacterBodyKits
 import emu.game.player.appearance.CharacterColors
 import emu.game.player.appearance.CharacterGender
+import emu.game.player.stat.Skill
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
@@ -45,6 +46,7 @@ class PlayerAppearanceOutputTest {
         assertSame(appearance, output.message(player))
         assertEquals(PlayerAppearance.GENDER_FEMALE, appearance.gender)
         assertEquals("Player", appearance.name)
+        assertEquals(126, appearance.combatLevel)
         assertEquals(
             listOf(
                 0,
@@ -69,5 +71,9 @@ class PlayerAppearanceOutputTest {
         assertNotSame(appearance, changed)
         assertEquals(PlayerAppearance.GENDER_MALE, changed.gender)
         assertSame(changed, output.message(player))
+
+        player.stats.setLevel(Skill.ATTACK, 1)
+        val statChanged = output.message(player)
+        assertNotSame(changed, statChanged)
     }
 }

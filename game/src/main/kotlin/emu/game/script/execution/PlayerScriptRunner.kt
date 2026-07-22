@@ -3,6 +3,7 @@ package emu.game.script.execution
 import emu.game.player.Player
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
+import emu.game.script.input.PlayerScriptInput
 import emu.game.ui.ButtonClick
 
 /** Starts and resumes compiled Kotlin scripts only on the owning world thread. */
@@ -60,6 +61,21 @@ class PlayerScriptRunner(
         try {
             execution.resumeCycle(worldTick)
             if (execution.isTerminal()) release(player, execution, execution.protectedAccess)
+        } catch (failure: Throwable) {
+            release(player, execution, execution.protectedAccess)
+            throw failure
+        }
+    }
+
+    /** Resumes the player's active script when it expects this exact input family. */
+    fun resumeInput(player: Player, input: PlayerScriptInput): Boolean {
+        val execution = player.activeScript ?: return false
+        return try {
+            val accepted = execution.resumeInput(worldTick, input)
+            if (accepted && execution.isTerminal()) {
+                release(player, execution, execution.protectedAccess)
+            }
+            accepted
         } catch (failure: Throwable) {
             release(player, execution, execution.protectedAccess)
             throw failure
