@@ -2,6 +2,7 @@ package emu.game.content.ui.config
 
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.ui.gameframe.GameframeInventory
+import emu.game.content.ui.gameframe.GameframeInventorySource
 import emu.game.ui.Component
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -32,6 +33,7 @@ class UiContentParserTest {
                 [[gameframe.initial_inventories]]
                 component = 64209
                 inventory = 93
+                source = "inventory"
                 """.trimIndent(),
             )
 
@@ -40,7 +42,10 @@ class UiContentParserTest {
         assertEquals(7, content.clientConstants.require("meslayer_mode:countdialog"))
         assertEquals(161, content.gameframe.topLevelInterface)
         assertEquals(162, content.gameframe.subInterfaces.single().interfaceId)
-        assertEquals(GameframeInventory(64209, 93), content.gameframe.initialInventories.single())
+        assertEquals(
+            GameframeInventory(64209, 93, GameframeInventorySource.INVENTORY),
+            content.gameframe.initialInventories.single(),
+        )
     }
 
     @Test

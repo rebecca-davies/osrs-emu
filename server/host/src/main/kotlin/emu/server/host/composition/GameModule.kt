@@ -8,6 +8,7 @@ import emu.game.content.ui.config.UiContentCatalog
 import emu.game.loc.LocRepository
 import emu.game.map.GameMap
 import emu.game.map.Tile
+import emu.game.obj.ObjCatalog
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.CharacterStore
 import emu.persistence.character.write.CharacterWriteQueue
@@ -42,6 +43,7 @@ internal fun gameModule(
     codecs: CodecRepository,
     collision: CacheCollisionMap,
     locs: LocRepository = LocRepository.EMPTY,
+    objs: ObjCatalog = ObjCatalog.EMPTY,
     huffman: HuffmanCodec,
     config: GameExecutionConfig,
 ) = module {
@@ -76,7 +78,7 @@ internal fun gameModule(
         )
     }
     single { WorldCommandQueue(config.commands) }
-    single { PlayerContentCatalog.load(get()) }
+    single { PlayerContentCatalog.load(get(), objs) }
     single { PlayerScriptRunner(get()) }
     single { buildPlayerCommandRepository(get()) }
     single {
@@ -95,7 +97,7 @@ internal fun gameModule(
             scripts = get(),
         )
     }
-    single { PlayerOutput(world = get(), huffman = get()) }
+    single { PlayerOutput(world = get(), huffman = get(), gameframe = get<UiContent>().gameframe) }
     single {
         WorldCycle(
             world = get(),

@@ -76,6 +76,14 @@ data class PlayerAppearance(
             return KIT_MODEL_BASE + bodyKitId
         }
 
+        /** Converts one cache object type into the revision-239 worn-item appearance value. */
+        fun wornObj(type: Int): Int {
+            require(type in 0..(0xFFFF - ITEM_MODEL_BASE)) {
+                "worn object type does not fit the appearance field"
+            }
+            return ITEM_MODEL_BASE + type
+        }
+
         /** Default male identikit; wearable slots are empty. */
         val DEFAULT_EQUIPMENT: List<Int> = listOf(
             0, // hat

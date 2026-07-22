@@ -26,6 +26,7 @@
 "stats:firemaking" = 20971541
 "stats:woodcutting" = 20971542
 "stats:farming" = 20971543
+"wornitems:equipment" = 25362433
 
 [client_scripts]
 "meslayer:countdialog" = 108
@@ -142,7 +143,9 @@ interface = 593
 [[gameframe.initial_inventories]]
 component = 64209
 inventory = 93
+source = "inventory"
 
 [[gameframe.initial_inventories]]
 component = 64208
 inventory = 94
+source = "worn"

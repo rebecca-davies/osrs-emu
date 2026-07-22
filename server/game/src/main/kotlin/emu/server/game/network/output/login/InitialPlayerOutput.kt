@@ -52,7 +52,7 @@ internal class InitialPlayerOutput(
                     buildArea.localY(position.y),
                 ),
             )
-            packets(interfaces.initialInventories())
+            packets(interfaces.initialInventories(player))
             packets(interfaces.frameMessages())
             packets(PlayerStatOutput.messages(player.stats.loginSync()))
             packet(UpdateRunWeight())

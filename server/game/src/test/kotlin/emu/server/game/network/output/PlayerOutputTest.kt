@@ -4,10 +4,13 @@ import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.content.player.PlayerVarpCatalog
+import emu.game.content.ui.config.UiContentCatalog
 import emu.game.cycle.CycleProfileSnapshot
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CyclePhaseProfileSnapshot
 import emu.game.map.Tile
+import emu.game.obj.ObjType
+import emu.game.obj.Wearpos
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.PathRoute
 import emu.game.ui.Component
@@ -19,8 +22,10 @@ import emu.protocol.osrs239.game.message.component.IfCloseSub
 import emu.protocol.osrs239.game.message.component.IfOpenSub
 import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.MODAL
 import emu.protocol.osrs239.game.message.cycle.ServerTickEnd
+import emu.protocol.osrs239.game.message.inventory.UpdateInvFull
 import emu.protocol.osrs239.game.message.scene.RebuildNormal
 import emu.protocol.osrs239.game.message.varp.VarpSmall
+import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.testWorld
@@ -46,7 +51,7 @@ class PlayerOutputTest {
         player.interfaces.openModal(Component.of(161, 1), 200)
         player.closeModal()
 
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         output.prepare(player, output.snapshot(world.allPlayers()), null)
         output.publish(player)
 
@@ -80,7 +85,7 @@ class PlayerOutputTest {
         target.requestLogout()
         assertTrue(target.beginLogout())
 
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         val view = output.snapshot(world.allPlayers())
 
         assertNull(view[target.index])
@@ -98,7 +103,7 @@ class PlayerOutputTest {
                 GameOutputSink { false },
             )
         world.activateTestPlayer(world.session(player).token)
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
 
         output.prepare(player, output.snapshot(world.allPlayers()), null)
         output.publish(player)
@@ -127,7 +132,7 @@ class PlayerOutputTest {
                 },
             )
         world.writeBack(player).completion = DurableCharacterWrite
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         val view = output.snapshot(world.allPlayers())
 
         output.prepare(player, view, null)
@@ -159,7 +164,7 @@ class PlayerOutputTest {
             )
         val session = world.session(player)
         world.writeBack(player).completion = DurableCharacterWrite
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         val view = output.snapshot(world.allPlayers())
 
         repeat(3) {
@@ -200,7 +205,7 @@ class PlayerOutputTest {
         world.advanceMovement(player)
         assertEquals(MovementUpdate.Walk(1, 0), player.movement.update)
 
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         output.prepare(player, output.snapshot(world.allPlayers()), null)
         output.publish(player)
         output.cleanup(player)
@@ -212,6 +217,36 @@ class PlayerOutputTest {
         assertIs<GameOutputSegment.PacketGroup>(segments[2])
         assertEquals(listOf(ServerTickEnd), assertIs<GameOutputSegment.Packets>(segments[3]).messages)
         assertEquals(MovementUpdate.Idle, player.movement.update)
+    }
+
+    @Test
+    fun `dirty backpack and worn inventories publish once`() {
+        val batches = mutableListOf<GameOutputBatch>()
+        val world = testWorld(maxPlayerIndex = 1)
+        val player =
+            world.addTestPlayer(
+                CharacterRecord(1, "Player1", CharacterPosition(3_200, 3_200, 0), 0),
+                IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
+                GameOutputSink { batch -> batches += batch; true },
+            )
+        world.activateTestPlayer(world.session(player).token)
+        val arrows = ObjType(892, "Rune arrow", stackable = true)
+        val bow = ObjType(861, "Magic shortbow", stackable = false, wearpos = Wearpos.RIGHT_HAND)
+        assertTrue(player.inventory.add(arrows, 10_000))
+        player.worn.equip(bow)
+        val output = output(world)
+        val view = output.snapshot(world.allPlayers())
+
+        output.prepare(player, view, null)
+        output.publish(player)
+        output.prepare(player, view, null)
+        output.publish(player)
+
+        val firstUpdates = batches[0].messages().filterIsInstance<UpdateInvFull>()
+        assertEquals(listOf(93, 94), firstUpdates.map(UpdateInvFull::inventoryId))
+        assertEquals(UpdateInvFull.Obj(arrows.id, 10_000), firstUpdates[0].objects.first())
+        assertEquals(UpdateInvFull.Obj(bow.id, 1), firstUpdates[1].objects[Wearpos.RIGHT_HAND.slot])
+        assertTrue(batches[1].messages().none { it is UpdateInvFull })
     }
 
     @Test
@@ -245,7 +280,7 @@ class PlayerOutputTest {
             )
         world.recordCycleProfile(snapshot)
 
-        val output = PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 }))
+        val output = output(world)
         val view = output.snapshot(world.allPlayers())
         output.prepare(player, view, output.profileMessage(snapshot, view.playerCount))
         output.publish(player)
@@ -260,4 +295,19 @@ class PlayerOutputTest {
         assertTrue("max=8.0ms" in report.text)
         assertTrue("hot=info:1.5/player:0.5 ms" in report.text)
     }
+
+    private fun output(world: World): PlayerOutput =
+        PlayerOutput(
+            world,
+            HuffmanCodec(ByteArray(256) { 8 }),
+            UiContentCatalog.load().gameframe,
+        )
+
+    private fun GameOutputBatch.messages() =
+        segments.flatMap { segment ->
+            when (segment) {
+                is GameOutputSegment.Packets -> segment.messages
+                is GameOutputSegment.PacketGroup -> segment.messages
+            }
+        }
 }

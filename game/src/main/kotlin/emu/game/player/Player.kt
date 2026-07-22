@@ -8,6 +8,8 @@ import emu.game.map.PlayerBuildArea
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.PlayerMovement
 import emu.game.player.appearance.CharacterAppearance
+import emu.game.player.inventory.PlayerInventory
+import emu.game.player.inventory.PlayerWorn
 import emu.game.player.stat.PlayerStats
 import emu.game.queue.PlayerActionQueue
 import emu.game.script.execution.PlayerScriptExecution
@@ -44,6 +46,8 @@ class Player(
     val interfaces = PlayerInterfaces()
     val chatFilters = initialChatFilters
     val stats = PlayerStats()
+    val inventory = PlayerInventory()
+    val worn = PlayerWorn()
 
     var appearance: CharacterAppearance = initialAppearance
         private set

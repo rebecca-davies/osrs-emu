@@ -2,6 +2,8 @@ package emu.server.game.network.output
 
 import emu.compression.HuffmanCodec
 import emu.game.chat.PublicChatInput
+import emu.game.content.ui.gameframe.Gameframe
+import emu.game.content.ui.gameframe.GameframeInventorySource
 import emu.game.cycle.CyclePhaseProfileSnapshot
 import emu.game.cycle.CycleProfileSnapshot
 import emu.game.player.Player
@@ -26,7 +28,10 @@ import emu.server.game.world.World
 class PlayerOutput(
     private val world: World,
     private val huffman: HuffmanCodec,
+    gameframe: Gameframe,
 ) {
+    private val interfaces = PlayerInterfaceOutput(gameframe)
+
     internal fun snapshot(players: List<Player>): PlayerInfoView =
         PlayerInfoView(
             players.mapNotNull { player ->
@@ -102,6 +107,12 @@ class PlayerOutput(
             val statUpdates = player.stats.drainClientUpdates()
             if (statUpdates.isNotEmpty()) {
                 packets(statUpdates.map(PlayerStatOutput::message))
+            }
+            player.inventory.drainClientUpdate()?.let { objects ->
+                packet(interfaces.inventoryUpdate(GameframeInventorySource.INVENTORY, objects))
+            }
+            player.worn.drainClientUpdate()?.let { objects ->
+                packet(interfaces.inventoryUpdate(GameframeInventorySource.WORN, objects))
             }
             val gameMessages = player.takeGameMessages()
             if (gameMessages.isNotEmpty()) {

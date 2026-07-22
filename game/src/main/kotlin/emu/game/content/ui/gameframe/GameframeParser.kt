@@ -42,6 +42,7 @@ object GameframeParser {
                     GameframeInventory(
                         componentId = inventory.requireUnsignedShort(COMPONENT),
                         inventoryId = inventory.requireUnsignedShort(INVENTORY),
+                        source = inventory.readInventorySource(),
                     )
                 }
             }.orEmpty()
@@ -60,6 +61,13 @@ object GameframeParser {
         return value
     }
 
+    private fun TomlTable.readInventorySource(): GameframeInventorySource? {
+        val name = getString(SOURCE) ?: return null
+        return requireNotNull(GameframeInventorySource.fromConfigName(name)) {
+            "$SOURCE must be one of ${GameframeInventorySource.entries.joinToString { it.configName }}"
+        }
+    }
+
     private const val GAMEFRAME_TABLE = "gameframe"
     private const val TOP_LEVEL = "top_level"
     private const val SUB_INTERFACES = "sub_interfaces"
@@ -69,4 +77,5 @@ object GameframeParser {
     private const val INITIAL_INVENTORIES = "initial_inventories"
     private const val COMPONENT = "component"
     private const val INVENTORY = "inventory"
+    private const val SOURCE = "source"
 }

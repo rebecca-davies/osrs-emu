@@ -195,7 +195,7 @@ class BotConnectionIntegrationTest {
                 actions,
                 PlayerPhase(scripts),
                 PlayerLifecycle(world, writes, scripts),
-                PlayerOutput(world, huffman),
+                PlayerOutput(world, huffman, ui.gameframe),
             )
         val dispatchers = GameServerDispatchers(connectionWorkerThreads = 1, entryWorkerThreads = 1)
         val connectionConfig = GameConnectionConfig(idleTimeout = 2.seconds)

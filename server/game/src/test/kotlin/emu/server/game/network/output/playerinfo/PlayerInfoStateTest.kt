@@ -4,6 +4,7 @@ import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.chat.PublicChatInput
+import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.MovementUpdate
@@ -205,7 +206,7 @@ class PlayerInfoStateTest {
         )
 
     private fun view(world: World): PlayerInfoView =
-        PlayerOutput(world, HUFFMAN).snapshot(world.allPlayers())
+        PlayerOutput(world, HUFFMAN, UiContentCatalog.load().gameframe).snapshot(world.allPlayers())
 
     private fun crowdedView(remotePlayers: Int, targetX: Int): PlayerInfoView =
         PlayerInfoView(

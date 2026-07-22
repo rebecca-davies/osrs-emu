@@ -348,7 +348,11 @@ class PlayerLogoutCycleTest {
             ),
             PlayerPhase(runner),
             PlayerLifecycle(world, CharacterWriteQueue { DurableCharacterWrite }, runner),
-            PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 })),
+            PlayerOutput(
+                world,
+                HuffmanCodec(ByteArray(256) { 8 }),
+                UiContentCatalog.load().gameframe,
+            ),
         )
     }
 }

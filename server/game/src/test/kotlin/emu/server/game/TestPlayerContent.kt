@@ -38,7 +38,7 @@ internal object TestPlayerContent {
         nanoTime: () -> Long = System::nanoTime,
     ) = PlayerLifecycle(world, writes, scripts, nanoTime)
 
-    fun output(world: World) = PlayerOutput(world, huffman)
+    fun output(world: World) = PlayerOutput(world, huffman, UiContentCatalog.load().gameframe)
 
     fun cycle(
         world: World,

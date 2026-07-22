@@ -1,5 +1,6 @@
 package emu.server.host
 
+import emu.cache.def.CacheItemDefinitionCatalog
 import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
 import emu.persistence.postgres.character.writeback.CharacterSaveWriterConfig
@@ -11,6 +12,7 @@ import emu.server.game.GameService
 import emu.server.game.network.chat.loadHuffmanCodec
 import emu.server.game.world.map.CacheCollisionMap
 import emu.server.game.world.map.CacheLocRepository
+import emu.server.game.world.obj.CacheObjCatalog
 import emu.server.gateway.GatewayListener
 import emu.server.host.asset.loadRuntimeAssets
 import emu.server.host.composition.botModule
@@ -42,9 +44,10 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
     val assets = loadRuntimeAssets(config.assets)
     val assetsReady = System.nanoTime()
     val maps = CacheMapRepository(assets.store)
-    val objects = CacheObjectDefinitionRepository(assets.store)
-    val collision = CacheCollisionMap(maps, objects)
-    val locs = CacheLocRepository(maps, objects)
+    val locTypes = CacheObjectDefinitionRepository(assets.store)
+    val collision = CacheCollisionMap(maps, locTypes)
+    val locs = CacheLocRepository(maps, locTypes)
+    val objs = CacheObjCatalog(CacheItemDefinitionCatalog(assets.store).definitions)
     val huffman = loadHuffmanCodec(assets.store)
     val koinApplication =
         koinApplication {
@@ -57,7 +60,7 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
                 js5Module(assets.store, buildJs5CodecRepository(), config.js5),
                 loginModule(assets.rsaKeyPair, config.login),
                 botModule(config.bots, assets.rsaKeyPair.publicKey),
-                gameModule(buildGameCodecRepository(), collision, locs, huffman, config.game),
+                gameModule(buildGameCodecRepository(), collision, locs, objs, huffman, config.game),
             )
         }
     val koin = koinApplication.koin

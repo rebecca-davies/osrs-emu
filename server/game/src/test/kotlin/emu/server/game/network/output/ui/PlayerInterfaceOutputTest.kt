@@ -4,6 +4,7 @@ import emu.game.content.ui.config.UiContentCatalog
 import emu.protocol.osrs239.game.message.component.IfOpenSub
 import emu.protocol.osrs239.game.message.component.IfOpenTop
 import emu.protocol.osrs239.game.message.inventory.UpdateInvFull
+import emu.server.game.testPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,9 +29,9 @@ class PlayerInterfaceOutputTest {
 
         assertEquals(IfOpenTop(161), messages.first())
         assertIs<IfOpenSub>(messages[1])
-        assertEquals(
-            listOf(UpdateInvFull(-1, 64209, 93), UpdateInvFull(-1, 64208, 94)),
-            output.initialInventories(),
-        )
+        val inventories = output.initialInventories(testPlayer())
+        assertEquals(listOf(93, 94), inventories.map(UpdateInvFull::inventoryId))
+        assertEquals(List(28) { UpdateInvFull.Obj(-1, 0) }, inventories[0].objects)
+        assertEquals(List(14) { UpdateInvFull.Obj(-1, 0) }, inventories[1].objects)
     }
 }

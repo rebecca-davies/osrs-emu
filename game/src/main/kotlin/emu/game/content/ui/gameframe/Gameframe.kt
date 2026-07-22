@@ -13,6 +13,10 @@ data class Gameframe(
         require(subInterfaces.distinctBy { it.destination }.size == subInterfaces.size) {
             "gameframe destinations must be unique"
         }
+        val sources = initialInventories.mapNotNull(GameframeInventory::source)
+        require(sources.distinct().size == sources.size) {
+            "gameframe inventory sources must be unique"
+        }
         validateOrderedTree()
     }
 

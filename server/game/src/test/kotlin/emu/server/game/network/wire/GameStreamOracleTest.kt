@@ -148,7 +148,8 @@ class GameStreamOracleTest {
             add(85 to 1)
             repeat(49) { add(54 to 3) }
             add(87 to 5)
-            addAll(listOf(22 to 8, 22 to 8, 96 to 2))
+            // The backpack and worn inventory publish every authoritative empty slot at login.
+            addAll(listOf(22 to 92, 22 to 50, 96 to 2))
             repeat(25) { add(7 to 7) }
             addAll(listOf(3 to 0, 138 to 1, 25 to 179))
             repeat(23) { add(46 to 7) }
