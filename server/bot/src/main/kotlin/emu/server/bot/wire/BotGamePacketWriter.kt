@@ -2,6 +2,7 @@ package emu.server.bot.wire
 
 import emu.crypto.IsaacCipher
 import emu.protocol.osrs239.game.prot.GameClientProt
+import emu.server.bot.behavior.BotClient
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeByte
 
@@ -9,8 +10,8 @@ import io.ktor.utils.io.writeByte
 internal class BotGamePacketWriter(
     private val write: ByteWriteChannel,
     private val cipher: IsaacCipher,
-) {
-    suspend fun writeMoveGameClick(x: Int, z: Int) {
+) : BotClient {
+    override suspend fun walkTo(x: Int, z: Int) {
         writeEncryptedOpcode(GameClientProt.MOVE_GAMECLICK.opcode)
         write.writeByte(MOVE_GAMECLICK_BODY_SIZE.toByte())
         write.writeByte(x.toByte())
@@ -18,9 +19,8 @@ internal class BotGamePacketWriter(
         write.writeByte(z.toByte())
         write.writeByte((z ushr 8).toByte())
         write.writeByte(NO_HELD_KEYS.toByte())
+        write.flush()
     }
-
-    suspend fun flush() = write.flush()
 
     private suspend fun writeEncryptedOpcode(opcode: Int) {
         write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())

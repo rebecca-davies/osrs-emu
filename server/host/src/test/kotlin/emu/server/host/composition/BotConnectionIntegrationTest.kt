@@ -25,6 +25,8 @@ import emu.persistence.character.write.CharacterWriteQueue
 import emu.persistence.character.write.DurableCharacterWrite
 import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.buildGameCodecRepository
+import emu.server.bot.behavior.BotBehavior
+import emu.server.bot.behavior.BotBehaviorFactory
 import emu.server.bot.config.BotConfig
 import emu.server.bot.config.BotMovementConfig
 import emu.server.bot.connection.BotConnectionRunner
@@ -86,7 +88,7 @@ import kotlinx.coroutines.withTimeout
 
 class BotConnectionIntegrationTest {
     @Test
-    fun `generated client crosses real login and game services then moves in the world`() = runBlocking {
+    fun `finite generated client crosses real services then disconnects after moving`() = runBlocking {
         val keyPair = Rsa.generateKeyPair(1_024)
         val persistence = BotPersistence()
         val saved = CompletableDeferred<CharacterSave>()
@@ -111,19 +113,27 @@ class BotConnectionIntegrationTest {
             stack.game.start()
             listenerJob = launch(Dispatchers.IO) { listener.run() }
             val endpoint = checkNotNull(listener.localEndpoint.botEndpointOrNull())
+            val botConfig =
+                BotConfig(
+                    loginTimeout = 2.seconds,
+                    movement = BotMovementConfig(radius = 2, interval = 10.milliseconds),
+                )
             botJob =
                 launch(Dispatchers.IO) {
                     BotConnectionRunner(
-                        BotConfig(
-                            loginTimeout = 2.seconds,
-                            movement = BotMovementConfig(radius = 2, interval = 10.milliseconds),
-                        ),
+                        botConfig,
                         keyPair.publicKey,
+                        BotBehaviorFactory {
+                            BotBehavior { client ->
+                                client.walkTo(SPAWN.x + 1, SPAWN.y)
+                                movementProcessed.await()
+                            }
+                        },
                     ).run(endpoint, selector, Semaphore(1))
                 }
 
             withTimeout(5.seconds) { movementProcessed.await() }
-            botJob.cancelAndJoin()
+            withTimeout(5.seconds) { botJob.join() }
             botJob = null
             val characterSave = withTimeout(5.seconds) { saved.await() }
 

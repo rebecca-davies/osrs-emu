@@ -4,6 +4,8 @@ import emu.crypto.RsaPublicKey
 import emu.server.bot.BotLaunchResult
 import emu.server.bot.BotServer
 import emu.server.bot.BotService
+import emu.server.bot.behavior.BotBehaviorFactory
+import emu.server.bot.behavior.WanderingBotBehaviorFactory
 import emu.server.bot.config.BotConfig
 import emu.server.bot.connection.BotConnection
 import emu.server.bot.connection.BotConnectionRunner
@@ -17,7 +19,8 @@ import org.koin.dsl.module
 
 /** Composes localhost bot clients with the game server only through a host-owned adapter. */
 internal fun botModule(config: BotConfig, publicKey: RsaPublicKey) = module {
-    single<BotConnection> { BotConnectionRunner(config, publicKey) }
+    single<BotBehaviorFactory> { WanderingBotBehaviorFactory(config.movement) }
+    single<BotConnection> { BotConnectionRunner(config, publicKey, get()) }
     single<BotService> { BotServer(config, get()) }
     single<BotClientRequestSink> {
         val bots = get<BotService>()

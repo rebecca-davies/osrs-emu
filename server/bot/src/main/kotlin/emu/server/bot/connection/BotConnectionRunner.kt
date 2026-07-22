@@ -6,6 +6,7 @@ import emu.crypto.RsaPublicKey
 import emu.protocol.osrs239.login.message.LoginResponse
 import emu.protocol.osrs239.login.prot.LoginProt
 import emu.server.bot.account.BotAccountGenerator
+import emu.server.bot.behavior.BotBehaviorFactory
 import emu.server.bot.config.BotConfig
 import emu.server.bot.wire.BotGamePacketWriter
 import emu.server.bot.wire.BotLoginBlock
@@ -23,11 +24,10 @@ import io.ktor.utils.io.readFully
 import io.ktor.utils.io.writeByte
 import io.ktor.utils.io.writeFully
 import java.security.SecureRandom
-import java.util.concurrent.ThreadLocalRandom
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withTimeout
 
@@ -35,6 +35,7 @@ import kotlinx.coroutines.withTimeout
 class BotConnectionRunner(
     private val config: BotConfig,
     private val publicKey: RsaPublicKey,
+    private val behaviors: BotBehaviorFactory,
 ) : BotConnection {
     private val accounts = BotAccountGenerator()
     private val random = SecureRandom()
@@ -51,7 +52,7 @@ class BotConnectionRunner(
             lateinit var read: ByteReadChannel
             lateinit var write: ByteWriteChannel
             val seeds = IntArray(ISAAC_SEED_COUNT) { random.nextInt() }
-            val movementSeed = random.nextLong()
+            val behaviorSeed = random.nextLong()
             withTimeout(config.loginTimeout) {
                 socket =
                     aSocket(selector)
@@ -63,7 +64,7 @@ class BotConnectionRunner(
             }
             loginPermits.release()
             loginPermitHeld = false
-            runGame(read, write, seeds, movementSeed)
+            runGame(read, write, seeds, behaviorSeed)
         } finally {
             if (loginPermitHeld) loginPermits.release()
             socket?.close()
@@ -102,14 +103,20 @@ class BotConnectionRunner(
         read: ByteReadChannel,
         write: ByteWriteChannel,
         seeds: IntArray,
-        movementSeed: Long,
+        behaviorSeed: Long,
     ) = coroutineScope {
         val drain = launch { drainOutput(read) }
-        val movement = launch { sendMovement(write, seeds, movementSeed) }
+        val behavior = launch {
+            behaviors.create(behaviorSeed).run(BotGamePacketWriter(write, IsaacCipher(seeds)))
+        }
         try {
-            drain.join()
+            select {
+                drain.onJoin {}
+                behavior.onJoin {}
+            }
         } finally {
-            movement.cancelAndJoin()
+            drain.cancelAndJoin()
+            behavior.cancelAndJoin()
         }
     }
 
@@ -117,19 +124,6 @@ class BotConnectionRunner(
         val buffer = ByteArray(OUTPUT_BUFFER_SIZE)
         while (read.readAvailable(buffer) >= 0) {
             // Bot clients deliberately discard output after consuming it from the socket.
-        }
-    }
-
-    private suspend fun sendMovement(write: ByteWriteChannel, seeds: IntArray, movementSeed: Long) {
-        val packets = BotGamePacketWriter(write, IsaacCipher(seeds))
-        val movement = BotMovementPlan(config.movement, movementSeed)
-        val intervalMillis = config.movement.interval.inWholeMilliseconds
-        delay(ThreadLocalRandom.current().nextLong(intervalMillis))
-        while (true) {
-            movement.chooseNext()
-            packets.writeMoveGameClick(movement.x, movement.z)
-            packets.flush()
-            delay(config.movement.interval)
         }
     }
 
