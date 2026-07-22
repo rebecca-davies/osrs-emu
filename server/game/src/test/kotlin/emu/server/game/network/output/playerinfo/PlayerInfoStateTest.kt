@@ -4,6 +4,7 @@ import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.OpenCollisionMap
+import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.PathRoute
 import emu.game.player.appearance.CharacterAppearance
 import emu.game.player.appearance.CharacterBodyKits
@@ -122,6 +123,28 @@ class PlayerInfoStateTest {
     }
 
     @Test
+    fun `viewport admits at most 249 remote players`() {
+        val state = PlayerInfoState(localIndex = 1)
+
+        val info = state.next(crowdedView(remotePlayers = 400, targetX = 3_200))
+
+        assertEquals(249, additions(info).size)
+    }
+
+    @Test
+    fun `crowd pressure contracts and later restores the player viewport`() {
+        val state = PlayerInfoState(localIndex = 1)
+        val view = crowdedView(remotePlayers = 249, targetX = 3_215)
+        assertEquals(249, additions(state.next(view)).size)
+
+        val contracted = state.next(view)
+
+        assertEquals(249, removals(contracted).size)
+        repeat(9) { assertEquals(0, additions(state.next(view)).size) }
+        assertEquals(249, additions(state.next(view)).size)
+    }
+
+    @Test
     fun `local movement speed is cached and route tails use a temporary speed`() {
         val world = testWorld(maxPlayerIndex = 1)
         val observer = addPlayer(world, 1, 3200)
@@ -165,6 +188,35 @@ class PlayerInfoStateTest {
 
     private fun view(world: World): PlayerInfoView =
         PlayerOutputProcess().snapshot(world.allPlayers())
+
+    private fun crowdedView(remotePlayers: Int, targetX: Int): PlayerInfoView =
+        PlayerInfoView(
+            buildList(remotePlayers + 1) {
+                add(snapshot(index = 1, x = 3_200))
+                repeat(remotePlayers) { add(snapshot(index = it + 2, x = targetX)) }
+            },
+        )
+
+    private fun snapshot(index: Int, x: Int): PlayerInfoSnapshot =
+        PlayerInfoSnapshot(
+            index = index,
+            position = Tile(x, 3_200),
+            movement = MovementUpdate.Idle,
+            runEnabled = false,
+            appearance = PlayerAppearance(name = "Player$index"),
+        )
+
+    private fun additions(info: PlayerInfo): List<PlayerInfoBitCode.Add> =
+        allCodes(info).filterIsInstance<PlayerInfoBitCode.Add>()
+
+    private fun removals(info: PlayerInfo): List<PlayerInfoBitCode.Remove> =
+        allCodes(info).filterIsInstance<PlayerInfoBitCode.Remove>()
+
+    private fun allCodes(info: PlayerInfo): List<PlayerInfoBitCode> =
+        info.sections.highResolutionActive +
+            info.sections.highResolutionInactive +
+            info.sections.lowResolutionInactive +
+            info.sections.lowResolutionActive
 
     private fun localUpdate(info: PlayerInfo) =
         assertIs<PlayerInfoBitCode.HighResolution>(

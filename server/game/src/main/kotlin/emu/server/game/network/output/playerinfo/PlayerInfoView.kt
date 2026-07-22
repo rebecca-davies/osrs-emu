@@ -19,18 +19,19 @@ internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
 
     operator fun get(index: Int): PlayerInfoSnapshot? = byIndex[index]
 
-    fun isVisible(observer: PlayerInfoSnapshot, target: PlayerInfoSnapshot): Boolean =
+    fun isVisible(observer: PlayerInfoSnapshot, target: PlayerInfoSnapshot, distance: Int): Boolean =
         observer.position.plane == target.position.plane &&
             max(
                 abs(observer.position.x - target.position.x),
                 abs(observer.position.y - target.position.y),
-            ) <= VIEW_DISTANCE
+            ) <= distance
 
     /** Marks up to [limit] newly visible player slots in the caller-cleared [destination]. */
     fun selectAdditions(
         observer: PlayerInfoSnapshot,
         tracked: BooleanArray,
         destination: BooleanArray,
+        distance: Int,
         limit: Int,
     ) {
         if (limit <= 0) return
@@ -41,7 +42,12 @@ internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
             val key = zoneKey(observer.position.plane, zoneX + deltaX, zoneY + deltaY)
             val players = zones[key] ?: continue
             for (target in players) {
-                if (target.index == observer.index || tracked[target.index] || !isVisible(observer, target)) continue
+                if (
+                    target.index == observer.index || tracked[target.index] ||
+                    !isVisible(observer, target, distance)
+                ) {
+                    continue
+                }
                 destination[target.index] = true
                 selected++
                 if (selected == limit) return
@@ -57,9 +63,9 @@ internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
 
     private companion object {
         const val PLAYER_SLOTS = 2_048
-        const val VIEW_DISTANCE = 15
         const val ZONE_SHIFT = 3
-        const val ZONE_RADIUS = 2
+        const val ZONE_RADIUS =
+            (PlayerInfoViewport.PREFERRED_DISTANCE + (1 shl ZONE_SHIFT) - 1) shr ZONE_SHIFT
         const val ZONE_KEY_SHIFT = 11
         const val PLANE_SHIFT = 22
         val ZONE_OFFSETS =

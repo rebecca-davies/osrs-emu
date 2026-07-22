@@ -21,6 +21,8 @@ internal class PlayerInfoState(private val localIndex: Int) {
     private val lowRegionPlane = IntArray(PLAYER_SLOTS)
     private val knownMoveSpeed = IntArray(PLAYER_SLOTS) { STATIONARY_SPEED }
     private val knownAppearance = arrayOfNulls<PlayerAppearance>(PLAYER_SLOTS)
+    private val viewport = PlayerInfoViewport()
+    private var highResolutionPlayers = 1
 
     init {
         require(localIndex in 1 until PLAYER_SLOTS) { "local player index must be in 1..2047" }
@@ -31,19 +33,20 @@ internal class PlayerInfoState(private val localIndex: Int) {
         val observer = checkNotNull(view[localIndex]) { "active observer $localIndex is absent from player-info view" }
         additions.fill(false)
         removals.fill(false)
+        viewport.resize(highResolutionPlayers)
 
-        var survivingPlayers = 0
+        var survivingPlayers = 1
         for (index in 1 until PLAYER_SLOTS) {
             if (!tracked[index] || index == localIndex) continue
             val target = view[index]
-            if (target != null && view.isVisible(observer, target)) {
+            if (target != null && view.isVisible(observer, target, viewport.distance)) {
                 survivingPlayers++
             } else {
                 removals[index] = true
             }
         }
-        val available = (PREFERRED_PLAYERS - 1 - survivingPlayers).coerceAtLeast(0)
-        view.selectAdditions(observer, tracked, additions, available)
+        val available = viewport.availableAdditions(survivingPlayers)
+        view.selectAdditions(observer, tracked, additions, viewport.distance, available)
 
         val highActive = buildSection(view, highResolution = true, inactive = false)
         val highInactive = buildSection(view, highResolution = true, inactive = true)
@@ -172,6 +175,7 @@ internal class PlayerInfoState(private val localIndex: Int) {
     }
 
     private fun finishCycle() {
+        var count = 0
         for (index in 1 until PLAYER_SLOTS) {
             if (removals[index]) {
                 tracked[index] = false
@@ -179,15 +183,16 @@ internal class PlayerInfoState(private val localIndex: Int) {
                 knownAppearance[index] = null
             }
             if (additions[index]) tracked[index] = true
+            if (tracked[index]) count++
             flags[index] = (flags[index].toInt() ushr 1).toByte()
         }
+        highResolutionPlayers = count
     }
 
     private fun isInactive(index: Int): Boolean = flags[index].toInt() and CURRENT_CYCLE_INACTIVE != 0
 
     private companion object {
         const val PLAYER_SLOTS = 2_048
-        const val PREFERRED_PLAYERS = 250
         const val REGION_SHIFT = 13
         const val LOCAL_COORDINATE_MASK = 0x1FFF
         const val CURRENT_CYCLE_INACTIVE = 0x1
