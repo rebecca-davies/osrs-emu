@@ -1,7 +1,7 @@
 package emu.server.game.world.cycle
 
 import emu.game.cycle.CyclePhase
-import emu.game.cycle.CycleProfileSnapshot
+import emu.game.cycle.CycleProfiler
 import emu.server.game.persistence.CharacterWriteBackException
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.World
@@ -25,35 +25,53 @@ class WorldCycle(
     private val output: PlayerOutputProcess,
 ) {
     private val phasePlayers = ArrayList<ConnectedPlayer>(PlayerCapacity.PER_WORLD)
+    private val profiler = CycleProfiler()
 
     fun tick(worldTick: Long) {
         require(worldTick >= 0) { "world tick must be non-negative" }
+        val cycleStartedAt = System.nanoTime()
         try {
-            commands.drain(world)
-            playerMain.beginCycle(worldTick)
-            phasePlayers.clear()
-            world.collectActivePlayers(phasePlayers)
-            processPlayers(CyclePhase.CLIENT_INPUT, phasePlayers) { connected ->
-                actions.process(connected.player, connected.connection)
+            profiler.measure(CyclePhase.WORLD) {
+                commands.drain(world)
+                playerMain.beginCycle(worldTick)
             }
-            phasePlayers.clear()
-            world.collectCyclePlayers(phasePlayers)
-            processPlayerPhase(phasePlayers)
-            phasePlayers.clear()
-            world.collectAllPlayers(phasePlayers)
-            processPlayers(CyclePhase.LOGOUT, phasePlayers, process = lifecycle::processLogout)
-            processLogins()
-            phasePlayers.clear()
-            world.collectAllPlayers(phasePlayers)
-            processOutput(phasePlayers)
-            world.clearCycleProfile()
+            profiler.measure(CyclePhase.CLIENT_INPUT) {
+                phasePlayers.clear()
+                world.collectActivePlayers(phasePlayers)
+                processPlayers(CyclePhase.CLIENT_INPUT, phasePlayers) { connected ->
+                    actions.process(connected.player, connected.connection)
+                }
+            }
+            profiler.measure(CyclePhase.PLAYER) {
+                phasePlayers.clear()
+                world.collectCyclePlayers(phasePlayers)
+                processPlayerPhase(phasePlayers)
+            }
+            profiler.measure(CyclePhase.LOGOUT) {
+                phasePlayers.clear()
+                world.collectAllPlayers(phasePlayers)
+                processPlayers(CyclePhase.LOGOUT, phasePlayers, process = lifecycle::processLogout)
+            }
+            profiler.measure(CyclePhase.LOGIN) { processLogins() }
+            profiler.measure(CyclePhase.INFO) {
+                phasePlayers.clear()
+                world.collectAllPlayers(phasePlayers)
+                prepareOutput(phasePlayers)
+            }
+            profiler.measure(CyclePhase.CLIENT_OUTPUT) {
+                processPlayers(CyclePhase.CLIENT_OUTPUT, phasePlayers, process = output::publish)
+            }
+            profiler.measure(CyclePhase.CLEANUP) {
+                processPlayers(CyclePhase.CLEANUP, phasePlayers) { output.cleanup(world, it) }
+                world.clearCycleProfile()
+            }
         } finally {
             phasePlayers.clear()
+            val cycleFinishedAt = System.nanoTime()
+            val profile = profiler.record(cycleFinishedAt - cycleStartedAt, cycleFinishedAt)
+            if (profile.lagSpike) logger.warn { "world: tick $worldTick exceeded its cycle budget" }
+            profile.snapshot?.let(world::recordCycleProfile)
         }
-    }
-
-    fun recordCycleProfile(snapshot: CycleProfileSnapshot) {
-        world.recordCycleProfile(snapshot)
     }
 
     fun beginShutdown() {
@@ -67,7 +85,9 @@ class WorldCycle(
             world.collectAllPlayers(phasePlayers)
             processPlayerPhase(phasePlayers)
             processPlayers(CyclePhase.LOGOUT, phasePlayers, process = lifecycle::processLogout)
-            processOutput(phasePlayers)
+            prepareOutput(phasePlayers)
+            processPlayers(CyclePhase.CLIENT_OUTPUT, phasePlayers, process = output::publish)
+            processPlayers(CyclePhase.CLEANUP, phasePlayers) { output.cleanup(world, it) }
             world.isEmpty()
         } finally {
             phasePlayers.clear()
@@ -109,13 +129,11 @@ class WorldCycle(
         }
     }
 
-    private fun processOutput(players: List<ConnectedPlayer>) {
+    private fun prepareOutput(players: List<ConnectedPlayer>) {
         val view = output.snapshot(players)
         val profileMessage = world.cycleProfile?.let { output.profileMessage(it, view.playerCount) }
         processPlayers(CyclePhase.INFO, players) { output.prepare(it, view, profileMessage) }
         output.finishInformation(players)
-        processPlayers(CyclePhase.CLIENT_OUTPUT, players, process = output::publish)
-        processPlayers(CyclePhase.CLEANUP, players) { output.cleanup(world, it) }
     }
 
     private fun processPlayers(
@@ -144,5 +162,14 @@ class WorldCycle(
             }
             player.requestLogout()
         }
+    }
+}
+
+private inline fun CycleProfiler.measure(phase: CyclePhase, process: () -> Unit) {
+    val startedAt = System.nanoTime()
+    try {
+        process()
+    } finally {
+        recordPhase(phase, System.nanoTime() - startedAt)
     }
 }

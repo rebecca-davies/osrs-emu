@@ -7,6 +7,14 @@ data class CycleProfileSnapshot(
     val maxNanos: Long,
     val lagSpikes: Long,
     val windowNanos: Long,
+    val phases: List<CyclePhaseProfileSnapshot> = emptyList(),
+)
+
+/** Aggregated time spent in one global cycle phase during a reporting window. */
+data class CyclePhaseProfileSnapshot(
+    val phase: CyclePhase,
+    val averageNanos: Long,
+    val maxNanos: Long,
 )
 
 /** Result of recording one cycle; a snapshot is present only when a reporting window closes. */
@@ -30,6 +38,8 @@ class CycleProfiler(
     private var totalNanos = 0L
     private var maxNanos = 0L
     private var lagSpikes = 0L
+    private val phaseTotals = LongArray(CyclePhase.entries.size)
+    private val phaseMaximums = LongArray(CyclePhase.entries.size)
 
     init {
         require(reportIntervalNanos > 0) { "report interval must be positive" }
@@ -55,14 +65,40 @@ class CycleProfiler(
                 maxNanos = maxNanos,
                 lagSpikes = lagSpikes,
                 windowNanos = elapsed,
+                phases = phaseSnapshots(),
             )
         windowStartedAtNanos = finishedAtNanos
         cycles = 0
         totalNanos = 0
         maxNanos = 0
         lagSpikes = 0
+        phaseTotals.fill(0)
+        phaseMaximums.fill(0)
         return CycleProfileEvent(lagSpike, snapshot)
     }
+
+    /** Adds one completed global phase to the current reporting window. */
+    fun recordPhase(phase: CyclePhase, durationNanos: Long) {
+        require(durationNanos >= 0) { "phase duration cannot be negative" }
+        val index = phase.ordinal
+        phaseTotals[index] += durationNanos
+        phaseMaximums[index] = maxOf(phaseMaximums[index], durationNanos)
+    }
+
+    private fun phaseSnapshots(): List<CyclePhaseProfileSnapshot> =
+        buildList {
+            for (phase in CyclePhase.entries) {
+                val index = phase.ordinal
+                if (phaseTotals[index] == 0L) continue
+                add(
+                    CyclePhaseProfileSnapshot(
+                        phase = phase,
+                        averageNanos = phaseTotals[index] / cycles,
+                        maxNanos = phaseMaximums[index],
+                    ),
+                )
+            }
+        }
 
     private companion object {
         const val DEFAULT_REPORT_INTERVAL_NANOS = 30_000_000_000L

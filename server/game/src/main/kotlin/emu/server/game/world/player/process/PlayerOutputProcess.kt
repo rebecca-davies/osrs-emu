@@ -1,5 +1,6 @@
 package emu.server.game.world.player.process
 
+import emu.game.cycle.CyclePhaseProfileSnapshot
 import emu.game.cycle.CycleProfileSnapshot
 import emu.protocol.osrs239.game.message.chat.MessageGame
 import emu.protocol.osrs239.game.message.cycle.ServerTickEnd
@@ -131,10 +132,18 @@ class PlayerOutputProcess {
     }
 
     internal fun profileMessage(snapshot: CycleProfileSnapshot, playerCount: Int): MessageGame {
+        val hotPhases =
+            snapshot.phases
+                .sortedByDescending(CyclePhaseProfileSnapshot::averageNanos)
+                .take(MAX_REPORTED_PHASES)
+                .joinToString("/") { phase ->
+                    "${phase.phase.name.lowercase()}:${millis(phase.averageNanos)}"
+                }
         val text =
             "Cycle profile: players=$playerCount, cycles=${snapshot.cycles}, " +
                 "avg=${millis(snapshot.averageNanos)}ms, " +
-                "max=${millis(snapshot.maxNanos)}ms, lag spikes=${snapshot.lagSpikes}."
+                "max=${millis(snapshot.maxNanos)}ms, lag spikes=${snapshot.lagSpikes}" +
+                if (hotPhases.isEmpty()) "." else ", hot=$hotPhases ms."
         return MessageGame(MessageGame.GAME_MESSAGE, text)
     }
 
@@ -142,5 +151,6 @@ class PlayerOutputProcess {
 
     private companion object {
         const val MAX_LOGOUT_OUTPUT_ATTEMPTS = 3
+        const val MAX_REPORTED_PHASES = 3
     }
 }

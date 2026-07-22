@@ -4,6 +4,8 @@ import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.cycle.CycleProfileSnapshot
+import emu.game.cycle.CyclePhase
+import emu.game.cycle.CyclePhaseProfileSnapshot
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.MovementUpdate
@@ -232,7 +234,19 @@ class PlayerOutputProcessTest {
                 GameOutputSink { batch -> batches += batch; true },
             )
         world.activateTestPlayer(connected.connection.token)
-        val snapshot = CycleProfileSnapshot(50, 2_000_000, 8_000_000, 1, 30_000_000_000)
+        val snapshot =
+            CycleProfileSnapshot(
+                50,
+                2_000_000,
+                8_000_000,
+                1,
+                30_000_000_000,
+                phases =
+                    listOf(
+                        CyclePhaseProfileSnapshot(CyclePhase.INFO, 1_500_000, 4_000_000),
+                        CyclePhaseProfileSnapshot(CyclePhase.PLAYER, 500_000, 2_000_000),
+                    ),
+            )
         world.recordCycleProfile(snapshot)
 
         val output = PlayerOutputProcess()
@@ -248,5 +262,6 @@ class PlayerOutputProcessTest {
         assertTrue("players=1" in report.text)
         assertTrue("avg=2.0ms" in report.text)
         assertTrue("max=8.0ms" in report.text)
+        assertTrue("hot=info:1.5/player:0.5 ms" in report.text)
     }
 }

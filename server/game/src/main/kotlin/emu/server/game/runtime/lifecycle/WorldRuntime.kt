@@ -1,6 +1,5 @@
 package emu.server.game.runtime.lifecycle
 
-import emu.game.cycle.CycleProfiler
 import emu.game.cycle.FixedRateTickSchedule
 import emu.game.cycle.GAME_TICK_MILLIS
 import emu.server.game.world.cycle.WorldCycle
@@ -19,7 +18,6 @@ private val logger = KotlinLogging.logger {}
 class WorldRuntime(
     private val cycle: WorldCycle,
     tickInterval: Duration = GAME_TICK_MILLIS.milliseconds,
-    private val profiler: CycleProfiler = CycleProfiler(),
 ) {
     private val intervalMillis = tickInterval.inWholeMilliseconds
     private val started = AtomicBoolean(false)
@@ -37,12 +35,7 @@ class WorldRuntime(
         try {
             while (worldTick < maxTicks) {
                 val startedAtMillis = monotonicMillis()
-                val startedAtNanos = System.nanoTime()
                 cycle.tick(worldTick)
-                val finishedAtNanos = System.nanoTime()
-                val profile = profiler.record(finishedAtNanos - startedAtNanos, finishedAtNanos)
-                if (profile.lagSpike) logger.warn { "world: tick $worldTick exceeded its cycle budget" }
-                profile.snapshot?.let(cycle::recordCycleProfile)
                 worldTick++
                 if (worldTick < maxTicks) {
                     val wait = schedule.delayAfterTick(startedAtMillis, monotonicMillis())

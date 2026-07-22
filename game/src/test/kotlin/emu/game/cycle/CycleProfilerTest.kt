@@ -17,7 +17,9 @@ class CycleProfilerTest {
             )
 
         val first = profiler.record(durationNanos = 100, finishedAtNanos = 10_000)
+        profiler.recordPhase(CyclePhase.INFO, 300)
         val second = profiler.record(durationNanos = 700, finishedAtNanos = 20_000)
+        profiler.recordPhase(CyclePhase.INFO, 600)
         val third = profiler.record(durationNanos = 400, finishedAtNanos = 30_000)
 
         assertFalse(first.lagSpike)
@@ -30,6 +32,10 @@ class CycleProfilerTest {
         assertEquals(700, snapshot.maxNanos)
         assertEquals(1, snapshot.lagSpikes)
         assertEquals(30_000, snapshot.windowNanos)
+        assertEquals(
+            CyclePhaseProfileSnapshot(CyclePhase.INFO, averageNanos = 300, maxNanos = 600),
+            snapshot.phases.single(),
+        )
 
         val reset = profiler.record(durationNanos = 50, finishedAtNanos = 40_000)
         assertNull(reset.snapshot)
@@ -42,6 +48,9 @@ class CycleProfilerTest {
         }
         kotlin.test.assertFailsWith<IllegalArgumentException> {
             profiler.record(durationNanos = 1, finishedAtNanos = 9)
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            profiler.recordPhase(CyclePhase.INFO, durationNanos = -1)
         }
     }
 }
