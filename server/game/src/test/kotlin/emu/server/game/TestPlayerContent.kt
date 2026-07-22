@@ -8,7 +8,7 @@ import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
 import emu.server.game.world.map.CollisionMapLoader
-import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
+import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
@@ -29,7 +29,7 @@ internal object TestPlayerContent {
         routeFinder,
         chat,
         runner,
-        PlayerCheatRepositoryBuilder().build(),
+        PlayerCommandRepositoryBuilder().build(),
     )
 
     fun main(movement: PlayerMovementProcess) =

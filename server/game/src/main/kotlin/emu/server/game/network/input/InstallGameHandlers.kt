@@ -11,8 +11,8 @@ import emu.protocol.osrs239.game.message.component.IfButtonX
 import emu.protocol.osrs239.game.message.movement.MoveGameClick
 import emu.server.game.network.input.chat.MessagePublicHandler
 import emu.server.game.network.input.chat.SetChatFilterSettingsHandler
-import emu.server.game.network.input.client.ClientCheatHandler
 import emu.server.game.network.input.client.IdleHandler
+import emu.server.game.network.input.command.ClientCommandHandler
 import emu.server.game.network.input.movement.MoveGameClickHandler
 import emu.server.game.network.input.ui.CloseModalHandler
 import emu.server.game.network.input.ui.IfButtonXHandler
@@ -25,7 +25,7 @@ fun HandlerRepositoryBuilder.installGameHandlers(
 ): HandlerRepositoryBuilder =
     bind(MoveGameClick::class.java, MoveGameClickHandler(actions))
         .bind(IfButtonX::class.java, IfButtonXHandler(actions))
-        .bind(ClientCheat::class.java, ClientCheatHandler(actions))
+        .bind(ClientCheat::class.java, ClientCommandHandler(actions))
         .bind(CloseModal::class.java, CloseModalHandler(actions))
         .bind(Idle::class.java, IdleHandler(actions))
         .bind(MessagePublic::class.java, MessagePublicHandler(huffman, actions))

@@ -8,14 +8,14 @@ import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
 import emu.server.game.network.connection.PlayerConnection
 import emu.server.game.world.player.WorldPlayer
-import emu.server.game.world.player.cheat.PlayerCheatRepository
+import emu.server.game.world.player.command.PlayerCommandRepository
 
 /** Drains decoded client actions for every player during the global client-input phase. */
 class PlayerActionProcess(
     private val routeFinder: PlayerRouteFinder,
     private val chat: PlayerChatActionProcess,
     private val runner: PlayerScriptRunner,
-    private val cheats: PlayerCheatRepository,
+    private val commands: PlayerCommandRepository,
 ) {
     internal fun process(player: WorldPlayer, connection: PlayerConnection) {
         connection.actions.drain { action ->
@@ -23,8 +23,8 @@ class PlayerActionProcess(
                 is PlayerAction.Route -> connection.pendingRoute = action
                 is PlayerAction.Button -> button(player, action.click)
                 is PlayerAction.Chat -> chat.process(player, connection.publicChat, action.input)
-                is PlayerAction.Cheat -> {
-                    val response = cheats.execute(action.input.text, player.privilege)
+                is PlayerAction.Command -> {
+                    val response = commands.execute(action.input.text, player, player.privilege)
                     if (response != null) connection.queueGameMessage(response)
                 }
                 PlayerAction.CloseModal -> player.requestModalClose()

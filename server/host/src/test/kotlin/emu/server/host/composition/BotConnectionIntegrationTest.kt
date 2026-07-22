@@ -40,9 +40,9 @@ import emu.server.game.world.World
 import emu.server.game.world.cycle.WorldCycle
 import emu.server.game.world.entry.WorldEntry
 import emu.server.game.world.map.CollisionMapLoader
-import emu.server.game.world.player.cheat.BotClientRequestResult
-import emu.server.game.world.player.cheat.BotClientRequestSink
-import emu.server.game.world.player.cheat.buildPlayerCheatRepository
+import emu.server.game.world.player.command.bot.BotClientRequestResult
+import emu.server.game.world.player.command.bot.BotClientRequestSink
+import emu.server.game.world.player.command.buildPlayerCommandRepository
 import emu.server.game.world.player.process.PlayerActionProcess
 import emu.server.game.world.player.process.PlayerChatActionProcess
 import emu.server.game.world.player.process.PlayerLifecycleProcess
@@ -183,7 +183,7 @@ class BotConnectionIntegrationTest {
                 routeFinder,
                 PlayerChatActionProcess(huffman, ChatAuditSink { true }),
                 scripts,
-                buildPlayerCheatRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
+                buildPlayerCommandRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
             )
         val main =
             PlayerMainProcess(

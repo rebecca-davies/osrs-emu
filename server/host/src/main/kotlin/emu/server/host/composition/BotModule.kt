@@ -8,8 +8,8 @@ import emu.server.bot.config.BotConfig
 import emu.server.bot.connection.BotConnection
 import emu.server.bot.connection.BotConnectionRunner
 import emu.server.bot.connection.BotEndpoint
-import emu.server.game.world.player.cheat.BotClientRequestResult
-import emu.server.game.world.player.cheat.BotClientRequestSink
+import emu.server.game.world.player.command.bot.BotClientRequestResult
+import emu.server.game.world.player.command.bot.BotClientRequestSink
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress

@@ -1,11 +1,11 @@
-package emu.server.game.world.player.cheat
+package emu.server.game.world.player.command.bot
 
-/** Nonblocking host-provided boundary for bounded headless-client launch requests. */
+/** Nonblocking host-provided boundary for bounded automated-client launch requests. */
 fun interface BotClientRequestSink {
     fun add(count: Int): BotClientRequestResult
 }
 
-/** Immediate outcome of submitting a bounded headless-client request. */
+/** Immediate outcome of submitting a bounded automated-client request. */
 sealed interface BotClientRequestResult {
     data class Accepted(val count: Int, val reservedClients: Int) : BotClientRequestResult
 

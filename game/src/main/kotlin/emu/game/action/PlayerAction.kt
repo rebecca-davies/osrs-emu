@@ -1,7 +1,7 @@
 package emu.game.action
 
 import emu.game.chat.ChatInput
-import emu.game.cheat.PlayerCheatInput
+import emu.game.command.PlayerCommandInput
 import emu.game.ui.ButtonClick
 
 /** Immutable client action queued by network IO for ordered world-thread processing. */
@@ -18,7 +18,7 @@ sealed interface PlayerAction {
 
     data class Chat(val input: ChatInput) : PlayerAction
 
-    data class Cheat(val input: PlayerCheatInput) : PlayerAction
+    data class Command(val input: PlayerCommandInput) : PlayerAction
 
     data object CloseModal : PlayerAction
 

@@ -87,8 +87,9 @@ review.
   **Handler** maps one decoded inbound message into service work or a player action. **Output** maps
   world state into outbound messages/batches; it is not a codec.
 - **Action** is RuneScape player work consumed by the strong/weak player action queues. **Input** is
-  the validated payload carried by an action. **Command** is cross-thread control work applied on
-  the world thread. **Queue** is an explicitly ordered, bounded producer/consumer structure; state
+  the validated payload carried by an action. **Player command** is authenticated developer-console
+  work selected on the world thread. **World command** is cross-thread control work applied at the
+  world boundary. **Queue** is an explicitly ordered, bounded producer/consumer structure; state
   whether it is a player action queue or an infrastructure queue.
 - **IncomingPlayerActionQueue** is bounded connection-to-world staging. **PlayerActionQueue** is
   the RuneScape primary/strong/weak/engine queue. Keep the two lifetimes and semantics distinct.
