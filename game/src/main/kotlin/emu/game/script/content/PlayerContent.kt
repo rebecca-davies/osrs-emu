@@ -1,6 +1,7 @@
 package emu.game.script.content
 
 import emu.game.content.ui.config.UiComponentMap
+import emu.game.loc.Loc
 import emu.game.script.execution.PlayerScript
 import emu.game.script.execution.PlayerScriptContext
 import emu.game.script.queue.PlayerQueueType
@@ -29,6 +30,23 @@ class PlayerContent internal constructor(
             val script = PlayerScript("[if_button,$componentName]", body)
             bind(ScriptTrigger(ServerTriggerType.IF_BUTTON, component.packed), script)
         }
+    }
+
+    /** Registers content for the first cache-defined operation on [type]. */
+    fun onLoc1(
+        type: Int,
+        body: suspend PlayerScriptContext.(Loc) -> Unit,
+    ) {
+        require(type in 0..0xFFFF) { "oploc1 type must fit an unsigned short" }
+        bind(
+            ScriptTrigger(ServerTriggerType.OPLOC1, type),
+            PlayerScript("[oploc1,$type]") {
+                require(argument is Loc && argument.type == type) {
+                    "oploc1 $type requires its resolved loc"
+                }
+                body(argument)
+            },
+        )
     }
 
     /** Registers content run when a modal rooted at the named interface closes. */

@@ -1,5 +1,6 @@
 package emu.server.game.network.output.playerinfo
 
+import emu.game.map.MapInstance
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -7,20 +8,24 @@ import kotlin.math.max
 internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
     val playerCount: Int = players.size
     private val byIndex = arrayOfNulls<PlayerInfoSnapshot>(PLAYER_SLOTS)
-    private val zones = HashMap<Int, MutableList<PlayerInfoSnapshot>>()
+    private val zones = HashMap<MapInstance, MutableMap<Int, MutableList<PlayerInfoSnapshot>>>()
 
     init {
         for (player in players) {
             byIndex[player.index] = player
-            zones.getOrPut(zoneKey(player)) { mutableListOf() } += player
+            val instanceZones = zones.getOrPut(player.mapInstance) { hashMapOf() }
+            instanceZones.getOrPut(zoneKey(player)) { mutableListOf() } += player
         }
-        zones.values.forEach { it.sortBy(PlayerInfoSnapshot::index) }
+        zones.values.forEach { instance ->
+            instance.values.forEach { it.sortBy(PlayerInfoSnapshot::index) }
+        }
     }
 
     operator fun get(index: Int): PlayerInfoSnapshot? = byIndex[index]
 
     fun isVisible(observer: PlayerInfoSnapshot, target: PlayerInfoSnapshot, distance: Int): Boolean =
-        observer.position.plane == target.position.plane &&
+        observer.mapInstance == target.mapInstance &&
+            observer.position.plane == target.position.plane &&
             max(
                 abs(observer.position.x - target.position.x),
                 abs(observer.position.y - target.position.y),
@@ -36,11 +41,12 @@ internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
     ) {
         if (limit <= 0) return
         var selected = 0
+        val instanceZones = zones[observer.mapInstance] ?: return
         val zoneX = observer.position.x shr ZONE_SHIFT
         val zoneY = observer.position.y shr ZONE_SHIFT
         for ((deltaX, deltaY) in ZONE_OFFSETS) {
             val key = zoneKey(observer.position.plane, zoneX + deltaX, zoneY + deltaY)
-            val players = zones[key] ?: continue
+            val players = instanceZones[key] ?: continue
             for (target in players) {
                 if (
                     target.index == observer.index || tracked[target.index] ||

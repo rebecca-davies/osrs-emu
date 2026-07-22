@@ -3,6 +3,8 @@ package emu.server.game
 import emu.compression.HuffmanCodec
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.ui.config.UiContentCatalog
+import emu.game.map.GameMap
+import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
 import emu.persistence.character.write.DurableCharacterWrite
@@ -26,7 +28,7 @@ internal object TestPlayerContent {
     fun actions(
         audit: ChatAuditSink = ChatAuditSink { true },
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
-    ) = PlayerActions(scripts, commands, audit)
+    ) = PlayerActions(GameMap(OpenCollisionMap), scripts, commands, audit)
 
     fun playerPhase() = PlayerPhase(scripts)
 

@@ -1,5 +1,7 @@
 package emu.game.content.player
 
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
+import emu.game.content.areas.inferno.InfernoFreeModeScripts
 import emu.game.content.player.controls.PlayerControlsScripts
 import emu.game.content.player.logout.LogoutScripts
 import emu.game.content.ui.config.UiComponentMap
@@ -11,5 +13,6 @@ object PlayerContentCatalog {
         PlayerScriptRepository.build(components) {
             PlayerControlsScripts.register(this)
             LogoutScripts.register(this)
+            InfernoFreeModeScripts.register(this, InfernoFreeModeCatalog.load())
         }
 }

@@ -37,6 +37,7 @@ class PlayerOutput(
                     movement = player.movement.update,
                     runEnabled = player.movement.runEnabled,
                     appearance = session.appearance.message(player),
+                    mapInstance = player.mapInstance,
                     publicChat = player.publicChat?.let { message -> publicChat(player, message) },
                     sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
                 )

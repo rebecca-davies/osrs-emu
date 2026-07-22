@@ -27,4 +27,9 @@ class GameClientProtTest {
         assertEquals(Prot(95, 0), GameClientProt.CLOSE_MODAL)
         assertEquals(Prot(4, 0), GameClientProt.IDLE)
     }
+
+    @Test
+    fun `first loc operation has its injected client opcode and fixed body`() {
+        assertEquals(Prot(73, 8), GameClientProt.OPLOC1)
+    }
 }

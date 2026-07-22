@@ -3,6 +3,7 @@ package emu.game.player
 import emu.game.chat.PublicChatInput
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.gameframe.Gameframe
+import emu.game.map.MapInstance
 import emu.game.map.PlayerBuildArea
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.PlayerMovement
@@ -30,6 +31,9 @@ class Player(
 
     val movement = PlayerMovement(initialPosition)
     val buildArea = PlayerBuildArea(initialPosition)
+
+    var mapInstance: MapInstance = MapInstance.SHARED
+        private set
     val varps =
         PlayerVarps(PlayerVarpCatalog.ALL, savedVarps).apply {
             this[PlayerVarpCatalog.HAS_DISPLAY_NAME] = 1
@@ -81,6 +85,13 @@ class Player(
     fun walkTo(destination: Tile, temporaryRun: Boolean? = null) {
         require(destination.plane == movement.position.plane) { "a walking route cannot change plane" }
         pendingRoute = RouteRequest(destination, temporaryRun)
+    }
+
+    /** Teleports to [destination], optionally entering another server-side map instance. */
+    fun teleportTo(destination: Tile, instance: MapInstance = mapInstance) {
+        pendingRoute = null
+        mapInstance = instance
+        movement.teleportTo(destination)
     }
 
     /** Publishes at most one public-chat update during a cycle. */

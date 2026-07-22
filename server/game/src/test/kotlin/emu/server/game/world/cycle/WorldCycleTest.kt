@@ -4,6 +4,10 @@ import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
 import emu.game.chat.PublicChatInput
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
+import emu.game.map.GameMap
+import emu.game.map.Tile
+import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.player.Player
 import emu.persistence.character.model.CharacterPosition
@@ -11,6 +15,7 @@ import emu.persistence.character.model.CharacterRecord
 import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
+import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
 import emu.server.game.TestPlayerContent
 import emu.server.game.network.output.GameOutputBatch
 import emu.server.game.network.output.GameOutputSegment
@@ -27,6 +32,30 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WorldCycleTest {
+    @Test
+    fun `login content teleport prepares its destination before first output`() {
+        val requested = mutableListOf<Tile>()
+        val map = GameMap(OpenCollisionMap, requestAreas = { tile -> requested += tile; true })
+        val world = testWorld(maxPlayerIndex = 1, gameMap = map)
+        val outputs = mutableListOf<GameOutputBatch>()
+        val player =
+            world.addTestPlayer(
+                player(1, 3_222, 3_218),
+                actions(),
+                GameOutputSink { output -> outputs += output; true },
+            )
+        world.requestActivation(world.session(player).token)
+
+        TestPlayerContent.cycle(world).tick(worldTick = 0)
+
+        val hub = InfernoFreeModeCatalog.load().clanWarsArrival
+        assertEquals(hub, player.movement.position)
+        assertEquals(listOf(hub), requested)
+        val info = playerInfo(outputs.single())
+        val local = info.sections.highResolutionActive.single() as PlayerInfoBitCode.HighResolution
+        assertEquals(PlayerMovement.Teleport(-95, 403, 0), local.movement)
+    }
+
     @Test
     fun `every player route is applied before output at world capacity`() {
         val capacity = PlayerCapacity.PER_WORLD
@@ -162,14 +191,16 @@ class WorldCycleTest {
     private fun actions() = IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig())
 
     private fun addedPlayerX(batch: GameOutputBatch): Int {
-        val info =
-            batch.segments
-                .filterIsInstance<GameOutputSegment.PacketGroup>()
-                .flatMap(GameOutputSegment.PacketGroup::messages)
-                .filterIsInstance<PlayerInfo>()
-                .single()
+        val info = playerInfo(batch)
         return info.sections.lowResolutionActive.filterIsInstance<PlayerInfoBitCode.Add>().single().x
     }
+
+    private fun playerInfo(batch: GameOutputBatch): PlayerInfo =
+        batch.segments
+            .filterIsInstance<GameOutputSegment.PacketGroup>()
+            .flatMap(GameOutputSegment.PacketGroup::messages)
+            .filterIsInstance<PlayerInfo>()
+            .single()
 
     private fun player(id: Long, x: Int, y: Int = 3200) =
         CharacterRecord(

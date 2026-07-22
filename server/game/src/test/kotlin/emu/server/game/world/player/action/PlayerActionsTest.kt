@@ -6,11 +6,18 @@ import emu.game.action.PlayerAction
 import emu.game.chat.ChatFilterInput
 import emu.game.chat.PublicChatInput
 import emu.game.command.PlayerCommandInput
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.content.ui.config.UiContentCatalog
+import emu.game.loc.Loc
+import emu.game.loc.LocOpInput
+import emu.game.loc.LocRepository
+import emu.game.map.GameMap
+import emu.game.map.MapInstance
 import emu.game.map.Tile
+import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.PlayerScriptRepository
@@ -91,6 +98,7 @@ class PlayerActionsTest {
             }
         val actions =
             PlayerActions(
+                worldMap(),
                 PlayerScriptRunner(scripts),
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
@@ -163,14 +171,94 @@ class PlayerActionsTest {
         assertFalse(player.logoutRequested)
     }
 
+    @Test
+    fun `cache-backed challenge portal enters a private empty Inferno`() {
+        val config = InfernoFreeModeCatalog.load()
+        val (_, player) = player(position = config.clanWarsArrival.toPosition())
+        val portalTile = Tile(3_126, 3_620)
+        val portal =
+            Loc(
+                type = config.challengePortalType,
+                tile = portalTile,
+                shape = 10,
+                angle = 1,
+                width = 1,
+                length = 4,
+                options = setOf(1, 2, 3),
+            )
+        val map =
+            GameMap(
+                OpenCollisionMap,
+                locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
+            )
+        val actions =
+            PlayerActions(
+                map,
+                PlayerScriptRunner(PlayerContentCatalog.load(UiContentCatalog.load().components)),
+                PlayerCommandRepositoryBuilder().build(),
+                ChatAuditSink { true },
+            )
+
+        actions.apply(
+            player,
+            PlayerAction.LocOp(
+                LocOpInput(config.challengePortalType, portalTile.x, portalTile.y, option = 1),
+            ),
+        )
+
+        assertEquals(config.arenaArrival, player.movement.position)
+        assertEquals(MapInstance.privateTo(player.id), player.mapInstance)
+        assertEquals(listOf("Inferno free mode started. The arena is empty."), player.takeGameMessages())
+    }
+
+    @Test
+    fun `loc action rejects a valid type when the player is not adjacent`() {
+        val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
+        val portal =
+            Loc(
+                type = 26_642,
+                tile = Tile(3_126, 3_620),
+                shape = 10,
+                angle = 1,
+                width = 1,
+                length = 4,
+                options = setOf(1),
+            )
+        var triggered = false
+        val scripts =
+            PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {
+                onLoc1(portal.type) { triggered = true }
+            }
+        val map =
+            GameMap(
+                OpenCollisionMap,
+                locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
+            )
+
+        PlayerActions(
+            map,
+            PlayerScriptRunner(scripts),
+            PlayerCommandRepositoryBuilder().build(),
+            ChatAuditSink { true },
+        ).apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(portal.type, portal.tile.x, portal.tile.y, option = 1)),
+        )
+
+        assertFalse(triggered)
+        assertEquals(CharacterPosition(3_120, 3_620, 0), player.movement.position.toPosition())
+    }
+
     private fun actions(
         audit: ChatAuditSink = ChatAuditSink { true },
         clock: Clock = Clock.systemUTC(),
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
     ): PlayerActions {
         val scripts = PlayerContentCatalog.load(UiContentCatalog.load().components)
-        return PlayerActions(PlayerScriptRunner(scripts), commands, audit, clock)
+        return PlayerActions(worldMap(), PlayerScriptRunner(scripts), commands, audit, clock)
     }
+
+    private fun worldMap() = GameMap(OpenCollisionMap)
 
     private fun player(
         id: Long = 1,

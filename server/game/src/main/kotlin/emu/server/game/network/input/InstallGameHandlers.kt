@@ -8,11 +8,13 @@ import emu.protocol.osrs239.game.message.client.ClientCheat
 import emu.protocol.osrs239.game.message.client.Idle
 import emu.protocol.osrs239.game.message.component.CloseModal
 import emu.protocol.osrs239.game.message.component.IfButtonX
+import emu.protocol.osrs239.game.message.loc.OpLoc1
 import emu.protocol.osrs239.game.message.movement.MoveGameClick
 import emu.server.game.network.input.chat.MessagePublicHandler
 import emu.server.game.network.input.chat.SetChatFilterSettingsHandler
 import emu.server.game.network.input.client.IdleHandler
 import emu.server.game.network.input.command.ClientCommandHandler
+import emu.server.game.network.input.loc.OpLoc1Handler
 import emu.server.game.network.input.movement.MoveGameClickHandler
 import emu.server.game.network.input.ui.CloseModalHandler
 import emu.server.game.network.input.ui.IfButtonXHandler
@@ -30,3 +32,4 @@ fun HandlerRepositoryBuilder.installGameHandlers(
         .bind(Idle::class.java, IdleHandler(actions))
         .bind(MessagePublic::class.java, MessagePublicHandler(huffman, actions))
         .bind(SetChatFilterSettings::class.java, SetChatFilterSettingsHandler(actions))
+        .bind(OpLoc1::class.java, OpLoc1Handler(actions))

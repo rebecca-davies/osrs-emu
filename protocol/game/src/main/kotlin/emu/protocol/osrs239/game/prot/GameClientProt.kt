@@ -48,6 +48,9 @@ object GameClientProt {
     /** Client inactivity threshold requesting the idle logout lifecycle. */
     val IDLE: Prot = protocols[4]
 
+    /** First menu operation on a loc, including its absolute tile and nested menu selection. */
+    val OPLOC1: Prot = protocols[73]
+
     /** Returns the declared protocol entry, or null for an opcode outside rev 239's table. */
     fun find(opcode: Int): Prot? = protocols.getOrNull(opcode)
 
@@ -59,5 +62,6 @@ object GameClientProt {
         require(MESSAGE_PUBLIC.size == Prot.VAR_BYTE)
         require(CLOSE_MODAL.size == 0)
         require(IDLE.size == 0)
+        require(OPLOC1.size == 8)
     }
 }

@@ -22,4 +22,21 @@ sealed interface PlayerMovement {
             }
         }
     }
+
+    data class Teleport(
+        override val deltaX: Int,
+        override val deltaY: Int,
+        val planeDelta: Int,
+    ) : PlayerMovement {
+        init {
+            require(deltaX in WORLD_DELTA && deltaY in WORLD_DELTA) {
+                "teleport delta must fit the 14-bit world coordinate"
+            }
+            require(planeDelta in 0..3) { "teleport plane delta must be in 0..3" }
+        }
+    }
+
+    private companion object {
+        val WORLD_DELTA = -0x3FFF..0x3FFF
+    }
 }

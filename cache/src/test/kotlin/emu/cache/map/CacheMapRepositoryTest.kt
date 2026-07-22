@@ -71,8 +71,10 @@ class CacheMapRepositoryTest {
         )
 
         assertNull(repository.loadOrNull(49, 49))
+        assertNull(repository.cachedOrNull(50, 50))
         val decoded = requireNotNull(repository.loadOrNull(50, 50))
         assertSame(decoded, repository.loadOrNull(50, 50))
+        assertSame(decoded, repository.cachedOrNull(50, 50))
     }
 
     @Test

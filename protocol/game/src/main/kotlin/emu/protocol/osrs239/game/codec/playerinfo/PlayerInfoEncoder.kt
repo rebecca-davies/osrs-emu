@@ -88,6 +88,10 @@ object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
                 bits.writeBits(2, 2)
                 bits.writeBits(4, runDirection(movement.deltaX, movement.deltaY))
             }
+            is PlayerMovement.Teleport -> {
+                bits.writeBits(2, 3)
+                writeTeleport(bits, movement)
+            }
         }
         code.update?.let(updates::add)
     }
@@ -132,6 +136,26 @@ object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
         }
     }
 
+    private fun writeTeleport(bits: BitBuf, movement: PlayerMovement.Teleport) {
+        val nearby = movement.deltaX in NEARBY_TELEPORT_DELTA && movement.deltaY in NEARBY_TELEPORT_DELTA
+        bits.writeBits(1, if (nearby) 0 else 1)
+        if (nearby) {
+            bits.writeBits(
+                12,
+                (movement.planeDelta shl 10) or
+                    ((movement.deltaX and 0x1F) shl 5) or
+                    (movement.deltaY and 0x1F),
+            )
+        } else {
+            bits.writeBits(
+                30,
+                (movement.planeDelta shl 28) or
+                    ((movement.deltaX and 0x3FFF) shl 14) or
+                    (movement.deltaY and 0x3FFF),
+            )
+        }
+    }
+
     private fun alignToByte(bits: BitBuf) {
         val remainder = bits.bitPosition and 7
         if (remainder != 0) bits.writeBits(8 - remainder, 0)
@@ -172,4 +196,5 @@ object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
         }
 
     private const val MAX_BODY_SIZE = 0xFFFF
+    private val NEARBY_TELEPORT_DELTA = -15..15
 }

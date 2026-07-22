@@ -19,6 +19,7 @@ class PlayerMovement(
 ) {
     private val waypoints = ArrayDeque<Tile>()
     private var temporaryRun: Boolean? = null
+    private var teleportOrigin: Tile? = null
 
     var position: Tile = initialPosition
         private set
@@ -41,11 +42,27 @@ class PlayerMovement(
         this.temporaryRun = temporaryRun
     }
 
+    /** Moves immediately, discards the route, and retains one teleport update until cleanup. */
+    fun teleportTo(destination: Tile) {
+        val origin = teleportOrigin ?: position
+        teleportOrigin = origin
+        waypoints.clear()
+        temporaryRun = null
+        position = destination
+        update =
+            MovementUpdate.Teleport(
+                deltaX = destination.x - origin.x,
+                deltaY = destination.y - origin.y,
+                planeDelta = (destination.plane - origin.plane) and 3,
+            )
+    }
+
     /** Advances the route for one player phase and records its net player-info delta. */
     internal fun advance(
         collisionMap: CollisionMap,
         extraCollisionFlag: Int = CollisionFlag.BLOCK_PLAYERS,
     ) {
+        if (teleportOrigin != null) return
         update = MovementUpdate.Idle
         val start = position
         val firstStep = takeStep(collisionMap, extraCollisionFlag)
@@ -63,6 +80,7 @@ class PlayerMovement(
 
     /** Clears only the ephemeral movement update; the remaining route persists across cycles. */
     fun finishCycle() {
+        teleportOrigin = null
         update = MovementUpdate.Idle
     }
 

@@ -5,6 +5,8 @@ import emu.game.chat.ChatFilterInput
 import emu.game.chat.ChatInput
 import emu.game.chat.PublicChatInput
 import emu.game.command.PlayerCommandInput
+import emu.game.loc.LocOpInput
+import emu.game.map.GameMap
 import emu.game.map.Tile
 import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
@@ -18,6 +20,7 @@ import java.time.Clock
 
 /** Applies staged client actions to one player during the authoritative input phase. */
 class PlayerActions(
+    private val map: GameMap,
     private val scripts: PlayerScriptRunner,
     private val commands: PlayerCommandRepository,
     private val chatAudit: ChatAuditSink,
@@ -32,9 +35,21 @@ class PlayerActions(
             is PlayerAction.Button -> player.applyButton(action.click)
             is PlayerAction.Chat -> player.applyChat(action.input)
             is PlayerAction.Command -> player.applyCommand(action.input)
+            is PlayerAction.LocOp -> player.applyLocOp(action.input)
             PlayerAction.CloseModal -> player.requestModalClose()
             PlayerAction.IdleLogout -> player.requestIdleLogout()
         }
+    }
+
+    private fun Player.applyLocOp(input: LocOpInput) {
+        val loc = map.findLoc(input.type, Tile(input.x, input.z, movement.position.plane)) ?: return
+        if (!loc.supports(input.option, input.subOption) || !map.canReachLoc(movement.position, loc)) return
+        scripts.trigger(
+            this,
+            ServerTriggerType.OPLOC1,
+            subject = loc.type,
+            argument = loc,
+        )
     }
 
     private fun Player.applyRoute(action: PlayerAction.Route) {

@@ -88,4 +88,24 @@ class PlayerMovementTest {
         assertEquals(MovementUpdate.Idle, movement.update)
         assertTrue(movement.hasRoute)
     }
+
+    @Test
+    fun `teleport discards a route and remains visible until cycle cleanup`() {
+        val requested = mutableListOf<Tile>()
+        val player = testPlayer(Tile(3_127, 3_621))
+        val map = GameMap(OpenCollisionMap, requestAreas = requested::add)
+        player.walkTo(Tile(3_130, 3_621))
+        map.resolveRoute(player)
+
+        player.teleportTo(Tile(2_271, 5_332))
+        map.advance(player)
+
+        assertEquals(Tile(2_271, 5_332), player.movement.position)
+        assertEquals(MovementUpdate.Teleport(-856, 1_711, 0), player.movement.update)
+        assertEquals(listOf(Tile(2_271, 5_332)), requested)
+        assertTrue(!player.movement.hasRoute)
+
+        player.finishCycle()
+        assertEquals(MovementUpdate.Idle, player.movement.update)
+    }
 }

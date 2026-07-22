@@ -22,6 +22,7 @@ import emu.protocol.osrs239.game.codec.component.IfSetHideEncoder
 import emu.protocol.osrs239.game.codec.cycle.PacketGroupStartEncoder
 import emu.protocol.osrs239.game.codec.cycle.ServerTickEndEncoder
 import emu.protocol.osrs239.game.codec.inventory.UpdateInvFullEncoder
+import emu.protocol.osrs239.game.codec.loc.OpLoc1Decoder
 import emu.protocol.osrs239.game.codec.movement.MoveGameClickDecoder
 import emu.protocol.osrs239.game.codec.npc.HideNpcOpsEncoder
 import emu.protocol.osrs239.game.codec.npc.NpcInfoEncoder
@@ -58,6 +59,7 @@ object GameCodecs {
         SetChatFilterSettingsDecoder,
         CloseModalDecoder,
         IdleDecoder,
+        OpLoc1Decoder,
     )
 
     val encoders: List<MessageEncoder<*>> = listOf(

@@ -6,6 +6,8 @@ import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
+import emu.game.map.GameMap
+import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
 import emu.game.queue.LongActionLogout
 import emu.game.queue.PlayerActionPriority
@@ -310,6 +312,7 @@ class PlayerLogoutCycleTest {
             world,
             WorldCommandQueue(capacity = 8),
             PlayerActions(
+                GameMap(OpenCollisionMap),
                 runner,
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },

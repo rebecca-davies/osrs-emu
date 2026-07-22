@@ -1,5 +1,6 @@
 package emu.server.game.network.output.playerinfo
 
+import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
@@ -15,6 +16,7 @@ internal data class PlayerInfoSnapshot(
     val movement: MovementUpdate,
     val runEnabled: Boolean,
     val appearance: PlayerAppearance,
+    val mapInstance: MapInstance = MapInstance.SHARED,
     val publicChat: PlayerPublicChat? = null,
     val sequence: PlayerSequence? = null,
 ) {
@@ -25,6 +27,10 @@ internal data class PlayerInfoSnapshot(
                 PlayerInfoBitCode.HighResolution(PlayerMovement.Walk(movement.deltaX, movement.deltaY))
             is MovementUpdate.Run ->
                 PlayerInfoBitCode.HighResolution(PlayerMovement.Run(movement.deltaX, movement.deltaY))
+            is MovementUpdate.Teleport ->
+                PlayerInfoBitCode.HighResolution(
+                    PlayerMovement.Teleport(movement.deltaX, movement.deltaY, movement.planeDelta),
+                )
         }
 
     val protocolMovement: PlayerMovement?

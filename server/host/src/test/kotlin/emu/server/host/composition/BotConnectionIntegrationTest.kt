@@ -178,6 +178,7 @@ class BotConnectionIntegrationTest {
         val scripts = PlayerScriptRunner(PlayerContentCatalog.load(ui.components))
         val actions =
             PlayerActions(
+                map,
                 scripts,
                 buildPlayerCommandRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
                 ChatAuditSink { true },

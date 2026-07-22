@@ -201,6 +201,10 @@ class World(
         map.retryAreaRequests()
     }
 
+    internal fun prepareCurrentMapArea(player: Player) {
+        map.prepareArea(player.movement.position)
+    }
+
     internal fun collectActivePlayers(destination: MutableCollection<Player>) =
         players.collectActive(destination)
 

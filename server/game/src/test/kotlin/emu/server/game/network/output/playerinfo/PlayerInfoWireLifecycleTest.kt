@@ -1,6 +1,7 @@
 package emu.server.game.network.output.playerinfo
 
 import emu.crypto.NopStreamCipher
+import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.protocol.osrs239.game.codec.playerinfo.PlayerInfoEncoder
@@ -16,6 +17,57 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class PlayerInfoWireLifecycleTest {
+    @Test
+    fun `near teleport preserves signed deltas and plane in the client oracle`() {
+        val observer = snapshot(index = 1, x = 3_200, name = "Observer")
+        val state = PlayerInfoState(localIndex = observer.index)
+        val oracle = Rev239PlayerInfoOracle(observer.index, observer.position)
+        decode(oracle, state.next(PlayerInfoView(listOf(observer))))
+        val destination = Tile(3_185, 3_215, 3)
+        val teleported =
+            observer.copy(
+                position = destination,
+                movement = MovementUpdate.Teleport(-15, 15, 3),
+            )
+
+        val update =
+            assertNotNull(
+                decode(oracle, state.next(PlayerInfoView(listOf(teleported))))
+                    .updates[observer.index],
+            )
+
+        assertEquals(Rev239PlayerInfoOracle.UpdateType.TELEPORT, update.type)
+        assertEquals(destination, update.position)
+        assertEquals(127, update.temporaryMoveSpeed)
+    }
+
+    @Test
+    fun `far teleport moves the local player and clears interpolation in the client oracle`() {
+        val observer =
+            snapshot(index = 1, x = 3_127, name = "Observer")
+                .copy(position = Tile(3_127, 3_621))
+        val state = PlayerInfoState(localIndex = observer.index)
+        val oracle = Rev239PlayerInfoOracle(observer.index, observer.position)
+        decode(oracle, state.next(PlayerInfoView(listOf(observer))))
+        val destination = Tile(2_271, 5_332)
+        val teleported =
+            observer.copy(
+                position = destination,
+                movement = MovementUpdate.Teleport(-856, 1_711, 0),
+                mapInstance = MapInstance.privateTo(1),
+            )
+
+        val update =
+            assertNotNull(
+                decode(oracle, state.next(PlayerInfoView(listOf(teleported))))
+                    .updates[observer.index],
+            )
+
+        assertEquals(Rev239PlayerInfoOracle.UpdateType.TELEPORT, update.type)
+        assertEquals(destination, update.position)
+        assertEquals(127, update.temporaryMoveSpeed)
+    }
+
     @Test
     fun `independent rev239 client oracle consumes add move chat remove and re-add lifecycle`() {
         val observer = snapshot(index = 1, x = 3_200, name = "Observer")

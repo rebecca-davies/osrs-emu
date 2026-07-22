@@ -148,7 +148,12 @@ internal class PlayerInfoState(private val localIndex: Int) {
         knownMoveSpeed[snapshot.index] = selectedSpeed
         val temporarySpeed =
             if (includeTemporarySpeed && snapshot.protocolMovement != null) {
-                val actual = if (snapshot.protocolMovement is PlayerMovement.Run) RUN_SPEED else WALK_SPEED
+                val actual =
+                    when (snapshot.protocolMovement) {
+                        is PlayerMovement.Run -> RUN_SPEED
+                        is PlayerMovement.Teleport -> STATIONARY_SPEED
+                        else -> WALK_SPEED
+                    }
                 actual.takeIf { it != selectedSpeed }
             } else {
                 null

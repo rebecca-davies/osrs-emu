@@ -5,6 +5,7 @@ import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContent
 import emu.game.content.ui.config.UiContentCatalog
+import emu.game.loc.LocRepository
 import emu.game.map.GameMap
 import emu.game.map.Tile
 import emu.game.script.execution.PlayerScriptRunner
@@ -40,6 +41,7 @@ import org.koin.dsl.onClose
 internal fun gameModule(
     codecs: CodecRepository,
     collision: CacheCollisionMap,
+    locs: LocRepository = LocRepository.EMPTY,
     huffman: HuffmanCodec,
     config: GameExecutionConfig,
 ) = module {
@@ -61,6 +63,7 @@ internal fun gameModule(
         GameMap(
             collision = collision,
             requestAreas = collisionLoads::request,
+            locs = locs,
         )
     }
     single { UiContentCatalog.load() }
@@ -78,6 +81,7 @@ internal fun gameModule(
     single { buildPlayerCommandRepository(get()) }
     single {
         PlayerActions(
+            map = get(),
             scripts = get(),
             commands = get(),
             chatAudit = get<ChatAuditSink>(),

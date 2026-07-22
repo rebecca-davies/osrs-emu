@@ -2,6 +2,7 @@ package emu.game.script.trigger
 
 /** Jagex server trigger identities used to index Kotlin content scripts. */
 enum class ServerTriggerType(val id: Int) {
+    OPLOC1(66),
     IF_BUTTON(147),
     IF_CLOSE(148),
     LOGIN(157),

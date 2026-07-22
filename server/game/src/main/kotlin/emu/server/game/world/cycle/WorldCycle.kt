@@ -126,7 +126,10 @@ class WorldCycle(
         lifecycle.enterPendingPlayers()
         while (true) {
             val player = world.nextPendingActivation() ?: return
-            runPlayer(CyclePhase.LOGIN, player, lifecycle::login)
+            runPlayer(CyclePhase.LOGIN, player) { activating ->
+                lifecycle.login(activating)
+                if (activating.active) world.prepareCurrentMapArea(activating)
+            }
         }
     }
 

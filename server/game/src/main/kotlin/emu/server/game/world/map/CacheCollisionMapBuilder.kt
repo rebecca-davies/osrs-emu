@@ -50,24 +50,13 @@ object CacheCollisionMapBuilder {
         val baseX = square.squareX * MapTileFlags.MAP_SQUARE_SIZE
         val baseY = square.squareY * MapTileFlags.MAP_SQUARE_SIZE
         for (loc in square.locs) {
-            val plane = visualPlane(square, loc)
+            val plane = square.visualPlane(loc)
             if (plane < 0) continue
             val definition = requireNotNull(objectDefinition(loc.id)) {
                 "missing object definition ${loc.id} at ${square.squareX},${square.squareY}"
             }
             addLoc(collision, Tile(baseX + loc.localX, baseY + loc.localY, plane), loc, definition)
         }
-    }
-
-    private fun visualPlane(square: MapSquare, loc: MapLocSpawn): Int {
-        val tileFlags = square.tiles[loc.localX, loc.localY, loc.plane]
-        val tileAboveFlags = if (loc.plane == MapTileFlags.PLANE_COUNT - 1) {
-            tileFlags
-        } else {
-            square.tiles[loc.localX, loc.localY, loc.plane + 1]
-        }
-        val resolvedFlags = if (tileAboveFlags and MapTileFlags.LINK_BELOW != 0) tileAboveFlags else tileFlags
-        return if (resolvedFlags and MapTileFlags.LINK_BELOW != 0) loc.plane - 1 else loc.plane
     }
 
     private fun addLoc(

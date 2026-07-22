@@ -9,7 +9,7 @@ class GameMapTest {
     @Test
     fun `movement prepares collision only after crossing a map-square boundary`() {
         val requested = mutableListOf<Tile>()
-        val map = GameMap(OpenCollisionMap, requested::add)
+        val map = GameMap(OpenCollisionMap, requestAreas = requested::add)
         val player = testPlayer(Tile(63, 32))
         player.walkTo(Tile(64, 32))
 

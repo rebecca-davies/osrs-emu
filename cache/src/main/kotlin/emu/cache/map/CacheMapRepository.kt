@@ -18,6 +18,12 @@ class CacheMapRepository(private val store: Store) {
     fun load(squareX: Int, squareY: Int): MapSquare =
         requireNotNull(loadOrNull(squareX, squareY)) { "cache map square $squareX,$squareY is missing" }
 
+    /** Returns only a square decoded by prior off-thread preparation. */
+    fun cachedOrNull(squareX: Int, squareY: Int): MapSquare? {
+        if (squareX !in 0..255 || squareY !in 0..255) return null
+        return decodedById[squareX shl 8 or squareY]
+    }
+
     /** Returns a cached decoded square, or `null` when the cache has no map group for it. */
     fun loadOrNull(squareX: Int, squareY: Int): MapSquare? {
         if (squareX !in 0..255 || squareY !in 0..255) return null

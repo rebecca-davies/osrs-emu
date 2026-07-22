@@ -13,4 +13,14 @@ sealed interface MovementUpdate {
     data class Walk(override val deltaX: Int, override val deltaY: Int) : MovementUpdate
 
     data class Run(override val deltaX: Int, override val deltaY: Int) : MovementUpdate
+
+    data class Teleport(
+        override val deltaX: Int,
+        override val deltaY: Int,
+        val planeDelta: Int,
+    ) : MovementUpdate {
+        init {
+            require(planeDelta in 0..3) { "teleport plane delta must be in 0..3" }
+        }
+    }
 }

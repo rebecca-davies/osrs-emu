@@ -4,6 +4,7 @@ import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.chat.PublicChatInput
+import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.PathRoute
@@ -117,6 +118,17 @@ class PlayerInfoStateTest {
         val info = world.session(observer).playerInfo.next(view(world))
 
         assertEquals(1, info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.Remove>().size)
+    }
+
+    @Test
+    fun `players at the same coordinates in different map instances cannot see each other`() {
+        val (world, observer, target) = twoPlayers(targetX = 3_210)
+        world.session(observer).playerInfo.next(view(world))
+        target.teleportTo(target.movement.position, MapInstance.privateTo(target.id))
+
+        val info = world.session(observer).playerInfo.next(view(world))
+
+        assertEquals(1, removals(info).size)
     }
 
     @Test
