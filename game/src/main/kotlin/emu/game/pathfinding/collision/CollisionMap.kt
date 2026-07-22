@@ -24,30 +24,35 @@ internal fun CollisionMap.canTravel(
     require(deltaX in -1..1 && deltaY in -1..1 && (deltaX != 0 || deltaY != 0)) {
         "step delta must be one adjacent tile"
     }
-    fun clear(atX: Int, atY: Int, mask: Int): Boolean =
-        flagsAt(atX, atY, plane) and (mask or extraFlag) == 0
-
-    return when (deltaX to deltaY) {
-        -1 to 0 -> clear(x - 1, y, CollisionFlag.BLOCK_WEST)
-        1 to 0 -> clear(x + 1, y, CollisionFlag.BLOCK_EAST)
-        0 to -1 -> clear(x, y - 1, CollisionFlag.BLOCK_SOUTH)
-        0 to 1 -> clear(x, y + 1, CollisionFlag.BLOCK_NORTH)
-        -1 to -1 ->
-            clear(x - 1, y - 1, CollisionFlag.BLOCK_SOUTH_WEST) &&
-                clear(x - 1, y, CollisionFlag.BLOCK_WEST) &&
-                clear(x, y - 1, CollisionFlag.BLOCK_SOUTH)
-        1 to -1 ->
-            clear(x + 1, y - 1, CollisionFlag.BLOCK_SOUTH_EAST) &&
-                clear(x + 1, y, CollisionFlag.BLOCK_EAST) &&
-                clear(x, y - 1, CollisionFlag.BLOCK_SOUTH)
-        -1 to 1 ->
-            clear(x - 1, y + 1, CollisionFlag.BLOCK_NORTH_WEST) &&
-                clear(x - 1, y, CollisionFlag.BLOCK_WEST) &&
-                clear(x, y + 1, CollisionFlag.BLOCK_NORTH)
-        1 to 1 ->
-            clear(x + 1, y + 1, CollisionFlag.BLOCK_NORTH_EAST) &&
-                clear(x + 1, y, CollisionFlag.BLOCK_EAST) &&
-                clear(x, y + 1, CollisionFlag.BLOCK_NORTH)
+    return when ((deltaY + 1) * 3 + deltaX + 1) {
+        3 -> clear(x - 1, y, plane, CollisionFlag.BLOCK_WEST, extraFlag)
+        5 -> clear(x + 1, y, plane, CollisionFlag.BLOCK_EAST, extraFlag)
+        1 -> clear(x, y - 1, plane, CollisionFlag.BLOCK_SOUTH, extraFlag)
+        7 -> clear(x, y + 1, plane, CollisionFlag.BLOCK_NORTH, extraFlag)
+        0 ->
+            clear(x - 1, y - 1, plane, CollisionFlag.BLOCK_SOUTH_WEST, extraFlag) &&
+                clear(x - 1, y, plane, CollisionFlag.BLOCK_WEST, extraFlag) &&
+                clear(x, y - 1, plane, CollisionFlag.BLOCK_SOUTH, extraFlag)
+        2 ->
+            clear(x + 1, y - 1, plane, CollisionFlag.BLOCK_SOUTH_EAST, extraFlag) &&
+                clear(x + 1, y, plane, CollisionFlag.BLOCK_EAST, extraFlag) &&
+                clear(x, y - 1, plane, CollisionFlag.BLOCK_SOUTH, extraFlag)
+        6 ->
+            clear(x - 1, y + 1, plane, CollisionFlag.BLOCK_NORTH_WEST, extraFlag) &&
+                clear(x - 1, y, plane, CollisionFlag.BLOCK_WEST, extraFlag) &&
+                clear(x, y + 1, plane, CollisionFlag.BLOCK_NORTH, extraFlag)
+        8 ->
+            clear(x + 1, y + 1, plane, CollisionFlag.BLOCK_NORTH_EAST, extraFlag) &&
+                clear(x + 1, y, plane, CollisionFlag.BLOCK_EAST, extraFlag) &&
+                clear(x, y + 1, plane, CollisionFlag.BLOCK_NORTH, extraFlag)
         else -> false
     }
 }
+
+private fun CollisionMap.clear(
+    x: Int,
+    y: Int,
+    plane: Int,
+    mask: Int,
+    extraFlag: Int,
+): Boolean = flagsAt(x, y, plane) and (mask or extraFlag) == 0

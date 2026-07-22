@@ -6,7 +6,7 @@ import emu.cache.map.CacheObjectDefinitionRepository
 import emu.cache.map.model.MapSquare
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.CollisionMap
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReferenceArray
 
 /**
  * Prepared rev-239 cache collision exposed as non-blocking world lookups.
@@ -24,11 +24,12 @@ class CacheCollisionMap(
         objects: CacheObjectDefinitionRepository,
     ) : this(maps::loadOrNull, objects::get)
 
-    private val chunks = ConcurrentHashMap<Int, CollisionChunk>()
+    private val chunks = AtomicReferenceArray<CollisionChunk?>(MAP_SQUARE_COUNT)
+    private val loadLocks = Array(LOAD_LOCK_COUNT) { Any() }
 
     override fun flagsAt(x: Int, y: Int, plane: Int): Int {
         if (x !in WORLD_COORDINATES || y !in WORLD_COORDINATES || plane !in PLANES) return -1
-        val chunk = chunks[squareKey(x shr MAP_SQUARE_SHIFT, y shr MAP_SQUARE_SHIFT)] ?: return -1
+        val chunk = chunks.get(squareKey(x shr MAP_SQUARE_SHIFT, y shr MAP_SQUARE_SHIFT)) ?: return -1
         return chunk.flagsAt(x and MAP_SQUARE_MASK, y and MAP_SQUARE_MASK, plane)
     }
 
@@ -38,9 +39,7 @@ class CacheCollisionMap(
         val centreY = position.y shr MAP_SQUARE_SHIFT
         for (squareX in squareRange(centreX, radius)) {
             for (squareY in squareRange(centreY, radius)) {
-                chunks.computeIfAbsent(squareKey(squareX, squareY)) {
-                    loadChunk(squareX, squareY)
-                }
+                load(squareX, squareY)
             }
         }
     }
@@ -51,8 +50,16 @@ class CacheCollisionMap(
         val centreY = position.y shr MAP_SQUARE_SHIFT
         return squareRange(centreX, radius).all { squareX ->
             squareRange(centreY, radius).all { squareY ->
-                chunks.containsKey(squareKey(squareX, squareY))
+                chunks.get(squareKey(squareX, squareY)) != null
             }
+        }
+    }
+
+    private fun load(squareX: Int, squareY: Int) {
+        val key = squareKey(squareX, squareY)
+        if (chunks.get(key) != null) return
+        synchronized(loadLocks[key and LOAD_LOCK_MASK]) {
+            if (chunks.get(key) == null) chunks.set(key, loadChunk(squareX, squareY))
         }
     }
 
@@ -94,6 +101,9 @@ class CacheCollisionMap(
         const val MAP_SQUARE_MASK = MAP_SQUARE_SIZE - 1
         const val CHUNK_TILE_COUNT = 4 * MAP_SQUARE_SIZE * MAP_SQUARE_SIZE
         const val MAX_MAP_SQUARE = 255
+        const val MAP_SQUARE_COUNT = (MAX_MAP_SQUARE + 1) * (MAX_MAP_SQUARE + 1)
+        const val LOAD_LOCK_COUNT = 64
+        const val LOAD_LOCK_MASK = LOAD_LOCK_COUNT - 1
         val WORLD_COORDINATES = 0..0x3FFF
         val PLANES = 0..3
 

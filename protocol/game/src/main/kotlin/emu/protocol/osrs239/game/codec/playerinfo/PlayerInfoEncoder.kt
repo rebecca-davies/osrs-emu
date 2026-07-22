@@ -139,36 +139,36 @@ object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
     }
 
     private fun walkDirection(deltaX: Int, deltaY: Int): Int =
-        when (deltaX to deltaY) {
-            -1 to -1 -> 0
-            0 to -1 -> 1
-            1 to -1 -> 2
-            -1 to 0 -> 3
-            1 to 0 -> 4
-            -1 to 1 -> 5
-            0 to 1 -> 6
-            1 to 1 -> 7
+        when ((deltaY + 1) * 3 + deltaX + 1) {
+            0 -> 0
+            1 -> 1
+            2 -> 2
+            3 -> 3
+            5 -> 4
+            6 -> 5
+            7 -> 6
+            8 -> 7
             else -> error("invalid walk delta: $deltaX,$deltaY")
         }
 
     private fun runDirection(deltaX: Int, deltaY: Int): Int =
-        when (deltaX to deltaY) {
-            -2 to -2 -> 0
-            -1 to -2 -> 1
-            0 to -2 -> 2
-            1 to -2 -> 3
-            2 to -2 -> 4
-            -2 to -1 -> 5
-            2 to -1 -> 6
-            -2 to 0 -> 7
-            2 to 0 -> 8
-            -2 to 1 -> 9
-            2 to 1 -> 10
-            -2 to 2 -> 11
-            -1 to 2 -> 12
-            0 to 2 -> 13
-            1 to 2 -> 14
-            2 to 2 -> 15
+        when ((deltaY + 2) * 5 + deltaX + 2) {
+            0 -> 0
+            1 -> 1
+            2 -> 2
+            3 -> 3
+            4 -> 4
+            5 -> 5
+            9 -> 6
+            10 -> 7
+            14 -> 8
+            15 -> 9
+            19 -> 10
+            20 -> 11
+            21 -> 12
+            22 -> 13
+            23 -> 14
+            24 -> 15
             else -> error("invalid run delta: $deltaX,$deltaY")
         }
 
