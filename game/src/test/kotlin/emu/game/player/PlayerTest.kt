@@ -16,11 +16,11 @@ class PlayerTest {
     @Test
     fun `saved run mode hydrates movement state`() {
         val running =
-            Player(
+            testPlayer(
                 Tile(3200, 3200),
                 savedVarps = mapOf(PlayerVarpCatalog.RUN_MODE.id to 1),
             )
-        val walking = Player(Tile(3200, 3200))
+        val walking = testPlayer(Tile(3200, 3200))
 
         assertTrue(running.movement.runEnabled)
         assertFalse(walking.movement.runEnabled)
@@ -28,7 +28,7 @@ class PlayerTest {
 
     @Test
     fun `closing a modal always clears weak work`() {
-        val player = Player(Tile(3200, 3200))
+        val player = testPlayer(Tile(3200, 3200))
         player.actionQueue.add(
             PlayerScriptRequest(PlayerScript("weak") {}),
             PlayerActionPriority.WEAK,
@@ -41,7 +41,7 @@ class PlayerTest {
 
     @Test
     fun `animation request remains available until cycle cleanup`() {
-        val player = Player(Tile(3200, 3200))
+        val player = testPlayer(Tile(3200, 3200))
 
         player.playAnimation(id = 1234, delay = 2)
 
@@ -52,7 +52,7 @@ class PlayerTest {
 
     @Test
     fun `animation request accepts stop and rejects values outside the wire range`() {
-        val player = Player(Tile(3200, 3200))
+        val player = testPlayer(Tile(3200, 3200))
 
         player.playAnimation(-1)
         assertEquals(PlayerAnimation(-1), player.animationUpdate)
@@ -62,7 +62,7 @@ class PlayerTest {
 
     @Test
     fun `modal close requests coalesce until the player queue point consumes them`() {
-        val player = Player(Tile(3200, 3200))
+        val player = testPlayer(Tile(3200, 3200))
 
         assertFalse(player.consumeModalCloseRequest())
         player.requestModalClose()
@@ -74,7 +74,7 @@ class PlayerTest {
 
     @Test
     fun `idle logout remains distinct until the logout phase consumes it`() {
-        val player = Player(Tile(3200, 3200))
+        val player = testPlayer(Tile(3200, 3200))
 
         player.requestIdleLogout()
 

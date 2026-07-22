@@ -2,7 +2,7 @@ package emu.server.game.network.output.login
 
 import emu.game.content.player.login.LoginNotice
 import emu.game.content.ui.gameframe.Gameframe
-import emu.game.map.PlayerBuildArea
+import emu.game.player.Player
 import emu.protocol.osrs239.game.message.client.SiteSettings
 import emu.protocol.osrs239.game.message.cycle.ServerTickEnd
 import emu.protocol.osrs239.game.message.npc.HideNpcOps
@@ -20,7 +20,6 @@ import emu.server.game.network.output.chat.PlayerChatOutput
 import emu.server.game.network.output.stat.PlayerStatOutput
 import emu.server.game.network.output.ui.PlayerInterfaceOutput
 import emu.server.game.network.output.varp.PlayerVarpOutput
-import emu.server.game.world.player.WorldPlayer
 
 /** Builds the complete account-specific output batch required before world activation. */
 internal class InitialPlayerOutput(
@@ -31,14 +30,13 @@ internal class InitialPlayerOutput(
     private val loginNotices = loginNotices.toList()
 
     fun build(
-        player: WorldPlayer,
-        localPlayerIndex: Int,
+        player: Player,
         appearance: PlayerAppearance,
     ): GameOutputBatch {
         val position = player.movement.position
-        val buildArea = PlayerBuildArea(position)
+        val buildArea = player.buildArea
         return GameOutputBatch.build {
-            packet(RebuildLogin(position.plane, position.x, position.y, localPlayerIndex))
+            packet(RebuildLogin(position.plane, position.x, position.y, player.index))
             packet(SiteSettings())
             packets(PlayerChatOutput.messages(player.chatFilters))
             packet(HideNpcOps())
@@ -49,7 +47,7 @@ internal class InitialPlayerOutput(
             packetGroup(
                 InitialWorldOutput.messages(
                     appearance,
-                    localPlayerIndex,
+                    player.index,
                     buildArea.localX(position.x),
                     buildArea.localY(position.y),
                 ),

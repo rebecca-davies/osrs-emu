@@ -1,24 +1,32 @@
-package emu.server.game.world.player.process
+package emu.server.game.world.player
 
+import emu.game.player.Player
+import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
 import emu.persistence.character.write.CharacterWriteState
 import emu.server.game.persistence.CharacterWriteBackException
 import emu.server.game.world.World
-import emu.server.game.world.player.ConnectedPlayer
+import emu.server.game.world.player.script.runInterfaceCloseTriggers
+import emu.server.game.world.player.script.runLoginTrigger
+import emu.server.game.world.player.script.runLogoutTrigger
 
-/** Owns LOGIN world entry and non-blocking LOGOUT snapshot write-back on the world thread. */
-class PlayerLifecycleProcess(
+/** Coordinates player login, logout triggers, and non-blocking durable write-back. */
+class PlayerLifecycle(
+    private val world: World,
     private val writes: CharacterWriteQueue,
-    private val triggers: PlayerTriggerProcess,
+    private val scripts: PlayerScriptRunner,
     private val nanoTime: () -> Long = System::nanoTime,
 ) {
-    internal fun processLogout(connected: ConnectedPlayer) {
-        val player = connected.player
-        val writeBack = connected.writeBack
+    internal fun enterPendingPlayers() = world.enterPendingPlayers()
+
+    internal fun login(player: Player) = world.activate(player, scripts::runLoginTrigger)
+
+    internal fun logout(player: Player) {
+        val writeBack = world.writeBack(player)
         if (!player.logoutRequested && !player.idleLogoutRequested && !player.loggingOut) return
         player.beginLogout()
         player.closeModal()
-        triggers.processInterfaceCloses(player)
+        scripts.runInterfaceCloseTriggers(player)
         when (writeBack.completion?.state()) {
             CharacterWriteState.PENDING,
             CharacterWriteState.DURABLE -> return
@@ -29,20 +37,14 @@ class PlayerLifecycleProcess(
         if (!player.actionQueue.isDiscardableForLogout()) return
         if (!writeBack.logoutTriggerStarted) {
             writeBack.logoutTriggerStarted = true
-            triggers.logout(player)
+            scripts.runLogoutTrigger(player)
         }
         val snapshot = writeBack.snapshot(player, nanoTime())
         writeBack.completion = writes.submit(snapshot)
     }
 
-    internal fun enterPendingPlayers(world: World) = world.enterPendingPlayers()
-
-    internal fun processLogin(world: World, connected: ConnectedPlayer) =
-        world.activate(connected, triggers::login)
-
-    internal fun forceSnapshot(connected: ConnectedPlayer) {
-        val player = connected.player
-        val writeBack = connected.writeBack
+    internal fun forceSnapshot(player: Player) {
+        val writeBack = world.writeBack(player)
         when (writeBack.completion?.state()) {
             CharacterWriteState.DURABLE,
             CharacterWriteState.PENDING -> return

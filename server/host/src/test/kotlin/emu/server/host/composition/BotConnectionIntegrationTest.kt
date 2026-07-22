@@ -5,13 +5,9 @@ import emu.crypto.Rsa
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContentCatalog
-import emu.game.map.Tile
+import emu.game.map.GameMap
 import emu.game.pathfinding.collision.CollisionMap
 import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovement
-import emu.game.pathfinding.movement.PlayerMovementProcess
-import emu.game.pathfinding.route.PathRoute
-import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.account.AccountRank
 import emu.persistence.account.AccountRecord
@@ -35,23 +31,19 @@ import emu.server.game.GameServerDispatchers
 import emu.server.game.config.GameConnectionConfig
 import emu.server.game.network.connection.GameConnectionRunner
 import emu.server.game.network.input.GameInboundReader
+import emu.server.game.network.output.PlayerOutput
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.runtime.lifecycle.WorldLifecycle
 import emu.server.game.runtime.lifecycle.WorldRuntime
 import emu.server.game.world.World
+import emu.server.game.world.cycle.PlayerPhase
 import emu.server.game.world.cycle.WorldCycle
 import emu.server.game.world.entry.WorldEntry
-import emu.server.game.world.map.CollisionMapLoader
+import emu.server.game.world.player.PlayerLifecycle
+import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.bot.BotClientRequestResult
 import emu.server.game.world.player.command.bot.BotClientRequestSink
 import emu.server.game.world.player.command.buildPlayerCommandRepository
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerMovementCycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.server.gateway.GatewayConfig
 import emu.server.gateway.GatewayListener
 import emu.server.host.config.CoordinatorConfig
@@ -69,7 +61,6 @@ import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -176,30 +167,20 @@ class BotConnectionIntegrationTest {
         val codecs = buildGameCodecRepository()
         val huffman = HuffmanCodec(ByteArray(256) { 8 })
         val ui = UiContentCatalog.load()
-        val world = World(ui.gameframe, LoginNotices.ALL, maxPlayerIndex = 1)
         val commands = WorldCommandQueue(capacity = 32)
-        val routeQueued = AtomicBoolean()
         val collision =
             CollisionMap { x, y, plane ->
-                if (routeQueued.get()) movementProcessed.complete(Unit)
+                movementProcessed.complete(Unit)
                 OpenCollisionMap.flagsAt(x, y, plane)
             }
-        val movement = PlayerMovementProcess(collision)
-        val routeFinder = observedRoutes(movement, routeQueued)
+        val map = GameMap(collision)
+        val world = World(map, ui.gameframe, LoginNotices.ALL, maxPlayerIndex = 1)
         val scripts = PlayerScriptRunner(PlayerContentCatalog.load(ui.components))
-        val triggers = PlayerTriggerProcess(scripts)
         val actions =
-            PlayerActionProcess(
-                routeFinder,
-                PlayerChatActionProcess(huffman, ChatAuditSink { true }),
+            PlayerActions(
                 scripts,
                 buildPlayerCommandRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
-            )
-        val main =
-            PlayerMainProcess(
-                scripts,
-                triggers,
-                PlayerMovementCycleProcess(movement, PreparedCollision),
+                ChatAuditSink { true },
             )
         val writes =
             CharacterWriteQueue { save ->
@@ -211,9 +192,9 @@ class BotConnectionIntegrationTest {
                 world,
                 commands,
                 actions,
-                main,
-                PlayerLifecycleProcess(writes, triggers),
-                PlayerOutputProcess(),
+                PlayerPhase(scripts),
+                PlayerLifecycle(world, writes, scripts),
+                PlayerOutput(world, huffman),
             )
         val dispatchers = GameServerDispatchers(connectionWorkerThreads = 1, entryWorkerThreads = 1)
         val connectionConfig = GameConnectionConfig(idleTimeout = 2.seconds)
@@ -233,21 +214,6 @@ class BotConnectionIntegrationTest {
             )
         return GameStack(GameServer(entries, connections, lifecycle), dispatchers)
     }
-
-    private fun observedRoutes(
-        delegate: PlayerRouteFinder,
-        routeQueued: AtomicBoolean,
-    ): PlayerRouteFinder =
-        object : PlayerRouteFinder {
-            override fun routeTo(
-                movement: PlayerMovement,
-                destination: Tile,
-                temporaryRun: Boolean?,
-            ): PathRoute =
-                delegate.routeTo(movement, destination, temporaryRun).also {
-                    routeQueued.set(true)
-                }
-        }
 
     private class BotPersistence : AccountStore, CharacterStore {
         private var account: StoredAccount? = null
@@ -281,12 +247,6 @@ class BotConnectionIntegrationTest {
         val game: GameServer,
         val dispatchers: GameServerDispatchers,
     )
-
-    private object PreparedCollision : CollisionMapLoader {
-        override fun prepare(position: Tile) = Unit
-
-        override fun request(position: Tile): Boolean = true
-    }
 
     private object NoJs5 : Js5Service {
         override suspend fun serve(read: ByteReadChannel, write: ByteWriteChannel) = Unit

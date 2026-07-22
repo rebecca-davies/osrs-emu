@@ -7,8 +7,7 @@ import emu.game.player.appearance.CharacterGender
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
-import emu.server.game.world.player.WorldPlayer
-import emu.server.session.account.AccountPrivilege
+import emu.server.game.toTestPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
@@ -18,8 +17,7 @@ class PlayerAppearanceOutputTest {
     @Test
     fun `persisted character appearance maps into revision-239 player-info slots`() {
         val player =
-            WorldPlayer(
-                CharacterRecord(
+            CharacterRecord(
                     id = 1,
                     displayName = "Player",
                     position = CharacterPosition(3_200, 3_200, 0),
@@ -39,9 +37,7 @@ class PlayerAppearanceOutputTest {
                                 ),
                             colors = CharacterColors(hair = 29, torso = 28, legs = 27, feet = 5, skin = 13),
                         ),
-                ),
-                AccountPrivilege.PLAYER,
-            )
+                ).toTestPlayer()
 
         val output = PlayerAppearanceOutput(player)
         val appearance = output.message(player)

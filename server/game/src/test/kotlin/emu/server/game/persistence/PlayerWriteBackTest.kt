@@ -6,8 +6,7 @@ import emu.game.player.appearance.CharacterColors
 import emu.game.player.appearance.CharacterGender
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
-import emu.server.game.world.player.WorldPlayer
-import emu.server.session.account.AccountPrivilege
+import emu.server.game.toTestPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -31,7 +30,7 @@ class PlayerWriteBackTest {
 
         val save =
             PlayerWriteBack(record, sessionStartedNanos = 0).snapshot(
-                WorldPlayer(record, AccountPrivilege.PLAYER),
+                record.toTestPlayer(),
                 nowNanos = 0,
             )
 
@@ -51,7 +50,7 @@ class PlayerWriteBackTest {
 
         val save =
             writeBack.snapshot(
-                WorldPlayer(record, AccountPrivilege.PLAYER),
+                record.toTestPlayer(),
                 nowNanos = 10_000_000_000,
             )
 

@@ -1,25 +1,14 @@
 package emu.server.game.world.entry
 
-import emu.compression.HuffmanCodec
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
-import emu.persistence.character.write.CharacterWriteQueue
-import emu.persistence.character.write.DurableCharacterWrite
-import emu.persistence.chat.ChatAuditSink
 import emu.server.game.TestPlayerContent
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.runtime.lifecycle.WorldRuntime
 import emu.server.game.world.World
 import emu.server.game.world.cycle.WorldCycle
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
 import emu.server.session.account.AccountId
-import emu.server.session.account.AccountPrivilege
 import emu.server.session.handoff.GameSessionToken
 import emu.server.session.handoff.ReservationDecision
 import kotlin.test.Test
@@ -80,23 +69,8 @@ class WorldEntryTest {
         worldJob.cancelAndJoin()
     }
 
-    private fun cycle(world: World, commands: WorldCommandQueue): WorldCycle {
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        return WorldCycle(
-            world,
-            commands,
-            TestPlayerContent.actions(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
-            ),
-            TestPlayerContent.main(movement),
-            TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
-            PlayerOutputProcess(),
-        )
-    }
+    private fun cycle(world: World, commands: WorldCommandQueue): WorldCycle =
+        TestPlayerContent.cycle(world, commands)
 
     private companion object {
         val ACCOUNT_ID = AccountId(1)

@@ -2,11 +2,6 @@ package emu.server.game.network.connection
 
 import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
-import emu.persistence.character.write.CharacterWriteQueue
-import emu.persistence.character.write.DurableCharacterWrite
-import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameServerProt
 import emu.server.game.GameServerDispatchers
@@ -18,10 +13,6 @@ import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.runtime.lifecycle.WorldRuntime
 import emu.server.game.world.World
 import emu.server.game.world.cycle.WorldCycle
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
 import emu.server.session.account.AccountId
 import emu.server.session.account.AccountPrivilege
@@ -163,23 +154,8 @@ class GameConnectionRunnerTest {
         output.close()
     }
 
-    private fun cycle(world: World, commands: WorldCommandQueue): WorldCycle {
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        return WorldCycle(
-            world,
-            commands,
-            TestPlayerContent.actions(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
-            ),
-            TestPlayerContent.main(movement),
-            TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
-            PlayerOutputProcess(),
-        )
-    }
+    private fun cycle(world: World, commands: WorldCommandQueue): WorldCycle =
+        TestPlayerContent.cycle(world, commands)
 
     private fun handoff(
         token: GameSessionToken,

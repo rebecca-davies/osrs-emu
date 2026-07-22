@@ -10,7 +10,6 @@ class PlayerCommandRepository internal constructor(
     internal fun execute(
         input: String,
         player: Player,
-        privilege: AccountPrivilege,
     ): String? {
         val start = input.indexOfFirst { !it.isWhitespace() }
         if (start == -1) return null
@@ -18,7 +17,7 @@ class PlayerCommandRepository internal constructor(
         val commandEnd = if (separator == -1) input.length else separator
         val name = input.substring(start, commandEnd).lowercase()
         val registered = commands[name] ?: return null
-        if (privilege.level < registered.minimumRole.level) return null
+        if (player.staffModLevel.value < registered.minimumRole.level) return null
         val arguments = if (separator == -1) "" else input.substring(separator + 1).trim()
         return registered.command.execute(player, arguments)
     }

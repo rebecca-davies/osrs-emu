@@ -1,11 +1,13 @@
 package emu.server.game.network.output.playerinfo
 
+import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
+import emu.game.chat.PublicChatInput
 import emu.game.map.Tile
-import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.PathRoute
+import emu.game.player.Player
 import emu.game.player.appearance.CharacterAppearance
 import emu.game.player.appearance.CharacterBodyKits
 import emu.game.player.appearance.CharacterColors
@@ -19,13 +21,13 @@ import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
 import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.server.game.network.output.GameOutputSink
+import emu.server.game.network.output.PlayerOutput
 import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
-import emu.server.game.world.player.ConnectedPlayer
-import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
@@ -36,23 +38,23 @@ class PlayerInfoStateTest {
     fun `nearby player is added with appearance`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         val addition = info.sections.lowResolutionActive.filterIsInstance<PlayerInfoBitCode.Add>().single()
-        assertEquals(target.player.movement.position.x, addition.x)
+        assertEquals(target.movement.position.x, addition.x)
         assertEquals("Player2", addition.update.appearance?.name)
     }
 
     @Test
     fun `tracked player movement is sent to the observer`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
-        observer.connection.playerInfo.next(view(world))
-        target.player.movement.queueRoute(
+        world.session(observer).playerInfo.next(view(world))
+        target.movement.queueRoute(
             PathRoute(listOf(Tile(3211, 3200)), alternative = false, success = true),
         )
-        target.player.movement.process(OpenCollisionMap)
+        world.advanceMovement(target)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(PlayerMovement.Walk(1, 0), update.movement)
@@ -61,23 +63,27 @@ class PlayerInfoStateTest {
     @Test
     fun `public chat is visible to every nearby observer during the same information phase`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
-        observer.connection.playerInfo.next(view(world))
-        val chat = PlayerPublicChat(0, 0, 255, byteArrayOf(1, 2, 3))
-        target.connection.publicChat.publish(chat)
+        world.session(observer).playerInfo.next(view(world))
+        val chat = PlayerPublicChat(0, 0, 0, HUFFMAN.encode("hello"))
+        target.publishPublicChat(PublicChatInput(0, 0, "hello"))
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
-        assertEquals(chat, update.update?.publicChat)
+        val published = requireNotNull(update.update?.publicChat)
+        assertEquals(chat.colour, published.colour)
+        assertEquals(chat.effect, published.effect)
+        assertEquals(chat.modIcon, published.modIcon)
+        assertContentEquals(chat.encodedText, published.encodedText)
     }
 
     @Test
     fun `animation is visible to every nearby observer during the same information phase`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
-        observer.connection.playerInfo.next(view(world))
-        target.player.playAnimation(id = 1234, delay = 2)
+        world.session(observer).playerInfo.next(view(world))
+        target.playAnimation(id = 1234, delay = 2)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(PlayerSequence(1234, 2), update.update?.sequence)
@@ -86,16 +92,16 @@ class PlayerInfoStateTest {
     @Test
     fun `changed character appearance invalidates output and reaches existing observers`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
-        observer.connection.playerInfo.next(view(world))
+        world.session(observer).playerInfo.next(view(world))
         val changed =
             CharacterAppearance(
                 CharacterGender.FEMALE,
                 CharacterBodyKits(hair = 55, jaw = 306, torso = 60, arms = 66, hands = 68, legs = 78, feet = 80),
                 CharacterColors(hair = 29, torso = 28, legs = 27, feet = 5, skin = 13),
             )
-        target.player.changeAppearance(changed)
+        target.changeAppearance(changed)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(PlayerAppearance.GENDER_FEMALE, update.update?.appearance?.gender)
@@ -105,10 +111,10 @@ class PlayerInfoStateTest {
     @Test
     fun `detached tracked player is removed`() {
         val (world, observer, target) = twoPlayers(targetX = 3210)
-        observer.connection.playerInfo.next(view(world))
+        world.session(observer).playerInfo.next(view(world))
         world.remove(target)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         assertEquals(1, info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.Remove>().size)
     }
@@ -117,7 +123,7 @@ class PlayerInfoStateTest {
     fun `player outside local view is not added`() {
         val (world, observer) = twoPlayers(targetX = 3216)
 
-        val info = observer.connection.playerInfo.next(view(world))
+        val info = world.session(observer).playerInfo.next(view(world))
 
         assertFalse(info.sections.lowResolutionActive.any { it is PlayerInfoBitCode.Add })
     }
@@ -148,33 +154,33 @@ class PlayerInfoStateTest {
     fun `local movement speed is cached and route tails use a temporary speed`() {
         val world = testWorld(maxPlayerIndex = 1)
         val observer = addPlayer(world, 1, 3200)
-        world.activateTestPlayer(observer.connection.token)
-        val first = localUpdate(observer.connection.playerInfo.next(view(world)))
+        world.activateTestPlayer(world.session(observer).token)
+        val first = localUpdate(world.session(observer).playerInfo.next(view(world)))
         assertEquals(1, first.update?.moveSpeed)
 
-        val unchanged = observer.connection.playerInfo.next(view(world))
+        val unchanged = world.session(observer).playerInfo.next(view(world))
         assertNull(unchanged.sections.highResolutionActive.filterIsInstance<PlayerInfoBitCode.HighResolution>().singleOrNull())
 
-        observer.player.movement.runEnabled = true
-        observer.player.movement.queueRoute(
+        observer.movement.runEnabled = true
+        observer.movement.queueRoute(
             PathRoute(listOf(Tile(3201, 3200)), alternative = false, success = true),
         )
-        observer.player.movement.process(OpenCollisionMap)
-        val routeTail = localUpdate(observer.connection.playerInfo.next(view(world)))
+        world.advanceMovement(observer)
+        val routeTail = localUpdate(world.session(observer).playerInfo.next(view(world)))
         assertEquals(2, routeTail.update?.moveSpeed)
         assertEquals(1, routeTail.update?.temporaryMoveSpeed)
     }
 
-    private fun twoPlayers(targetX: Int): Triple<World, ConnectedPlayer, ConnectedPlayer> {
+    private fun twoPlayers(targetX: Int): Triple<World, Player, Player> {
         val world = testWorld(maxPlayerIndex = 2)
         val observer = addPlayer(world, 1, 3200)
         val target = addPlayer(world, 2, targetX)
-        world.activateTestPlayer(observer.connection.token)
-        world.activateTestPlayer(target.connection.token)
+        world.activateTestPlayer(world.session(observer).token)
+        world.activateTestPlayer(world.session(target).token)
         return Triple(world, observer, target)
     }
 
-    private fun addPlayer(world: World, id: Long, x: Int): ConnectedPlayer =
+    private fun addPlayer(world: World, id: Long, x: Int): Player =
         world.addTestPlayer(
             CharacterRecord(
                 id,
@@ -187,7 +193,7 @@ class PlayerInfoStateTest {
         )
 
     private fun view(world: World): PlayerInfoView =
-        PlayerOutputProcess().snapshot(world.allPlayers())
+        PlayerOutput(world, HUFFMAN).snapshot(world.allPlayers())
 
     private fun crowdedView(remotePlayers: Int, targetX: Int): PlayerInfoView =
         PlayerInfoView(
@@ -224,4 +230,8 @@ class PlayerInfoStateTest {
                 .filterIsInstance<PlayerInfoBitCode.HighResolution>()
                 .single(),
         )
+
+    private companion object {
+        val HUFFMAN = HuffmanCodec(ByteArray(256) { 8 })
+    }
 }

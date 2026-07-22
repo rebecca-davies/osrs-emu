@@ -2,15 +2,14 @@ package emu.server.game.world.cycle
 
 import emu.game.cycle.CyclePhase
 import emu.game.cycle.CycleProfiler
+import emu.game.player.Player
+import emu.server.game.network.output.PlayerOutput
 import emu.server.game.persistence.CharacterWriteBackException
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.World
 import emu.server.game.world.entry.PlayerCapacity
-import emu.server.game.world.player.ConnectedPlayer
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
+import emu.server.game.world.player.PlayerLifecycle
+import emu.server.game.world.player.action.PlayerActions
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -19,12 +18,12 @@ private val logger = KotlinLogging.logger {}
 class WorldCycle(
     private val world: World,
     private val commands: WorldCommandQueue,
-    private val actions: PlayerActionProcess,
-    private val playerMain: PlayerMainProcess,
-    private val lifecycle: PlayerLifecycleProcess,
-    private val output: PlayerOutputProcess,
+    private val actions: PlayerActions,
+    private val playerPhase: PlayerPhase,
+    private val lifecycle: PlayerLifecycle,
+    private val output: PlayerOutput,
 ) {
-    private val phasePlayers = ArrayList<ConnectedPlayer>(PlayerCapacity.PER_WORLD)
+    private val phasePlayers = ArrayList<Player>(PlayerCapacity.PER_WORLD)
     private val profiler = CycleProfiler()
 
     fun tick(worldTick: Long) {
@@ -32,37 +31,39 @@ class WorldCycle(
         val cycleStartedAt = System.nanoTime()
         try {
             profiler.measure(CyclePhase.WORLD) {
+                world.retryMapAreaRequests()
                 commands.drain(world)
-                playerMain.beginCycle(worldTick)
+                playerPhase.begin(worldTick)
             }
             profiler.measure(CyclePhase.CLIENT_INPUT) {
                 phasePlayers.clear()
                 world.collectActivePlayers(phasePlayers)
-                processPlayers(CyclePhase.CLIENT_INPUT, phasePlayers) { connected ->
-                    actions.process(connected.player, connected.connection)
+                forEachPlayer(CyclePhase.CLIENT_INPUT, phasePlayers) { player ->
+                    world.drainActions(player) { action -> actions.apply(player, action) }
+                    world.resolveRoute(player)
                 }
             }
             profiler.measure(CyclePhase.PLAYER) {
                 phasePlayers.clear()
                 world.collectCyclePlayers(phasePlayers)
-                processPlayerPhase(phasePlayers)
+                runPlayerPhase(phasePlayers)
             }
             profiler.measure(CyclePhase.LOGOUT) {
                 phasePlayers.clear()
                 world.collectAllPlayers(phasePlayers)
-                processPlayers(CyclePhase.LOGOUT, phasePlayers, process = lifecycle::processLogout)
+                forEachPlayer(CyclePhase.LOGOUT, phasePlayers, lifecycle::logout)
             }
-            profiler.measure(CyclePhase.LOGIN) { processLogins() }
+            profiler.measure(CyclePhase.LOGIN) { runLogins() }
             profiler.measure(CyclePhase.INFO) {
                 phasePlayers.clear()
                 world.collectAllPlayers(phasePlayers)
                 prepareOutput(phasePlayers)
             }
             profiler.measure(CyclePhase.CLIENT_OUTPUT) {
-                processPlayers(CyclePhase.CLIENT_OUTPUT, phasePlayers, process = output::publish)
+                forEachPlayer(CyclePhase.CLIENT_OUTPUT, phasePlayers, output::publish)
             }
             profiler.measure(CyclePhase.CLEANUP) {
-                processPlayers(CyclePhase.CLEANUP, phasePlayers) { output.cleanup(world, it) }
+                forEachPlayer(CyclePhase.CLEANUP, phasePlayers, output::cleanup)
                 world.clearCycleProfile()
             }
         } finally {
@@ -79,34 +80,33 @@ class WorldCycle(
         world.requestAllLogouts()
     }
 
-    fun shutdownStep(): Boolean {
-        return try {
+    fun shutdownStep(): Boolean =
+        try {
             phasePlayers.clear()
             world.collectAllPlayers(phasePlayers)
-            processPlayerPhase(phasePlayers)
-            processPlayers(CyclePhase.LOGOUT, phasePlayers, process = lifecycle::processLogout)
+            runPlayerPhase(phasePlayers)
+            forEachPlayer(CyclePhase.LOGOUT, phasePlayers, lifecycle::logout)
             prepareOutput(phasePlayers)
-            processPlayers(CyclePhase.CLIENT_OUTPUT, phasePlayers, process = output::publish)
-            processPlayers(CyclePhase.CLEANUP, phasePlayers) { output.cleanup(world, it) }
+            forEachPlayer(CyclePhase.CLIENT_OUTPUT, phasePlayers, output::publish)
+            forEachPlayer(CyclePhase.CLEANUP, phasePlayers, output::cleanup)
             world.isEmpty()
         } finally {
             phasePlayers.clear()
         }
-    }
 
     fun forceShutdown() {
         try {
             var failure: CharacterWriteBackException? = null
             phasePlayers.clear()
             world.collectAllPlayers(phasePlayers)
-            for (connected in phasePlayers) {
+            for (player in phasePlayers) {
                 try {
-                    lifecycle.forceSnapshot(connected)
+                    lifecycle.forceSnapshot(player)
                 } catch (writeFailure: CharacterWriteBackException) {
                     if (failure == null) failure = writeFailure
                 } finally {
-                    connected.connection.disconnect()
-                    world.remove(connected)
+                    world.session(player).disconnect()
+                    world.remove(player)
                 }
             }
             failure?.let { throw it }
@@ -115,48 +115,47 @@ class WorldCycle(
         }
     }
 
-    private fun processPlayerPhase(players: List<ConnectedPlayer>) {
-        processPlayers(CyclePhase.PLAYER, players) { connected ->
-            playerMain.process(connected.player)
+    private fun runPlayerPhase(players: List<Player>) {
+        forEachPlayer(CyclePhase.PLAYER, players) { player ->
+            playerPhase.run(player)
+            world.advanceMovement(player)
         }
     }
 
-    private fun processLogins() {
-        lifecycle.enterPendingPlayers(world)
+    private fun runLogins() {
+        lifecycle.enterPendingPlayers()
         while (true) {
-            val connected = world.nextPendingActivation() ?: return
-            processPlayer(CyclePhase.LOGIN, connected) { lifecycle.processLogin(world, it) }
+            val player = world.nextPendingActivation() ?: return
+            runPlayer(CyclePhase.LOGIN, player, lifecycle::login)
         }
     }
 
-    private fun prepareOutput(players: List<ConnectedPlayer>) {
+    private fun prepareOutput(players: List<Player>) {
         val view = output.snapshot(players)
         val profileMessage = world.cycleProfile?.let { output.profileMessage(it, view.playerCount) }
-        processPlayers(CyclePhase.INFO, players) { output.prepare(it, view, profileMessage) }
-        output.finishInformation(players)
-    }
-
-    private fun processPlayers(
-        phase: CyclePhase,
-        players: List<ConnectedPlayer>,
-        process: (ConnectedPlayer) -> Unit,
-    ) {
-        for (connected in players) {
-            processPlayer(phase, connected, process)
+        forEachPlayer(CyclePhase.INFO, players) { player ->
+            output.prepare(player, view, profileMessage)
         }
     }
 
-    private fun processPlayer(
+    private fun forEachPlayer(
         phase: CyclePhase,
-        connected: ConnectedPlayer,
-        process: (ConnectedPlayer) -> Unit,
+        players: List<Player>,
+        action: (Player) -> Unit,
+    ) {
+        for (player in players) runPlayer(phase, player, action)
+    }
+
+    private fun runPlayer(
+        phase: CyclePhase,
+        player: Player,
+        action: (Player) -> Unit,
     ) {
         try {
-            process(connected)
+            action(player)
         } catch (failure: CharacterWriteBackException) {
             throw failure
         } catch (failure: Exception) {
-            val player = connected.player
             logger.error(failure) {
                 "world: player ${player.id} failed during ${phase.name.lowercase()}; requesting logout"
             }
@@ -165,10 +164,10 @@ class WorldCycle(
     }
 }
 
-private inline fun CycleProfiler.measure(phase: CyclePhase, process: () -> Unit) {
+private inline fun CycleProfiler.measure(phase: CyclePhase, action: () -> Unit) {
     val startedAt = System.nanoTime()
     try {
-        process()
+        action()
     } finally {
         recordPhase(phase, System.nanoTime() - startedAt)
     }

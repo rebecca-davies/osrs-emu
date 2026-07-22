@@ -1,11 +1,17 @@
 package emu.server.game.world
 
 import emu.game.action.IncomingPlayerActionQueue
+import emu.game.action.PlayerAction
 import emu.game.content.player.login.LoginNotice
 import emu.game.content.ui.gameframe.Gameframe
 import emu.game.cycle.CycleProfileSnapshot
+import emu.game.map.GameMap
+import emu.game.map.Tile
+import emu.game.player.Player
+import emu.game.player.PlayerChatFilters
+import emu.game.player.StaffModLevel
 import emu.persistence.character.model.CharacterRecord
-import emu.server.game.network.connection.PlayerConnection
+import emu.server.game.network.connection.GameSession
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.network.output.login.InitialPlayerOutput
 import emu.server.game.network.output.playerinfo.PlayerAppearanceOutput
@@ -13,8 +19,7 @@ import emu.server.game.persistence.PlayerWriteBack
 import emu.server.game.world.entry.PlayerCapacity
 import emu.server.game.world.entry.WorldAttachment
 import emu.server.game.world.entry.WorldLogin
-import emu.server.game.world.player.ConnectedPlayer
-import emu.server.game.world.player.WorldPlayer
+import emu.server.game.world.player.PlayerList
 import emu.server.session.account.AccountPrivilege
 import emu.server.session.handoff.GameSessionToken
 import emu.server.session.handoff.ReservationDecision
@@ -23,8 +28,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
-/** Authoritative player membership, reservations, and indexes owned by the world thread. */
+/** Authoritative player membership, reservations, and map access owned by the world thread. */
 class World(
+    private val map: GameMap,
     private val gameframe: Gameframe,
     loginNotices: List<LoginNotice>,
     maxPlayerIndex: Int = PlayerCapacity.PER_WORLD,
@@ -32,8 +38,7 @@ class World(
 ) {
     private val initialPlayerOutput = InitialPlayerOutput(gameframe, loginNotices)
     private val indexes = PlayerIndexAllocator(maxPlayerIndex)
-    private val players = linkedMapOf<Long, ConnectedPlayer>()
-    private val playersByToken = mutableMapOf<GameSessionToken, ConnectedPlayer>()
+    private val players = PlayerList(maxPlayerIndex)
     private val occupiedPlayerIds = mutableSetOf<Long>()
     private val reservations = linkedMapOf<GameSessionToken, Reservation>()
     private val pendingLogins = linkedMapOf<GameSessionToken, PendingLogin>()
@@ -44,10 +49,10 @@ class World(
 
     internal fun reserve(playerId: Long, token: GameSessionToken): ReservationDecision {
         if (
-            containsIdentity(playerId) ||
+            playerId in occupiedPlayerIds ||
                 reservations.containsKey(token) ||
                 pendingLogins.containsKey(token) ||
-                playersByToken.containsKey(token)
+                players.player(token) != null
         ) {
             return ReservationDecision.Rejected(ReservationRejection.DUPLICATE)
         }
@@ -71,7 +76,7 @@ class World(
             attachment.reject()
             return
         }
-        if (reservation.playerId != record.id || players.containsKey(record.id)) {
+        if (reservation.playerId != record.id || players.contains(record.id)) {
             release(reservation)
             attachment.reject()
             return
@@ -90,35 +95,44 @@ class World(
 
     private fun enterPlayer(pending: PendingLogin) {
         try {
-            val player = WorldPlayer(pending.record, pending.privilege)
-            val appearanceOutput = PlayerAppearanceOutput(player)
-            val connection =
-                PlayerConnection(
+            val record = pending.record
+            val player =
+                Player(
+                    id = record.id,
+                    index = pending.reservation.playerIndex,
+                    displayName = record.displayName,
+                    staffModLevel = StaffModLevel(pending.privilege.level),
+                    initialPosition = Tile(record.position.x, record.position.y, record.position.plane),
+                    savedVarps = record.varps,
+                    initialChatFilters =
+                        PlayerChatFilters(
+                            record.chatFilters.publicMode,
+                            record.chatFilters.privateMode,
+                            record.chatFilters.tradeMode,
+                        ),
+                    initialAppearance = record.appearance,
+                )
+            val appearance = PlayerAppearanceOutput(player)
+            val session =
+                GameSession(
                     token = pending.sessionToken,
-                    playerIndex = pending.reservation.playerIndex,
+                    playerIndex = player.index,
                     actions = pending.actions,
                     output = pending.output,
-                    appearanceOutput = appearanceOutput,
+                    appearance = appearance,
                     attachment = pending.attachment,
-                )
-            val connected =
-                ConnectedPlayer(
-                    player,
-                    connection,
-                    PlayerWriteBack(pending.record, sessionStartedNanos()),
                 )
             val login =
                 WorldLogin(
-                    connection.playerIndex,
-                    initialPlayerOutput.build(
-                        player,
-                        connection.playerIndex,
-                        appearanceOutput.message(player),
-                    ),
+                    player.index,
+                    initialPlayerOutput.build(player, appearance.message(player)),
                 )
-            players[player.id] = connected
-            playersByToken[connection.token] = connected
-            connection.attachment.attach(login)
+            players.add(
+                player,
+                session,
+                PlayerWriteBack(record, sessionStartedNanos()),
+            )
+            session.attachment.attach(login)
         } catch (failure: Exception) {
             release(pending.reservation)
             pending.attachment.reject()
@@ -137,42 +151,41 @@ class World(
     }
 
     internal fun requestActivation(token: GameSessionToken) {
-        if (playersByToken.containsKey(token)) pendingActivations += token
+        if (players.player(token) != null) pendingActivations += token
     }
 
-    internal fun nextPendingActivation(): ConnectedPlayer? {
+    internal fun nextPendingActivation(): Player? {
         while (pendingActivations.isNotEmpty()) {
             val token = pendingActivations.first()
             pendingActivations.remove(token)
-            return playersByToken[token] ?: continue
+            return players.player(token) ?: continue
         }
         return null
     }
 
     internal fun activate(
-        connected: ConnectedPlayer,
-        beforeActivation: (WorldPlayer) -> Unit,
+        player: Player,
+        beforeActivation: (Player) -> Unit,
     ) {
-        if (playersByToken[connected.connection.token] !== connected) return
-        val player = connected.player
+        if (!players.contains(player)) return
         player.activate(gameframe) { beforeActivation(player) }
     }
 
     internal fun requestLogout(token: GameSessionToken) {
-        playersByToken[token]?.player?.requestLogout()
+        players.player(token)?.requestLogout()
     }
 
     internal fun disconnect(token: GameSessionToken) {
-        playersByToken[token]?.let { connected ->
-            connected.connection.disconnect()
-            connected.player.requestLogout()
+        players.player(token)?.let { player ->
+            session(player).disconnect()
+            player.requestLogout()
         }
     }
 
     internal fun requestAllLogouts() {
-        players.values.forEach {
-            it.player.enableShutdownAccess()
-            it.player.requestLogout()
+        players.all().forEach { player ->
+            player.enableShutdownAccess()
+            player.requestLogout()
         }
     }
 
@@ -184,53 +197,56 @@ class World(
         cycleProfile = null
     }
 
-    internal fun activePlayers(): List<ConnectedPlayer> =
-        buildList { collectActivePlayers(this) }
-
-    internal fun collectActivePlayers(destination: MutableCollection<ConnectedPlayer>) {
-        for (connected in players.values) {
-            if (connected.player.active && !connected.player.loggingOut) destination += connected
-        }
+    internal fun retryMapAreaRequests() {
+        map.retryAreaRequests()
     }
 
-    internal fun collectCyclePlayers(destination: MutableCollection<ConnectedPlayer>) {
-        for (connected in players.values) {
-            if (
-                !connected.writeBack.snapshotTaken &&
-                    (connected.player.active ||
-                        connected.player.logoutRequested ||
-                        connected.player.loggingOut)
-            ) {
-                destination += connected
-            }
-        }
+    internal fun collectActivePlayers(destination: MutableCollection<Player>) =
+        players.collectActive(destination)
+
+    internal fun collectCyclePlayers(destination: MutableCollection<Player>) =
+        players.collectCycle(destination)
+
+    internal fun collectAllPlayers(destination: MutableCollection<Player>) =
+        players.collectAll(destination)
+
+    internal fun activePlayers(): List<Player> =
+        buildList { players.collectActive(this) }
+
+    internal fun allPlayers(): List<Player> = players.all()
+
+    internal fun isEmpty(): Boolean = players.isEmpty
+
+    internal fun contains(playerId: Long): Boolean = players.contains(playerId)
+
+    internal fun session(player: Player): GameSession = players.session(player)
+
+    internal fun writeBack(player: Player): PlayerWriteBack = players.writeBack(player)
+
+    internal fun drainActions(
+        player: Player,
+        apply: (PlayerAction) -> Unit,
+    ): Int = session(player).actions.drain(apply)
+
+    internal fun resolveRoute(player: Player) {
+        map.resolveRoute(player)
     }
 
-    internal fun allPlayers(): List<ConnectedPlayer> = players.values.toList()
-
-    internal fun collectAllPlayers(destination: MutableCollection<ConnectedPlayer>) {
-        for (connected in players.values) destination += connected
+    internal fun advanceMovement(player: Player) {
+        map.advance(player)
     }
 
-    internal fun isEmpty(): Boolean = players.isEmpty()
-
-    internal fun contains(playerId: Long): Boolean = players.containsKey(playerId)
-
-    internal fun remove(connected: ConnectedPlayer) {
-        val player = connected.player
-        val connection = connected.connection
-        if (players.remove(player.id) !== connected) return
-        playersByToken.remove(connection.token, connected)
-        pendingActivations.remove(connection.token)
-        indexes.release(connection.playerIndex)
+    internal fun remove(player: Player) {
+        val session = session(player)
+        if (!players.remove(player)) return
+        pendingActivations.remove(session.token)
+        indexes.release(player.index)
         occupiedPlayerIds.remove(player.id)
-        connection.attachment.remove()
+        session.attachment.remove()
     }
 
     internal fun rejectPendingLogins() {
-        reservations.values.forEach {
-            release(it)
-        }
+        reservations.values.forEach(::release)
         reservations.clear()
         pendingLogins.values.forEach { pending ->
             release(pending.reservation)
@@ -238,8 +254,6 @@ class World(
         }
         pendingLogins.clear()
     }
-
-    private fun containsIdentity(playerId: Long): Boolean = playerId in occupiedPlayerIds
 
     private fun release(reservation: Reservation) {
         indexes.release(reservation.playerIndex)

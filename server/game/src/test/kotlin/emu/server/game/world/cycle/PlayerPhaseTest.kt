@@ -1,10 +1,7 @@
-package emu.server.game.world.player.process
+package emu.server.game.world.cycle
 
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.content.ui.config.UiContentCatalog
-import emu.game.map.Tile
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.game.queue.PlayerActionPriority
 import emu.game.script.execution.PlayerScriptRequest
 import emu.game.script.execution.PlayerScriptRunner
@@ -17,16 +14,12 @@ import emu.game.script.trigger.ServerTriggerType
 import emu.game.timer.PlayerTimerType
 import emu.game.ui.ButtonClick
 import emu.game.ui.Component
-import emu.persistence.character.model.CharacterPosition
-import emu.persistence.character.model.CharacterRecord
-import emu.server.game.world.map.CollisionMapLoader
-import emu.server.game.world.player.WorldPlayer
-import emu.server.session.account.AccountPrivilege
+import emu.server.game.testPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
-class PlayerMainProcessTest {
+class PlayerPhaseTest {
     private val components =
         UiComponentMap.parse(
             "[components]\n\"test:button\" = 65538\n\"test:modal\" = 13107200",
@@ -59,9 +52,9 @@ class PlayerMainProcessTest {
 
         val runner = PlayerScriptRunner(scripts)
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
-        process(runner).apply {
-            beginCycle(0)
-            process(player)
+        phase(runner).apply {
+            begin(0)
+            run(player)
         }
 
         assertEquals(listOf("primary", "weak", "normal", "soft", "engine"), calls)
@@ -84,7 +77,7 @@ class PlayerMainProcessTest {
         player.actionQueue.add(PlayerScriptRequest(scripts.require(strong)), PlayerActionPriority.STRONG)
 
         val runner = PlayerScriptRunner(scripts)
-        process(runner).process(player)
+        phase(runner).run(player)
 
         assertEquals(listOf("close", "strong"), calls)
         assertFalse(player.interfaces.isVisible(Component.of(200, 0)))
@@ -107,7 +100,7 @@ class PlayerMainProcessTest {
         player.actionQueue.add(PlayerScriptRequest(scripts.require(weak)), PlayerActionPriority.WEAK)
         player.requestModalClose()
 
-        process(PlayerScriptRunner(scripts)).process(player)
+        phase(PlayerScriptRunner(scripts)).run(player)
 
         assertEquals(listOf("close", "primary"), calls)
         assertEquals(0, player.actionQueue.weakSize)
@@ -131,9 +124,9 @@ class PlayerMainProcessTest {
         player.actionQueue.add(PlayerScriptRequest(scripts.require(normal)))
         player.actionQueue.add(PlayerScriptRequest(scripts.require(weak)), PlayerActionPriority.WEAK)
         player.actionQueue.add(PlayerScriptRequest(scripts.require(engine)), PlayerActionPriority.ENGINE)
-        val process = process(PlayerScriptRunner(scripts))
+        val phase = phase(PlayerScriptRunner(scripts))
 
-        process.process(player)
+        phase.run(player)
 
         assertEquals(emptyList(), calls)
         assertEquals(1, player.actionQueue.primarySize)
@@ -162,9 +155,9 @@ class PlayerMainProcessTest {
         val runner = PlayerScriptRunner(scripts)
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
 
-        process(runner).apply {
-            beginCycle(0)
-            process(player)
+        phase(runner).apply {
+            begin(0)
+            run(player)
         }
 
         assertEquals(listOf("timer", "close", "engine"), calls)
@@ -189,15 +182,15 @@ class PlayerMainProcessTest {
         runner.start(player, button, ButtonClick(1, 2))
         player.actionQueue.add(PlayerScriptRequest(scripts.require(queued)))
 
-        val process = process(runner)
-        process.beginCycle(0)
-        process.process(player)
+        val phase = phase(runner)
+        phase.begin(0)
+        phase.run(player)
         assertEquals(listOf("start"), calls)
-        process.beginCycle(1)
-        process.process(player)
+        phase.begin(1)
+        phase.run(player)
         assertEquals(listOf("start"), calls)
-        process.beginCycle(2)
-        process.process(player)
+        phase.begin(2)
+        phase.run(player)
 
         assertEquals(listOf("start", "resume", "queued"), calls)
     }
@@ -217,33 +210,18 @@ class PlayerMainProcessTest {
         val player = player()
         player.actionQueue.add(PlayerScriptRequest(scripts.require(queued)))
         val runner = PlayerScriptRunner(scripts)
-        val process = process(runner)
+        val phase = phase(runner)
 
-        process.beginCycle(7)
-        process.process(player)
+        phase.begin(7)
+        phase.run(player)
         assertEquals(listOf("start"), calls)
-        process.beginCycle(8)
-        process.process(player)
+        phase.begin(8)
+        phase.run(player)
 
         assertEquals(listOf("start", "resume"), calls)
     }
 
-    private fun player() =
-        WorldPlayer(
-            CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
-            AccountPrivilege.PLAYER,
-        ).apply { activate(UiContentCatalog.load().gameframe) }
+    private fun player() = testPlayer().apply { activate(UiContentCatalog.load().gameframe) }
 
-    private fun process(runner: PlayerScriptRunner) =
-        PlayerMainProcess(
-            runner,
-            PlayerTriggerProcess(runner),
-            PlayerMovementCycleProcess(PlayerMovementProcess(OpenCollisionMap), PreparedCollision),
-        )
-
-    private object PreparedCollision : CollisionMapLoader {
-        override fun prepare(position: Tile) = Unit
-
-        override fun request(position: Tile): Boolean = true
-    }
+    private fun phase(runner: PlayerScriptRunner) = PlayerPhase(runner)
 }

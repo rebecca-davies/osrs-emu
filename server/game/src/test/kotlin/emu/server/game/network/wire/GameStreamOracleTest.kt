@@ -1,28 +1,15 @@
 package emu.server.game.network.wire
 
-import emu.compression.HuffmanCodec
 import emu.crypto.IsaacCipher
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
-import emu.game.content.ui.config.UiContentCatalog
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
-import emu.persistence.character.write.CharacterWriteQueue
-import emu.persistence.character.write.DurableCharacterWrite
-import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.server.game.TestPlayerContent
 import emu.server.game.network.output.GameOutboundWriter
 import emu.server.game.network.output.GameOutputQueue
 import emu.server.game.runtime.command.WorldCommandQueue
-import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
-import emu.server.game.world.cycle.WorldCycle
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
 import emu.transport.pipeline.outbound.PacketWriter
 import io.ktor.utils.io.ByteChannel
@@ -139,25 +126,10 @@ class GameStreamOracleTest {
                 outputQueue,
             )
         outputQueue.submitAndAwait(
-            requireNotNull(player.connection.attachment.login.await()).initialOutput,
+            requireNotNull(world.session(player).attachment.login.await()).initialOutput,
         )
-        world.activateTestPlayer(player.connection.token)
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        val cycle =
-            WorldCycle(
-                world,
-                WorldCommandQueue(capacity = 4),
-                TestPlayerContent.actions(
-                    movement,
-                    PlayerChatActionProcess(
-                        HuffmanCodec(ByteArray(256) { 8 }),
-                        ChatAuditSink { true },
-                    ),
-                ),
-                TestPlayerContent.main(movement),
-                TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
-                PlayerOutputProcess(),
-            )
+        world.activateTestPlayer(world.session(player).token)
+        val cycle = TestPlayerContent.cycle(world, WorldCommandQueue(capacity = 4))
         repeat(ORACLE_TICKS) { tick -> cycle.tick(tick.toLong()) }
         outputQueue.close()
         writerJob.join()

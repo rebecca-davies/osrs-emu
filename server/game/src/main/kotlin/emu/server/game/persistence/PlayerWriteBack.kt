@@ -1,11 +1,11 @@
 package emu.server.game.persistence
 
+import emu.game.player.Player
 import emu.persistence.character.model.CharacterChatFilters
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.character.model.CharacterSave
 import emu.persistence.character.write.CharacterWriteCompletion
-import emu.server.game.world.player.WorldPlayer
 
 /** Snapshot and completion state for one player's durable session write-back. */
 internal class PlayerWriteBack(
@@ -24,7 +24,7 @@ internal class PlayerWriteBack(
     val snapshotTaken: Boolean
         get() = snapshot != null
 
-    fun snapshot(player: WorldPlayer, nowNanos: Long): CharacterSave =
+    fun snapshot(player: Player, nowNanos: Long): CharacterSave =
         snapshot
             ?: CharacterSave(
                 characterId = player.id,

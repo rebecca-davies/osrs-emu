@@ -1,11 +1,8 @@
 package emu.server.game.runtime.lifecycle
 
-import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.content.ui.config.UiComponentMap
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.game.script.execution.PlayerScriptRequest
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.queue.PlayerQueueType
@@ -14,7 +11,6 @@ import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.character.write.CharacterWriteQueue
 import emu.persistence.character.write.DurableCharacterWrite
-import emu.persistence.chat.ChatAuditSink
 import emu.server.game.TestPlayerContent
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.runtime.command.WorldCommandQueue
@@ -22,12 +18,8 @@ import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.cycle.WorldCycle
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerTriggerProcess
+import emu.server.game.world.cycle.PlayerPhase
+import emu.server.game.world.player.PlayerLifecycle
 import emu.server.game.world.testWorld
 import kotlin.test.Test
 import kotlin.test.assertFailsWith
@@ -63,14 +55,14 @@ class WorldRuntimeTest {
                 onQueue(action) { }
             }
         val runner = PlayerScriptRunner(scripts)
-        val connected =
+        val player =
             world.addTestPlayer(
                 CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink { true },
             )
-        world.activateTestPlayer(connected.connection.token)
-        connected.player.actionQueue.add(
+        world.activateTestPlayer(world.session(player).token)
+        player.actionQueue.add(
             PlayerScriptRequest(scripts.require(action)),
             delayTicks = Int.MAX_VALUE,
         )
@@ -78,43 +70,21 @@ class WorldRuntimeTest {
 
         withTimeout(5.seconds) { runtime.run(maxTicks = 0) }
 
-        assertFalse(world.contains(connected.player.id))
+        assertFalse(world.contains(player.id))
     }
 
     private fun cycle(): WorldCycle {
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        return WorldCycle(
-            testWorld(),
-            WorldCommandQueue(capacity = 8),
-            TestPlayerContent.actions(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
-            ),
-            TestPlayerContent.main(movement),
-            TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
-            PlayerOutputProcess(),
-        )
+        val world = testWorld()
+        return TestPlayerContent.cycle(world, WorldCommandQueue(capacity = 8))
     }
 
-    private fun cycle(world: World, runner: PlayerScriptRunner): WorldCycle {
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        val triggers = PlayerTriggerProcess(runner)
-        return WorldCycle(
+    private fun cycle(world: World, runner: PlayerScriptRunner): WorldCycle =
+        WorldCycle(
             world,
             WorldCommandQueue(capacity = 8),
-            TestPlayerContent.actions(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
-            ),
-            PlayerMainProcess(runner, triggers, TestPlayerContent.movementCycle(movement)),
-            PlayerLifecycleProcess(CharacterWriteQueue { DurableCharacterWrite }, triggers),
-            PlayerOutputProcess(),
+            TestPlayerContent.actions(),
+            PlayerPhase(runner),
+            PlayerLifecycle(world, CharacterWriteQueue { DurableCharacterWrite }, runner),
+            TestPlayerContent.output(world),
         )
-    }
 }

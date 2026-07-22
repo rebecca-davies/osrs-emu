@@ -67,7 +67,7 @@ class WorldTest {
 
         assertEquals(null, failedAttachment.login.await())
         assertEquals(2, assertNotNull(healthyAttachment.login.await()).playerIndex)
-        assertEquals(listOf(2L), world.allPlayers().map { it.player.id })
+        assertEquals(listOf(2L), world.allPlayers().map { it.id })
         val replacement = GameSessionToken("replacement")
         assertEquals(ReservationDecision.Accepted(replacement, 1), world.reserve(1, replacement))
     }

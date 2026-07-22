@@ -1,17 +1,17 @@
 package emu.server.game.network.output.playerinfo
 
+import emu.game.player.Player
 import emu.game.player.appearance.CharacterAppearance
 import emu.game.player.appearance.CharacterGender
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerBody
-import emu.server.game.world.player.WorldPlayer
 
 /** Returns a rev-239 value whose object identity changes exactly when the character appearance changes. */
-internal class PlayerAppearanceOutput(player: WorldPlayer) {
+internal class PlayerAppearanceOutput(player: Player) {
     private var source = player.appearance
     private var cached = build(source, player.displayName)
 
-    fun message(player: WorldPlayer): PlayerAppearance {
+    fun message(player: Player): PlayerAppearance {
         val appearance = player.appearance
         if (source !== appearance) {
             source = appearance

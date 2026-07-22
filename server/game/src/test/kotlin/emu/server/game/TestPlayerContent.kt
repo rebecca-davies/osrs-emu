@@ -1,50 +1,55 @@
 package emu.server.game
 
+import emu.compression.HuffmanCodec
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.ui.config.UiContentCatalog
-import emu.game.map.Tile
-import emu.game.pathfinding.movement.PlayerMovementProcess
-import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
-import emu.server.game.world.map.CollisionMapLoader
+import emu.persistence.character.write.DurableCharacterWrite
+import emu.persistence.chat.ChatAuditSink
+import emu.server.game.network.output.PlayerOutput
+import emu.server.game.runtime.command.WorldCommandQueue
+import emu.server.game.world.World
+import emu.server.game.world.cycle.PlayerPhase
+import emu.server.game.world.cycle.WorldCycle
+import emu.server.game.world.player.PlayerLifecycle
+import emu.server.game.world.player.action.PlayerActions
+import emu.server.game.world.player.command.PlayerCommandRepository
 import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerMovementCycleProcess
-import emu.server.game.world.player.process.PlayerTriggerProcess
 
 /** Shared immutable Kotlin-content runtime used by world tests. */
 internal object TestPlayerContent {
     private val repository = PlayerContentCatalog.load(UiContentCatalog.load().components)
-    private val runner = PlayerScriptRunner(repository)
-    private val triggers = PlayerTriggerProcess(runner)
+    private val scripts = PlayerScriptRunner(repository)
+    private val huffman = HuffmanCodec(ByteArray(256) { 8 })
 
     fun actions(
-        routeFinder: PlayerRouteFinder,
-        chat: PlayerChatActionProcess,
-    ) = PlayerActionProcess(
-        routeFinder,
-        chat,
-        runner,
-        PlayerCommandRepositoryBuilder().build(),
-    )
+        audit: ChatAuditSink = ChatAuditSink { true },
+        commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
+    ) = PlayerActions(scripts, commands, audit)
 
-    fun main(movement: PlayerMovementProcess) =
-        PlayerMainProcess(runner, triggers, movementCycle(movement))
+    fun playerPhase() = PlayerPhase(scripts)
 
-    fun lifecycle(writes: CharacterWriteQueue) = PlayerLifecycleProcess(writes, triggers)
+    fun lifecycle(
+        world: World,
+        writes: CharacterWriteQueue,
+        nanoTime: () -> Long = System::nanoTime,
+    ) = PlayerLifecycle(world, writes, scripts, nanoTime)
 
-    fun triggers() = triggers
+    fun output(world: World) = PlayerOutput(world, huffman)
 
-    fun movementCycle(movement: PlayerMovementProcess) =
-        PlayerMovementCycleProcess(movement, PreparedCollision)
-
-    private object PreparedCollision : CollisionMapLoader {
-        override fun prepare(position: Tile) = Unit
-
-        override fun request(position: Tile): Boolean = true
-    }
+    fun cycle(
+        world: World,
+        commands: WorldCommandQueue = WorldCommandQueue(256),
+        writes: CharacterWriteQueue = CharacterWriteQueue { DurableCharacterWrite },
+        audit: ChatAuditSink = ChatAuditSink { true },
+    ) =
+        WorldCycle(
+            world,
+            commands,
+            actions(audit),
+            playerPhase(),
+            lifecycle(world, writes),
+            output(world),
+        )
 }

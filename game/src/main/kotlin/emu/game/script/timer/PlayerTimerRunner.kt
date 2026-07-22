@@ -3,19 +3,19 @@ package emu.game.script.timer
 import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
 
-/** Runs normal then soft timers and reports after each script advances at its phase boundary. */
-class PlayerTimerProcess(
-    private val runner: PlayerScriptRunner,
+/** Advances ready normal and soft player timers in their RuneScape phase order. */
+class PlayerTimerRunner(
+    private val scripts: PlayerScriptRunner,
     private val afterExecution: (Player) -> Unit = {},
 ) {
-    fun process(player: Player) {
+    fun run(player: Player) {
         if (player.loggingOut) return
-        val worldTick = runner.worldTick
-        process(player, worldTick, soft = false)
-        process(player, worldTick, soft = true)
+        val worldTick = scripts.worldTick
+        run(player, worldTick, soft = false)
+        run(player, worldTick, soft = true)
     }
 
-    private fun process(
+    private fun run(
         player: Player,
         worldTick: Long,
         soft: Boolean,
@@ -34,7 +34,7 @@ class PlayerTimerProcess(
                     timers.prepareRun(timer, worldTick)
             ) {
                 val started =
-                    runner.start(
+                    scripts.start(
                         player,
                         timer.request.script,
                         argument = timer.request.argument,

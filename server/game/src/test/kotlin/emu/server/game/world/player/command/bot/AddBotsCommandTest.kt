@@ -1,16 +1,13 @@
 package emu.server.game.world.player.command.bot
 
-import emu.game.map.Tile
-import emu.game.player.Player
+import emu.game.player.StaffModLevel
+import emu.server.game.testPlayer
 import emu.server.game.world.player.command.buildPlayerCommandRepository
-import emu.server.session.account.AccountPrivilege
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class AddBotsCommandTest {
-    private val player = Player(Tile(3_222, 3_218))
-
     @Test
     fun `administrator command submits the requested bounded client count`() {
         var requested = 0
@@ -20,7 +17,7 @@ class AddBotsCommandTest {
                 BotClientRequestResult.Accepted(count, reservedClients = count + 1)
             }
 
-        val response = commands.execute("  AdDbOtS   4  ", player, AccountPrivilege.ADMINISTRATOR)
+        val response = commands.execute("  AdDbOtS   4  ", testPlayer(staffModLevel = StaffModLevel(2)))
 
         assertEquals(4, requested)
         assertEquals("Starting 4 automated player client(s); 5 slot(s) reserved.", response)
@@ -35,7 +32,7 @@ class AddBotsCommandTest {
                 BotClientRequestResult.Accepted(it, it)
             }
 
-        val response = commands.execute("addbots 4", player, AccountPrivilege.MODERATOR)
+        val response = commands.execute("addbots 4", testPlayer(staffModLevel = StaffModLevel(1)))
 
         assertNull(response)
         assertEquals(false, requested)

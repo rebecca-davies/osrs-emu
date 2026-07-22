@@ -2,7 +2,7 @@ package emu.game.script.timer
 
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.map.Tile
-import emu.game.player.Player
+import emu.game.player.testPlayer
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-class PlayerTimerProcessTest {
+class PlayerTimerRunnerTest {
     private val components =
         UiComponentMap.parse(
             "[components]\n\"test:setup\" = 65538\n\"test:busy\" = 65539",
@@ -34,22 +34,22 @@ class PlayerTimerProcessTest {
                     softTimer(soft, intervalTicks = 2)
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
 
         runner.beginCycle(10)
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
         runner.beginCycle(11)
-        process.process(player)
+        timers.run(player)
         assertEquals(emptyList(), calls)
 
         runner.beginCycle(12)
-        process.process(player)
+        timers.run(player)
         runner.beginCycle(13)
-        process.process(player)
+        timers.run(player)
         runner.beginCycle(14)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("normal:argument", "soft", "normal:argument", "soft"), calls)
     }
@@ -73,20 +73,20 @@ class PlayerTimerProcessTest {
                     calls += "resumed"
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
 
         runner.beginCycle(0)
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65539, ButtonClick(1, 3))
         runner.beginCycle(1)
-        process.process(player)
+        timers.run(player)
         assertEquals(listOf("busy", "soft"), calls)
 
         runner.beginCycle(3)
         runner.resume(player)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("busy", "soft", "resumed", "normal", "soft"), calls)
     }
@@ -111,16 +111,16 @@ class PlayerTimerProcessTest {
                     softTimer(soft, intervalTicks = 1)
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
         runner.beginCycle(0)
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
         player.interfaces.openTopLevel(161)
         player.interfaces.openModal(Component.of(161, 1), 200)
 
         runner.beginCycle(1)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("soft"), calls)
         assertTrue(normal in player.timers)
@@ -128,7 +128,7 @@ class PlayerTimerProcessTest {
 
         player.closeModal()
         runner.beginCycle(2)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("soft", "normal"), calls)
     }
@@ -151,14 +151,14 @@ class PlayerTimerProcessTest {
                     setTimer(cleared, intervalTicks = 0)
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
 
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
-        process.process(player)
+        timers.run(player)
         runner.beginCycle(1)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("first"), calls)
         assertFalse(first in player.timers)
@@ -177,20 +177,20 @@ class PlayerTimerProcessTest {
                     setTimer(timer, intervalTicks = 2)
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
 
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65539, ButtonClick(1, 3))
         for (worldTick in 1L..4L) {
             runner.beginCycle(worldTick)
             runner.resume(player)
-            process.process(player)
+            timers.run(player)
         }
         assertEquals(emptyList(), calls)
 
         runner.beginCycle(5)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf(5L), calls)
     }
@@ -222,18 +222,18 @@ class PlayerTimerProcessTest {
                     setTimer(replacement, "old", intervalTicks = 0)
                 }
             }
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val runner = PlayerScriptRunner(scripts)
-        val process = PlayerTimerProcess(runner)
+        val timers = PlayerTimerRunner(runner)
 
         runner.trigger(player, ServerTriggerType.IF_BUTTON, 65538, ButtonClick(1, 2))
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("first", "replacement:new"), calls)
         assertTrue(added in player.timers)
 
         runner.beginCycle(1)
-        process.process(player)
+        timers.run(player)
 
         assertEquals(listOf("first", "replacement:new", "added"), calls)
     }

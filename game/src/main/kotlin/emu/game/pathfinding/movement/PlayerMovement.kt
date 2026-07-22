@@ -42,7 +42,7 @@ class PlayerMovement(
     }
 
     /** Advances the route for one player phase and records its net player-info delta. */
-    fun process(
+    internal fun advance(
         collisionMap: CollisionMap,
         extraCollisionFlag: Int = CollisionFlag.BLOCK_PLAYERS,
     ) {
@@ -71,16 +71,19 @@ class PlayerMovement(
         val target = waypoints.firstOrNull() ?: return false
         val deltaX = (target.x - position.x).coerceIn(-1, 1)
         val deltaY = (target.y - position.y).coerceIn(-1, 1)
-        val step =
+        var stepX = deltaX
+        var stepY = deltaY
+        if (
+            !collisionMap.canTravel(
+                position.x,
+                position.y,
+                position.plane,
+                stepX,
+                stepY,
+                extraCollisionFlag,
+            )
+        ) {
             when {
-                collisionMap.canTravel(
-                    position.x,
-                    position.y,
-                    position.plane,
-                    deltaX,
-                    deltaY,
-                    extraCollisionFlag,
-                ) -> deltaX to deltaY
                 deltaX != 0 &&
                     collisionMap.canTravel(
                         position.x,
@@ -89,7 +92,7 @@ class PlayerMovement(
                         deltaX,
                         0,
                         extraCollisionFlag,
-                    ) -> deltaX to 0
+                    ) -> stepY = 0
                 deltaY != 0 &&
                     collisionMap.canTravel(
                         position.x,
@@ -98,10 +101,11 @@ class PlayerMovement(
                         0,
                         deltaY,
                         extraCollisionFlag,
-                    ) -> 0 to deltaY
+                    ) -> stepX = 0
                 else -> return false
             }
-        position = Tile(position.x + step.first, position.y + step.second, position.plane)
+        }
+        position = Tile(position.x + stepX, position.y + stepY, position.plane)
         if (position == target) waypoints.removeFirst()
         return true
     }

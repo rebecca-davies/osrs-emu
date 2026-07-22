@@ -2,7 +2,7 @@ package emu.game.content.player
 
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.Tile
-import emu.game.player.Player
+import emu.game.player.testPlayer
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
@@ -17,7 +17,7 @@ class PlayerContentCatalogTest {
 
     @Test
     fun `run buttons share feature-local toggle content`() {
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val orb = components.require("orbs:runbutton")
         val settings = components.require("settings_side:runmode")
 
@@ -38,7 +38,7 @@ class PlayerContentCatalogTest {
 
     @Test
     fun `logout button requests the normal player lifecycle`() {
-        val player = Player(Tile(3200, 3200, 0))
+        val player = testPlayer(Tile(3200, 3200, 0))
         val component = components.require("logout:logout")
         val script = requireNotNull(scripts.findSpecific(ServerTriggerType.IF_BUTTON, component.packed))
 

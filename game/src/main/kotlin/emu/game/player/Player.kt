@@ -1,10 +1,12 @@
 package emu.game.player
 
+import emu.game.chat.PublicChatInput
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.gameframe.Gameframe
 import emu.game.map.PlayerBuildArea
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.PlayerMovement
+import emu.game.player.appearance.CharacterAppearance
 import emu.game.queue.PlayerActionQueue
 import emu.game.script.execution.PlayerScriptExecution
 import emu.game.script.execution.PlayerScriptRequest
@@ -12,12 +14,20 @@ import emu.game.timer.PlayerTimers
 import emu.game.ui.PlayerInterfaces
 import emu.game.varp.PlayerVarps
 
-/** World-thread-owned gameplay state used directly by Kotlin content scripts. */
-open class Player(
+/** Authoritative world-thread-owned state for one live player character. */
+class Player(
+    val id: Long,
+    val index: Int,
+    val displayName: String,
+    val staffModLevel: StaffModLevel,
     initialPosition: Tile,
     savedVarps: Map<Int, Int> = emptyMap(),
     initialChatFilters: PlayerChatFilters = PlayerChatFilters(),
+    initialAppearance: CharacterAppearance = CharacterAppearance.DEFAULT,
 ) {
+    private var pendingRoute: RouteRequest? = null
+    private val gameMessages = ArrayDeque<String>(MAX_PENDING_GAME_MESSAGES)
+
     val movement = PlayerMovement(initialPosition)
     val buildArea = PlayerBuildArea(initialPosition)
     val varps =
@@ -28,6 +38,12 @@ open class Player(
     val timers = PlayerTimers()
     val interfaces = PlayerInterfaces()
     val chatFilters = initialChatFilters
+
+    var appearance: CharacterAppearance = initialAppearance
+        private set
+
+    var publicChat: PublicChatInput? = null
+        private set
 
     var animationUpdate: PlayerAnimation? = null
         private set
@@ -52,8 +68,48 @@ open class Player(
         private set
     private var modalCloseRequested: Boolean = false
 
+    init {
+        require(id > 0) { "player id must be positive" }
+        require(index in PLAYER_INDEX_RANGE) { "player index must be in 1..2047" }
+        require(displayName.isNotBlank()) { "player display name must not be blank" }
+    }
+
     /** Whether ordinary queued work may run without violating protected or modal state. */
     fun canAccess(): Boolean = shutdownAccess || canAcquireProtectedAccess() && !interfaces.hasModal()
+
+    /** Replaces the route request that the world map will resolve at its next phase boundary. */
+    fun walkTo(destination: Tile, temporaryRun: Boolean? = null) {
+        require(destination.plane == movement.position.plane) { "a walking route cannot change plane" }
+        pendingRoute = RouteRequest(destination, temporaryRun)
+    }
+
+    /** Publishes at most one public-chat update during a cycle. */
+    fun publishPublicChat(message: PublicChatInput): Boolean {
+        if (publicChat != null) return false
+        publicChat = message
+        return true
+    }
+
+    /** Queues one bounded game message for the next client-output phase. */
+    fun messageGame(text: String): Boolean {
+        if (gameMessages.size >= MAX_PENDING_GAME_MESSAGES) return false
+        gameMessages.addLast(text)
+        return true
+    }
+
+    /** Changes the appearance published by the next player-info update. */
+    fun changeAppearance(value: CharacterAppearance) {
+        if (appearance == value) return
+        appearance = value
+    }
+
+    /** Consumes queued game messages in insertion order. */
+    fun takeGameMessages(): List<String> {
+        if (gameMessages.isEmpty()) return emptyList()
+        val messages = ArrayList<String>(gameMessages.size)
+        while (gameMessages.isNotEmpty()) messages += gameMessages.removeFirst()
+        return messages
+    }
 
     /** Whether a script may take protected access, independently of the interface it handles. */
     internal fun canAcquireProtectedAccess(): Boolean =
@@ -74,6 +130,7 @@ open class Player(
     fun finishCycle() {
         movement.finishCycle()
         animationUpdate = null
+        publicChat = null
     }
 
     /** Defers a client modal close until the player queue boundary. */
@@ -102,7 +159,7 @@ open class Player(
     }
 
     /** Synchronizes the base gameframe, runs LOGIN content, then enables ordinary play. */
-    open fun activate(
+    fun activate(
         gameframe: Gameframe,
         beforeActivation: () -> Unit = {},
     ) {
@@ -132,5 +189,21 @@ open class Player(
         idleLogoutRequested = false
         loggingOut = true
         return true
+    }
+
+    internal fun takeRouteRequest(): RouteRequest? {
+        val request = pendingRoute
+        pendingRoute = null
+        return request
+    }
+
+    internal data class RouteRequest(
+        val destination: Tile,
+        val temporaryRun: Boolean?,
+    )
+
+    private companion object {
+        val PLAYER_INDEX_RANGE = 1..2_047
+        const val MAX_PENDING_GAME_MESSAGES = 8
     }
 }

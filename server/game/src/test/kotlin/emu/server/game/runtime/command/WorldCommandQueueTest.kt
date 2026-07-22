@@ -68,7 +68,7 @@ class WorldCommandQueueTest {
         queue.drain(world)
         world.activateTestPlayer(token)
 
-        assertEquals(listOf(1L), world.activePlayers().map { it.player.id })
+        assertEquals(listOf(1L), world.activePlayers().map { it.id })
     }
 
     @Test
@@ -97,18 +97,18 @@ class WorldCommandQueueTest {
         queue.disconnect(oldToken)
         queue.drain(world)
 
-        assertFalse(current.player.active)
-        assertFalse(current.player.logoutRequested)
+        assertFalse(current.active)
+        assertFalse(current.logoutRequested)
 
         queue.activate(currentToken)
         queue.drain(world)
         world.activateTestPlayer(currentToken)
-        assertTrue(current.player.active)
+        assertTrue(current.active)
 
         queue.disconnect(currentToken)
         queue.drain(world)
-        assertTrue(current.player.logoutRequested)
-        assertFalse(current.connection.isConnected)
+        assertTrue(current.logoutRequested)
+        assertFalse(world.session(current).isConnected)
     }
 
     @Test

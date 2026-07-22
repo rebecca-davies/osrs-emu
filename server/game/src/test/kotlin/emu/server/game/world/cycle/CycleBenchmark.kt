@@ -1,26 +1,19 @@
 package emu.server.game.world.cycle
 
 import com.sun.management.ThreadMXBean
-import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
+import emu.game.player.Player
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
-import emu.persistence.character.write.CharacterWriteQueue
-import emu.persistence.character.write.DurableCharacterWrite
-import emu.persistence.chat.ChatAuditSink
 import emu.server.game.TestPlayerContent
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
+import emu.server.game.world.World
 import emu.server.game.world.entry.PlayerCapacity
-import emu.server.game.world.player.ConnectedPlayer
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.testWorld
 import java.lang.management.ManagementFactory
 import java.util.Locale
@@ -39,10 +32,10 @@ fun main(args: Array<String>) {
 
     var publishedBatches = 0L
     val world = testWorld(maxPlayerIndex = playerCount)
-    val players = ArrayList<ConnectedPlayer>(playerCount)
+    val players = ArrayList<Player>(playerCount)
     repeat(playerCount) { ordinal ->
         val id = ordinal + 1L
-        val connected =
+        val player =
             world.addTestPlayer(
                 CharacterRecord(id, "Bench$id", workload.initialPosition(ordinal), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
@@ -51,30 +44,15 @@ fun main(args: Array<String>) {
                     true
                 },
             )
-        world.activateTestPlayer(connected.connection.token)
-        players += connected
+        world.activateTestPlayer(world.session(player).token)
+        players += player
     }
 
-    val movement = PlayerMovementProcess(OpenCollisionMap)
-    val cycle =
-        WorldCycle(
-            world,
-            WorldCommandQueue(capacity = 8),
-            TestPlayerContent.actions(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
-            ),
-            TestPlayerContent.main(movement),
-            TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
-            PlayerOutputProcess(),
-        )
+    val cycle = TestPlayerContent.cycle(world, WorldCommandQueue(capacity = 8))
 
     var worldTick = 0L
     repeat(warmupCycles) {
-        workload.prepare(worldTick, players)
+        workload.prepare(worldTick, world, players)
         val batchesBefore = publishedBatches
         cycle.tick(worldTick++)
         checkPublishedPlayerCount(publishedBatches - batchesBefore, playerCount, worldTick - 1)
@@ -85,7 +63,7 @@ fun main(args: Array<String>) {
     var allocatedBytes = 0L
     var allocationAvailable = allocation != null
     repeat(measuredCycles) { index ->
-        workload.prepare(worldTick, players)
+        workload.prepare(worldTick, world, players)
         val batchesBefore = publishedBatches
         val allocatedBefore = allocation?.getThreadAllocatedBytes(thread) ?: -1L
         val started = System.nanoTime()
@@ -152,13 +130,13 @@ private enum class BenchmarkWorkload(val argument: String) {
                 0,
             )
 
-        override fun prepare(worldTick: Long, players: List<ConnectedPlayer>) = Unit
+        override fun prepare(worldTick: Long, world: World, players: List<Player>) = Unit
     },
     MOVING_BOTS("moving-bots") {
         override fun initialPosition(ordinal: Int): CharacterPosition =
             CharacterPosition(BOT_MOVEMENT_CENTRE_X, BOT_MOVEMENT_CENTRE_Y, 0)
 
-        override fun prepare(worldTick: Long, players: List<ConnectedPlayer>) {
+        override fun prepare(worldTick: Long, world: World, players: List<Player>) {
             for (index in players.indices) {
                 if ((worldTick + index) % BOT_MOVEMENT_CYCLES != 0L) continue
                 val movementNumber = (worldTick + index) / BOT_MOVEMENT_CYCLES
@@ -171,7 +149,7 @@ private enum class BenchmarkWorkload(val argument: String) {
                 ) {
                     "moving-bot destination escaped the shared movement area: $destination"
                 }
-                check(players[index].connection.actions.submit(PlayerAction.Route(destination.x, destination.y))) {
+                check(world.session(players[index]).actions.submit(PlayerAction.Route(destination.x, destination.y))) {
                     "benchmark action queue rejected player ${index + 1}"
                 }
             }
@@ -180,7 +158,7 @@ private enum class BenchmarkWorkload(val argument: String) {
 
     abstract fun initialPosition(ordinal: Int): CharacterPosition
 
-    abstract fun prepare(worldTick: Long, players: List<ConnectedPlayer>)
+    abstract fun prepare(worldTick: Long, world: World, players: List<Player>)
 
     companion object {
         fun parse(argument: String): BenchmarkWorkload =

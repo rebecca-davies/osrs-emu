@@ -3,7 +3,7 @@ package emu.game.script.execution
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.map.Tile
-import emu.game.player.Player
+import emu.game.player.testPlayer
 import emu.game.script.queue.PlayerQueueType
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.script.trigger.ServerTriggerType
@@ -177,5 +177,5 @@ class PlayerScriptRunnerTest {
         }
     }
 
-    private fun player() = Player(Tile(3200, 3200, 0))
+    private fun player() = testPlayer(Tile(3200, 3200, 0))
 }

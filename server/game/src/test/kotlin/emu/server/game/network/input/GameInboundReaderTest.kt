@@ -5,10 +5,6 @@ import emu.crypto.IsaacCipher
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
-import emu.game.map.Tile
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovement
-import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.protocol.osrs239.game.buildGameCodecRepository
 import emu.protocol.osrs239.game.prot.GameClientProt
 import io.ktor.utils.io.ByteChannel
@@ -28,8 +24,6 @@ class GameInboundReaderTest {
         val codecs = buildGameCodecRepository()
         val input = ByteChannel(autoFlush = true)
         val actions = IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig())
-        val movement = PlayerMovement(Tile(3222, 3218))
-        val movementProcess = PlayerMovementProcess(OpenCollisionMap)
         val reader = GameInboundReader(codecs, HuffmanCodec(ByteArray(256) { 8 }), 2.seconds)
         val job = launch {
             reader.run(input, serverCipher, actions)
@@ -55,10 +49,7 @@ class GameInboundReaderTest {
         assertEquals(PlayerAction.CloseModal, queued[0])
         assertEquals(PlayerAction.IdleLogout, queued[1])
         val route = queued[2] as PlayerAction.Route
-        movementProcess.routeTo(movement, Tile(route.x, route.y, movement.position.plane))
-        movementProcess.process(movement)
-
-        assertEquals(Tile(3223, 3218), movement.position)
+        assertEquals(PlayerAction.Route(3224, 3218), route)
     }
 
     private suspend fun ByteChannel.writeEncryptedOpcode(opcode: Int, cipher: IsaacCipher) {

@@ -6,8 +6,7 @@ import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
-import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
+import emu.game.player.Player
 import emu.game.queue.LongActionLogout
 import emu.game.queue.PlayerActionPriority
 import emu.game.script.content.PlayerContent
@@ -24,22 +23,17 @@ import emu.persistence.chat.ChatAuditSink
 import emu.protocol.osrs239.game.message.component.IfOpenSub
 import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.MODAL
 import emu.protocol.osrs239.game.message.varp.VarpSmall
-import emu.server.game.TestPlayerContent
 import emu.server.game.network.output.GameOutputBatch
 import emu.server.game.network.output.GameOutputSegment
 import emu.server.game.network.output.GameOutputSink
+import emu.server.game.network.output.PlayerOutput
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
 import emu.server.game.world.addTestPlayer
-import emu.server.game.world.player.WorldPlayer
+import emu.server.game.world.player.PlayerLifecycle
+import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.server.game.world.testWorld
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,7 +53,7 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 2)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val failed =
             world.addTestPlayer(
                 CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
@@ -72,18 +66,18 @@ class PlayerLogoutCycleTest {
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink { true },
             )
-        world.requestActivation(failed.connection.token)
-        world.requestActivation(healthy.connection.token)
+        world.requestActivation(world.session(failed).token)
+        world.requestActivation(world.session(healthy).token)
 
         cycle.tick(worldTick = 0)
 
         assertEquals(2, loginAttempts)
-        assertFalse(failed.player.active)
-        assertTrue(failed.player.logoutRequested)
-        assertTrue(healthy.player.active)
+        assertFalse(failed.active)
+        assertTrue(failed.logoutRequested)
+        assertTrue(healthy.active)
         cycle.tick(worldTick = 1)
-        assertFalse(world.contains(failed.player.id))
-        assertTrue(world.contains(healthy.player.id))
+        assertFalse(world.contains(failed.id))
+        assertTrue(world.contains(healthy.id))
     }
 
     @Test
@@ -102,20 +96,20 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
-        val connected =
+        val cycle = cycle(world, runner)
+        val player =
             world.addTestPlayer(
                 CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink { batch -> batches += batch; true },
             )
-        world.requestActivation(connected.connection.token)
+        world.requestActivation(world.session(player).token)
 
         cycle.tick(worldTick = 0)
         assertEquals(listOf("login"), calls)
-        assertTrue(connected.player.active)
-        assertEquals(1, connected.player.varps[PlayerVarpCatalog.RUN_MODE])
-        assertEquals(200, connected.player.interfaces.subInterfaceAt(Component.of(161, 500)))
+        assertTrue(player.active)
+        assertEquals(1, player.varps[PlayerVarpCatalog.RUN_MODE])
+        assertEquals(200, player.interfaces.subInterfaceAt(Component.of(161, 500)))
         val loginChanges =
             batches.single().segments
                 .filterIsInstance<GameOutputSegment.Packets>()
@@ -123,11 +117,11 @@ class PlayerLogoutCycleTest {
         assertTrue(VarpSmall(PlayerVarpCatalog.RUN_MODE.id, 1) in loginChanges)
         assertTrue(IfOpenSub(161, 500, 200, MODAL) in loginChanges)
 
-        connected.player.requestLogout()
+        player.requestLogout()
         cycle.tick(worldTick = 1)
 
         assertEquals(listOf("login", "logout"), calls)
-        assertFalse(world.contains(connected.player.id))
+        assertFalse(world.contains(player.id))
     }
 
     @Test
@@ -148,7 +142,7 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val player = player(world)
         player.interfaces.openModal(Component.of(161, 500), 200)
         player.actionQueue.add(
@@ -177,7 +171,7 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val player = player(world)
         player.requestLogout()
 
@@ -198,7 +192,7 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val player = player(world)
         player.requestLogout()
 
@@ -219,7 +213,7 @@ class PlayerLogoutCycleTest {
         val scripts = scripts { onQueue(queueType) { calls += "long" } }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val player = player(world)
         player.actionQueue.addLong(
             PlayerScriptRequest(scripts.require(queueType)),
@@ -246,22 +240,22 @@ class PlayerLogoutCycleTest {
         val scripts = scripts { onLogout { calls += "logout" } }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
-        val connected =
+        val cycle = cycle(world, runner)
+        val player =
             world.addTestPlayer(
                 CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink { true },
             )
-        world.activateTestPlayer(connected.connection.token)
-        connected.connection.actions.submit(PlayerAction.IdleLogout)
+        world.activateTestPlayer(world.session(player).token)
+        world.session(player).actions.submit(PlayerAction.IdleLogout)
 
         cycle.tick(worldTick = 0)
 
         assertEquals(listOf("logout"), calls)
-        assertTrue(connected.player.loggingOut)
-        assertFalse(connected.player.idleLogoutRequested)
-        assertFalse(world.contains(connected.player.id))
+        assertTrue(player.loggingOut)
+        assertFalse(player.idleLogoutRequested)
+        assertFalse(world.contains(player.id))
     }
 
     @Test
@@ -278,7 +272,7 @@ class PlayerLogoutCycleTest {
             }
         val runner = PlayerScriptRunner(scripts)
         val world = testWorld(maxPlayerIndex = 1)
-        val cycle = cycle(world, scripts, runner)
+        val cycle = cycle(world, runner)
         val player = player(world)
         player.actionQueue.add(PlayerScriptRequest(scripts.require(queueType)))
         cycle.tick(worldTick = 0)
@@ -294,15 +288,15 @@ class PlayerLogoutCycleTest {
         assertFalse(world.contains(player.id))
     }
 
-    private fun player(world: World): WorldPlayer {
-        val connected =
+    private fun player(world: World): Player {
+        val player =
             world.addTestPlayer(
                 CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
                 IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
                 GameOutputSink { true },
             )
-        world.activateTestPlayer(connected.connection.token)
-        return connected.player
+        world.activateTestPlayer(world.session(player).token)
+        return player
     }
 
     private fun scripts(content: PlayerContent.() -> Unit): PlayerScriptRepository =
@@ -310,26 +304,19 @@ class PlayerLogoutCycleTest {
 
     private fun cycle(
         world: World,
-        scripts: PlayerScriptRepository,
         runner: PlayerScriptRunner,
     ): WorldCycle {
-        val movement = PlayerMovementProcess(OpenCollisionMap)
-        val triggers = PlayerTriggerProcess(runner)
         return WorldCycle(
             world,
             WorldCommandQueue(capacity = 8),
-            PlayerActionProcess(
-                movement,
-                PlayerChatActionProcess(
-                    HuffmanCodec(ByteArray(256) { 8 }),
-                    ChatAuditSink { true },
-                ),
+            PlayerActions(
                 runner,
                 PlayerCommandRepositoryBuilder().build(),
+                ChatAuditSink { true },
             ),
-            PlayerMainProcess(runner, triggers, TestPlayerContent.movementCycle(movement)),
-            PlayerLifecycleProcess(CharacterWriteQueue { DurableCharacterWrite }, triggers),
-            PlayerOutputProcess(),
+            PlayerPhase(runner),
+            PlayerLifecycle(world, CharacterWriteQueue { DurableCharacterWrite }, runner),
+            PlayerOutput(world, HuffmanCodec(ByteArray(256) { 8 })),
         )
     }
 }

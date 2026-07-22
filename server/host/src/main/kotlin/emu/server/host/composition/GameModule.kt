@@ -5,10 +5,8 @@ import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContent
 import emu.game.content.ui.config.UiContentCatalog
+import emu.game.map.GameMap
 import emu.game.map.Tile
-import emu.game.pathfinding.collision.CollisionMap
-import emu.game.pathfinding.movement.PlayerMovementProcess
-import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.CharacterStore
 import emu.persistence.character.write.CharacterWriteQueue
@@ -19,23 +17,20 @@ import emu.server.game.GameService
 import emu.server.game.config.GameExecutionConfig
 import emu.server.game.network.connection.GameConnectionRunner
 import emu.server.game.network.input.GameInboundReader
+import emu.server.game.network.output.PlayerOutput
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.runtime.lifecycle.WorldLifecycle
 import emu.server.game.runtime.lifecycle.WorldRuntime
 import emu.server.game.world.World
+import emu.server.game.world.cycle.PlayerPhase
 import emu.server.game.world.cycle.WorldCycle
 import emu.server.game.world.entry.WorldEntry
 import emu.server.game.world.map.CacheCollisionMap
 import emu.server.game.world.map.CollisionLoadQueue
 import emu.server.game.world.map.CollisionMapLoader
+import emu.server.game.world.player.PlayerLifecycle
+import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.buildPlayerCommandRepository
-import emu.server.game.world.player.process.PlayerActionProcess
-import emu.server.game.world.player.process.PlayerChatActionProcess
-import emu.server.game.world.player.process.PlayerLifecycleProcess
-import emu.server.game.world.player.process.PlayerMainProcess
-import emu.server.game.world.player.process.PlayerMovementCycleProcess
-import emu.server.game.world.player.process.PlayerOutputProcess
-import emu.server.game.world.player.process.PlayerTriggerProcess
 import emu.transport.codec.CodecRepository
 import kotlinx.coroutines.withContext
 import org.koin.dsl.module
@@ -49,7 +44,6 @@ internal fun gameModule(
     config: GameExecutionConfig,
 ) = module {
     single { codecs }
-    single<CollisionMap> { collision }
     single { huffman }
     single { config }
     single { config.connection }
@@ -60,30 +54,54 @@ internal fun gameModule(
         )
     } onClose { it?.close() }
 
+    single { CollisionLoadQueue(collision, config.collisionLoads) } onClose { it?.close() }
+    single<CollisionMapLoader> { get<CollisionLoadQueue>() }
+    single {
+        val collisionLoads = get<CollisionMapLoader>()
+        GameMap(
+            collision = collision,
+            requestAreas = collisionLoads::request,
+        )
+    }
     single { UiContentCatalog.load() }
     single {
         World(
-            get<UiContent>().gameframe,
-            LoginNotices.ALL,
-            config.maxConcurrentSessions,
+            map = get(),
+            gameframe = get<UiContent>().gameframe,
+            loginNotices = LoginNotices.ALL,
+            maxPlayerIndex = config.maxConcurrentSessions,
         )
     }
     single { WorldCommandQueue(config.commands) }
-    single { CollisionLoadQueue(collision, config.collisionLoads) } onClose { it?.close() }
-    single<CollisionMapLoader> { get<CollisionLoadQueue>() }
-    single { PlayerMovementProcess(get<CollisionMap>()) }
-    single<PlayerRouteFinder> { get<PlayerMovementProcess>() }
-    single { PlayerMovementCycleProcess(get(), get()) }
-    single { PlayerChatActionProcess(get(), get<ChatAuditSink>()) }
     single { PlayerContentCatalog.load(get<UiContent>().components) }
     single { PlayerScriptRunner(get()) }
-    single { PlayerTriggerProcess(get()) }
     single { buildPlayerCommandRepository(get()) }
-    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get()) }
-    single { PlayerMainProcess(get(), get(), get()) }
-    single { PlayerLifecycleProcess(get<CharacterWriteQueue>(), get()) }
-    single { PlayerOutputProcess() }
-    single { WorldCycle(get(), get(), get(), get(), get(), get()) }
+    single {
+        PlayerActions(
+            scripts = get(),
+            commands = get(),
+            chatAudit = get<ChatAuditSink>(),
+        )
+    }
+    single { PlayerPhase(scripts = get()) }
+    single {
+        PlayerLifecycle(
+            world = get(),
+            writes = get<CharacterWriteQueue>(),
+            scripts = get(),
+        )
+    }
+    single { PlayerOutput(world = get(), huffman = get()) }
+    single {
+        WorldCycle(
+            world = get(),
+            commands = get(),
+            actions = get(),
+            playerPhase = get(),
+            lifecycle = get(),
+            output = get(),
+        )
+    }
     single { WorldRuntime(get()) }
     single {
         val runtime = get<WorldRuntime>()

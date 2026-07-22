@@ -1,11 +1,11 @@
 package emu.game.pathfinding.route
 
+import emu.game.map.GameMap
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.CollisionFlag
 import emu.game.pathfinding.collision.MutableCollisionMap
 import emu.game.pathfinding.collision.OpenCollisionMap
-import emu.game.pathfinding.movement.PlayerMovement
-import emu.game.pathfinding.movement.PlayerMovementProcess
+import emu.game.player.testPlayer
 import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -28,14 +28,15 @@ class BfsPathfinderTest {
     fun `breadth first route detours around object collision`() {
         val collision = MutableCollisionMap()
         collision.add(3201, 3200, 0, CollisionFlag.OBJECT)
-        val movement = PlayerMovement(Tile(3200, 3200))
-        val process = PlayerMovementProcess(collision)
+        val player = testPlayer(Tile(3200, 3200))
+        val map = GameMap(collision)
 
-        val route = process.routeTo(movement, Tile(3202, 3200))
-        repeat(10) { process.process(movement) }
+        player.walkTo(Tile(3202, 3200))
+        val route = requireNotNull(map.resolveRoute(player))
+        repeat(10) { map.advance(player) }
 
         assertTrue(route.success)
-        assertEquals(Tile(3202, 3200), movement.position)
+        assertEquals(Tile(3202, 3200), player.movement.position)
     }
 
     @Test
