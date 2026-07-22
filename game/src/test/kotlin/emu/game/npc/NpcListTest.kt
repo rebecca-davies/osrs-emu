@@ -29,8 +29,6 @@ class NpcListTest {
         assertNotEquals(first.uid, replacement.uid)
         assertEquals(1, npcs.pause(firstInstance, paused = true))
         assertTrue(replacement.paused)
-        assertEquals(false, npcs.togglePaused(firstInstance))
-        assertFalse(replacement.paused)
         assertEquals(1, npcs.remove(firstInstance))
         assertEquals(second, npcs[second.index])
         assertEquals(1, npcs.size)

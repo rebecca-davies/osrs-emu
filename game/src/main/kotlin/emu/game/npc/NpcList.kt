@@ -83,14 +83,6 @@ class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
         return instanceNpcs.size
     }
 
-    /** Toggles one populated instance and returns its new paused state. */
-    fun togglePaused(mapInstance: MapInstance): Boolean? {
-        val instanceNpcs = byInstance[mapInstance]?.takeIf { it.isNotEmpty() } ?: return null
-        val paused = instanceNpcs.any { !it.paused }
-        instanceNpcs.forEach { it.setPaused(paused) }
-        return paused
-    }
-
     /** Whether an NPC other than [excluding] overlaps the requested footprint in [mapInstance]. */
     fun intersects(mapInstance: MapInstance, position: Tile, size: Int, excluding: Npc? = null): Boolean {
         val instanceNpcs = byInstance[mapInstance] ?: return false
