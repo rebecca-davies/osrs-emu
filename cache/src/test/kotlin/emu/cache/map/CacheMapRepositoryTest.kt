@@ -10,13 +10,28 @@ import emu.cache.index.model.FileEntry
 import emu.cache.index.model.GroupEntry
 import emu.cache.index.model.Js5Index
 import emu.cache.index.model.Js5IndexFlags
+import emu.cache.map.codec.MapTileDecoder
+import emu.cache.map.model.MapLocSpawn
+import emu.cache.map.model.MapSquare
 import emu.cache.store.Store
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class CacheMapRepositoryTest {
+    @Test
+    fun `map square loc lookup rejects packed key aliases`() {
+        val tiles = MapTileDecoder.decode(ByteArray(4 * 64 * 64 * 2 + 1))
+        val square = MapSquare(0, 0, tiles, listOf(MapLocSpawn(1, 0, 0, 0, shape = 10, rotation = 0)))
+
+        assertNull(square.findLoc(type = 0, plane = 4, localX = 0, localY = 0))
+        assertFailsWith<IllegalArgumentException> {
+            MapSquare(0, 0, tiles, listOf(MapLocSpawn(-1, 0, 0, 0, shape = 10, rotation = 0)))
+        }
+    }
+
     @Test
     fun `loads terrain and loc files from a packed rev 239 map-square group`() {
         val terrain = ByteArray(4 * 64 * 64 * 2 + 1)

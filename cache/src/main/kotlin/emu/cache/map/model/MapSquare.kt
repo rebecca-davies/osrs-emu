@@ -7,6 +7,25 @@ data class MapSquare(
     val tiles: MapTileFlags,
     val locs: List<MapLocSpawn>,
 ) {
+    init {
+        for (loc in locs) {
+            require(loc.id in LOC_TYPE_RANGE) { "loc type must fit an unsigned short" }
+            require(loc.plane in PLANE_RANGE) { "loc plane must be in 0..3" }
+            require(loc.localX in LOCAL_COORDINATE_RANGE && loc.localY in LOCAL_COORDINATE_RANGE) {
+                "loc coordinates must be inside their map square"
+            }
+        }
+    }
+
+    private val locsByPosition: Map<Int, MapLocSpawn> =
+        buildMap(locs.size) {
+            for (loc in locs) {
+                val plane = visualPlane(loc)
+                if (plane < 0) continue
+                putIfAbsent(placementKey(loc.id, plane, loc.localX, loc.localY), loc)
+            }
+        }
+
     /** Resolves the level where the client displays [loc], including link-below terrain. */
     fun visualPlane(loc: MapLocSpawn): Int {
         require(loc.localX in 0 until MapTileFlags.MAP_SQUARE_SIZE)
@@ -22,5 +41,25 @@ data class MapSquare(
         val resolvedFlags =
             if (tileAboveFlags and MapTileFlags.LINK_BELOW != 0) tileAboveFlags else tileFlags
         return if (resolvedFlags and MapTileFlags.LINK_BELOW != 0) loc.plane - 1 else loc.plane
+    }
+
+    /** Returns the first matching static loc, or null when any key component is out of range. */
+    fun findLoc(type: Int, plane: Int, localX: Int, localY: Int): MapLocSpawn? {
+        if (
+            type !in LOC_TYPE_RANGE || plane !in PLANE_RANGE ||
+            localX !in LOCAL_COORDINATE_RANGE || localY !in LOCAL_COORDINATE_RANGE
+        ) {
+            return null
+        }
+        return locsByPosition[placementKey(type, plane, localX, localY)]
+    }
+
+    private companion object {
+        val LOC_TYPE_RANGE = 0..0xFFFF
+        val PLANE_RANGE = 0 until MapTileFlags.PLANE_COUNT
+        val LOCAL_COORDINATE_RANGE = 0 until MapTileFlags.MAP_SQUARE_SIZE
+
+        fun placementKey(type: Int, plane: Int, localX: Int, localY: Int): Int =
+            (type shl 14) or (plane shl 12) or (localX shl 6) or localY
     }
 }

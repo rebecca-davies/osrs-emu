@@ -10,7 +10,6 @@ import emu.cache.map.model.MapTileFlags
 import emu.game.loc.Loc
 import emu.game.loc.LocRepository
 import emu.game.map.Tile
-import java.util.concurrent.ConcurrentHashMap
 
 /** Exposes already-prepared rev-239 static locs to authoritative world input handling. */
 class CacheLocRepository(
@@ -22,35 +21,17 @@ class CacheLocRepository(
         objects: CacheObjectDefinitionRepository,
     ) : this(maps::cachedOrNull, objects::get)
 
-    private val placementsBySquare = ConcurrentHashMap<Int, Map<Int, MapLocSpawn>>()
-
     override fun find(type: Int, tile: Tile): Loc? {
         if (type !in 0..0xFFFF) return null
         val squareX = tile.x shr MAP_SQUARE_SHIFT
         val squareY = tile.y shr MAP_SQUARE_SHIFT
         val square = cachedMapSquare(squareX, squareY) ?: return null
-        val placements =
-            placementsBySquare.computeIfAbsent(squareX shl 8 or squareY) {
-                index(square)
-            }
         val placement =
-            placements[placementKey(type, tile.plane, tile.x and MAP_SQUARE_MASK, tile.y and MAP_SQUARE_MASK)]
+            square.findLoc(type, tile.plane, tile.x and MAP_SQUARE_MASK, tile.y and MAP_SQUARE_MASK)
                 ?: return null
         val definition = objectDefinition(type) ?: return null
         return placement.toLoc(tile, definition)
     }
-
-    private fun index(square: MapSquare): Map<Int, MapLocSpawn> =
-        buildMap(square.locs.size) {
-            for (placement in square.locs) {
-                val plane = square.visualPlane(placement)
-                if (plane < 0) continue
-                putIfAbsent(
-                    placementKey(placement.id, plane, placement.localX, placement.localY),
-                    placement,
-                )
-            }
-        }
 
     private fun MapLocSpawn.toLoc(tile: Tile, definition: ObjectDefinition): Loc {
         var width = definition.sizeX ?: DEFAULT_SIZE
@@ -87,8 +68,5 @@ class CacheLocRepository(
         const val MAP_SQUARE_SHIFT = 6
         const val MAP_SQUARE_MASK = MapTileFlags.MAP_SQUARE_SIZE - 1
         const val DEFAULT_SIZE = 1
-
-        fun placementKey(type: Int, plane: Int, localX: Int, localY: Int): Int =
-            (type shl 14) or (plane shl 12) or (localX shl 6) or localY
     }
 }
