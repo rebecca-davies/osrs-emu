@@ -22,7 +22,7 @@ internal object InitialWorldOutput {
         add(SetNpcUpdateOrigin(localPlayerX, localPlayerY))
         add(WorldEntityInfo)
         add(PlayerInfo(appearance))
-        add(NpcInfo)
+        add(NpcInfo.EMPTY)
         for ((x, z) in INITIAL_ZONE_SPIRAL) add(UpdateZoneFullFollows(x, z))
         add(CamTargetPlayer(localPlayerIndex))
     }

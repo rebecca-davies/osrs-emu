@@ -18,6 +18,12 @@ object InfernoFreeModeConfigParser {
             challengePortalType = clanWars.requireInt(CHALLENGE_PORTAL_TYPE, 0..0xFFFF),
             clanWarsArrival = clanWars.requireTile(ARRIVAL),
             arenaArrival = inferno.requireTile(ARRIVAL),
+            arenaBounds =
+                InfernoArenaBounds(
+                    inferno.requireTile(SOUTH_WEST),
+                    inferno.requireTile(NORTH_EAST),
+                ),
+            maxNpcs = inferno.requireInt(MAX_NPCS, 1..MAX_LOCAL_NPCS),
         )
     }
 
@@ -54,7 +60,11 @@ object InfernoFreeModeConfigParser {
     private const val INFERNO = "inferno"
     private const val CHALLENGE_PORTAL_TYPE = "challenge_portal_type"
     private const val ARRIVAL = "arrival"
+    private const val SOUTH_WEST = "south_west"
+    private const val NORTH_EAST = "north_east"
+    private const val MAX_NPCS = "max_npcs"
     private const val TILE_COMPONENTS = 3
+    private const val MAX_LOCAL_NPCS = 250
     private val WORLD_COORDINATES = 0..0x3FFF
     private val PLANES = 0..3
 }

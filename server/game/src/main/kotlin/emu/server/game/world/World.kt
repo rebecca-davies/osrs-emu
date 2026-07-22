@@ -6,7 +6,10 @@ import emu.game.content.player.login.LoginNotice
 import emu.game.content.ui.gameframe.Gameframe
 import emu.game.cycle.CycleProfileSnapshot
 import emu.game.map.GameMap
+import emu.game.map.MapInstance
 import emu.game.map.Tile
+import emu.game.npc.Npc
+import emu.game.npc.NpcList
 import emu.game.player.Player
 import emu.game.player.PlayerChatFilters
 import emu.game.player.StaffModLevel
@@ -33,6 +36,7 @@ class World(
     private val map: GameMap,
     private val gameframe: Gameframe,
     loginNotices: List<LoginNotice>,
+    private val npcs: NpcList,
     maxPlayerIndex: Int = PlayerCapacity.PER_WORLD,
     private val sessionStartedNanos: () -> Long = System::nanoTime,
 ) {
@@ -214,6 +218,21 @@ class World(
     internal fun collectAllPlayers(destination: MutableCollection<Player>) =
         players.collectAll(destination)
 
+    internal fun collectNpcs(destination: MutableCollection<Npc>) =
+        npcs.collect(destination)
+
+    /** Advances one unpaused targeted NPC by at most one collision-valid tile. */
+    internal fun advanceNpc(npc: Npc) {
+        if (npc.paused) return
+        val target = npc.targetPlayerId?.let(players::player) ?: return
+        if (!target.active || target.loggingOut || target.mapInstance != npc.mapInstance) return
+        val destination = map.nextDumbNpcStep(npc.position, npc.type.size, target.movement.position) ?: return
+        if (npcs.intersects(npc.mapInstance, destination, npc.type.size, excluding = npc)) return
+        npc.walkTo(destination)
+    }
+
+    internal fun removeNpc(npc: Npc): Boolean = npcs.remove(npc)
+
     internal fun activePlayers(): List<Player> =
         buildList { players.collectActive(this) }
 
@@ -246,6 +265,7 @@ class World(
         pendingActivations.remove(session.token)
         indexes.release(player.index)
         occupiedPlayerIds.remove(player.id)
+        npcs.remove(MapInstance.privateTo(player.id))
         session.attachment.remove()
     }
 

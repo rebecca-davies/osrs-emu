@@ -1,9 +1,11 @@
 package emu.game.script.execution
 
+import emu.game.map.Tile
 import emu.game.player.Player
 import emu.game.script.input.CountDialogInput
 import emu.game.script.input.ObjDialogInput
 import emu.game.script.input.PlayerScriptInput
+import emu.game.script.input.TileInput
 import emu.game.script.queue.PlayerQueueDsl
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.ui.ButtonClick
@@ -62,6 +64,15 @@ class PlayerScriptContext internal constructor(
         return waitForInput<ObjDialogInput> {
             player.interfaces.runClientScript(close, mode)
         }.obj
+    }
+
+    /** Suspends until the player selects one world tile with the walk flag. */
+    suspend fun pickTile(prompt: String): Tile {
+        require(prompt.isNotBlank()) { "tile prompt must not be blank" }
+        player.messageGame(prompt)
+        return waitForInput<TileInput> {
+            player.messageGame("Tile selection cancelled.")
+        }.tile
     }
 
     internal fun attach(execution: PlayerScriptExecution, worldTick: Long) {

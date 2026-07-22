@@ -4,6 +4,7 @@ import emu.game.loc.Loc
 import emu.game.loc.LocRepository
 import emu.game.pathfinding.collision.CollisionFlag
 import emu.game.pathfinding.collision.CollisionMap
+import emu.game.pathfinding.collision.canTravel
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.BfsPathfinder
 import emu.game.pathfinding.route.PathRoute
@@ -43,6 +44,57 @@ class GameMap(
             position.y < loc.tile.y -> flags and CollisionFlag.WALL_NORTH == 0
             else -> flags and CollisionFlag.WALL_SOUTH == 0
         }
+    }
+
+    /** Whether every tile in a square entity footprint is available to NPC placement. */
+    fun canOccupy(position: Tile, size: Int): Boolean {
+        require(size > 0) { "entity size must be positive" }
+        for (x in position.x until position.x + size) {
+            for (y in position.y until position.y + size) {
+                if (collision.flagsAt(x, y, position.plane) and NPC_PLACEMENT_BLOCKED != 0) return false
+            }
+        }
+        return true
+    }
+
+    /** Chooses one collision-valid dumb-pathing step toward a target from a south-west footprint tile. */
+    fun nextDumbNpcStep(position: Tile, size: Int, target: Tile): Tile? {
+        require(size > 0) { "entity size must be positive" }
+        if (position.plane != target.plane) return null
+        val northEastX = position.x + size - 1
+        val northEastY = position.y + size - 1
+        val gapX = when {
+            target.x < position.x -> position.x - target.x
+            target.x > northEastX -> target.x - northEastX
+            else -> 0
+        }
+        val gapY = when {
+            target.y < position.y -> position.y - target.y
+            target.y > northEastY -> target.y - northEastY
+            else -> 0
+        }
+        if (maxOf(gapX, gapY) <= 1) return null
+        val deltaX = when {
+            target.x < position.x -> -1
+            target.x > northEastX -> 1
+            else -> 0
+        }
+        val deltaY = when {
+            target.y < position.y -> -1
+            target.y > northEastY -> 1
+            else -> 0
+        }
+        if (deltaX != 0 && deltaY != 0 && canNpcTravel(position, size, deltaX, deltaY)) {
+            return position.translate(deltaX, deltaY)
+        }
+        if (gapX >= gapY) {
+            if (deltaX != 0 && canNpcTravel(position, size, deltaX, 0)) return position.translate(deltaX, 0)
+            if (deltaY != 0 && canNpcTravel(position, size, 0, deltaY)) return position.translate(0, deltaY)
+        } else {
+            if (deltaY != 0 && canNpcTravel(position, size, 0, deltaY)) return position.translate(0, deltaY)
+            if (deltaX != 0 && canNpcTravel(position, size, deltaX, 0)) return position.translate(deltaX, 0)
+        }
+        return null
     }
 
     /** Retries a bounded share of previously rejected map-area preparation requests. */
@@ -88,6 +140,20 @@ class GameMap(
         }
     }
 
+    private fun canNpcTravel(position: Tile, size: Int, deltaX: Int, deltaY: Int): Boolean =
+        collision.canTravel(
+            position.x,
+            position.y,
+            position.plane,
+            deltaX,
+            deltaY,
+            size,
+            CollisionFlag.BLOCK_NPCS,
+        )
+
+    private fun Tile.translate(deltaX: Int, deltaY: Int): Tile =
+        Tile(x + deltaX, y + deltaY, plane)
+
     private fun addAreaRequest(packedTile: Int) {
         check(pendingAreaRequestCount < pendingAreaRequests.size) {
             "every RuneScape map square already has a pending collision request"
@@ -114,6 +180,9 @@ class GameMap(
         const val WORLD_COORDINATE_MASK = (1 shl WORLD_COORDINATE_BITS) - 1
         const val PLANE_SHIFT = WORLD_COORDINATE_BITS * 2
         const val MAX_AREA_REQUEST_RETRIES_PER_CYCLE = 64
+        const val NPC_PLACEMENT_BLOCKED =
+            CollisionFlag.OBJECT or CollisionFlag.FLOOR_DECORATION or
+                CollisionFlag.BLOCK_NPCS or CollisionFlag.FLOOR
 
         fun mapSquareKey(tile: Tile): Int =
             (tile.x shr MAP_SQUARE_SHIFT) shl MAP_SQUARE_COORDINATE_BITS or

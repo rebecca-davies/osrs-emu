@@ -3,9 +3,14 @@ package emu.server.host.composition
 import emu.compression.HuffmanCodec
 import emu.crypto.Rsa
 import emu.game.content.player.PlayerContentCatalog
+import emu.game.content.areas.inferno.InfernoArena
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
+import emu.game.npc.NpcList
+import emu.game.npc.NpcCatalog
+import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.CollisionMap
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.script.execution.PlayerScriptRunner
@@ -174,8 +179,16 @@ class BotConnectionIntegrationTest {
                 OpenCollisionMap.flagsAt(x, y, plane)
             }
         val map = GameMap(collision)
-        val world = World(map, ui.gameframe, LoginNotices.ALL, maxPlayerIndex = 1)
-        val scripts = PlayerScriptRunner(PlayerContentCatalog.load(ui))
+        val npcs = NpcList()
+        val world = World(map, ui.gameframe, LoginNotices.ALL, npcs, maxPlayerIndex = 1)
+        val scripts =
+            PlayerScriptRunner(
+                PlayerContentCatalog.load(
+                    ui,
+                    ObjCatalog.EMPTY,
+                    InfernoArena(map, NpcCatalog.EMPTY, npcs, InfernoFreeModeCatalog.load()),
+                ),
+            )
         val actions =
             PlayerActions(
                 map,

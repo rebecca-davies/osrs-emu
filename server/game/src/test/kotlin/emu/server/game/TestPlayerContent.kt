@@ -1,9 +1,14 @@
 package emu.server.game
 
 import emu.compression.HuffmanCodec
+import emu.game.content.areas.inferno.InfernoArena
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
+import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
@@ -21,7 +26,17 @@ import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
 
 /** Shared immutable Kotlin-content runtime used by world tests. */
 internal object TestPlayerContent {
-    private val repository = PlayerContentCatalog.load(UiContentCatalog.load())
+    private val repository =
+        PlayerContentCatalog.load(
+            UiContentCatalog.load(),
+            ObjCatalog.EMPTY,
+            InfernoArena(
+                GameMap(OpenCollisionMap),
+                NpcCatalog.EMPTY,
+                NpcList(),
+                InfernoFreeModeCatalog.load(),
+            ),
+        )
     private val scripts = PlayerScriptRunner(repository)
     private val huffman = HuffmanCodec(ByteArray(256) { 8 })
 

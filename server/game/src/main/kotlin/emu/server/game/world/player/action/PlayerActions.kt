@@ -10,6 +10,7 @@ import emu.game.map.GameMap
 import emu.game.map.Tile
 import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
+import emu.game.script.input.TileInput
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
 import emu.persistence.chat.ChatAuditMessage
@@ -55,8 +56,10 @@ class PlayerActions(
     }
 
     private fun Player.applyRoute(action: PlayerAction.Route) {
+        val destination = Tile(action.x, action.y, movement.position.plane)
+        if (scripts.resumeInput(this, TileInput(destination))) return
         val temporaryRun = if (action.invertRun) !movement.runEnabled else null
-        walkTo(Tile(action.x, action.y, movement.position.plane), temporaryRun)
+        walkTo(destination, temporaryRun)
     }
 
     private fun Player.applyButton(click: ButtonClick) {

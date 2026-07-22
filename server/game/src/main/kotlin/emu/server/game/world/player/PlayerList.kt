@@ -37,6 +37,8 @@ internal class PlayerList(maxPlayerIndex: Int) {
 
     fun player(token: GameSessionToken): Player? = byToken[token]
 
+    fun player(id: Long): Player? = byId[id]
+
     fun contains(playerId: Long): Boolean = byId.containsKey(playerId)
 
     fun contains(player: Player): Boolean = slots.getOrNull(player.index)?.player === player

@@ -1,6 +1,8 @@
 package emu.server.host.composition
 
 import emu.compression.HuffmanCodec
+import emu.game.content.areas.inferno.InfernoArena
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContent
@@ -8,6 +10,8 @@ import emu.game.content.ui.config.UiContentCatalog
 import emu.game.loc.LocRepository
 import emu.game.map.GameMap
 import emu.game.map.Tile
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
 import emu.game.obj.ObjCatalog
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.CharacterStore
@@ -44,6 +48,7 @@ internal fun gameModule(
     collision: CacheCollisionMap,
     locs: LocRepository = LocRepository.EMPTY,
     objs: ObjCatalog = ObjCatalog.EMPTY,
+    npcTypes: NpcCatalog = NpcCatalog.EMPTY,
     huffman: HuffmanCodec,
     config: GameExecutionConfig,
 ) = module {
@@ -69,16 +74,26 @@ internal fun gameModule(
         )
     }
     single { UiContentCatalog.load() }
+    single { NpcList() }
+    single {
+        InfernoArena(
+            map = get(),
+            types = npcTypes,
+            npcs = get(),
+            config = InfernoFreeModeCatalog.load(),
+        )
+    }
     single {
         World(
             map = get(),
             gameframe = get<UiContent>().gameframe,
             loginNotices = LoginNotices.ALL,
+            npcs = get(),
             maxPlayerIndex = config.maxConcurrentSessions,
         )
     }
     single { WorldCommandQueue(config.commands) }
-    single { PlayerContentCatalog.load(get(), objs) }
+    single { PlayerContentCatalog.load(get(), objs, get()) }
     single { PlayerScriptRunner(get()) }
     single { buildPlayerCommandRepository(get()) }
     single {

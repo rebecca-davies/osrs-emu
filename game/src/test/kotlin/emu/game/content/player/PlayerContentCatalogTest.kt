@@ -1,17 +1,24 @@
 package emu.game.content.player
 
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
+import emu.game.content.areas.inferno.InfernoArena
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.MapInstance
+import emu.game.map.GameMap
 import emu.game.map.Tile
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
+import emu.game.npc.NpcType
 import emu.game.obj.ObjCatalog
 import emu.game.obj.ObjType
 import emu.game.obj.Wearpos
 import emu.game.player.stat.Skill
+import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.testPlayer
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.input.CountDialogInput
 import emu.game.script.input.ObjDialogInput
+import emu.game.script.input.TileInput
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.ui.ButtonClick
 import emu.game.ui.PlayerInterfaceUpdate
@@ -23,7 +30,9 @@ import kotlin.test.assertTrue
 class PlayerContentCatalogTest {
     private val ui = UiContentCatalog.load()
     private val components = ui.components
-    private val scripts = PlayerContentCatalog.load(ui)
+    private val inferno =
+        InfernoArena(GameMap(OpenCollisionMap), NpcCatalog.EMPTY, NpcList(), InfernoFreeModeCatalog.load())
+    private val scripts = PlayerContentCatalog.load(ui, ObjCatalog.EMPTY, inferno)
     private val runner = PlayerScriptRunner(scripts)
 
     @Test
@@ -110,7 +119,7 @@ class PlayerContentCatalogTest {
     fun `beta equipment picker validates the selected cache object before equipping it`() {
         val whip = ObjType(4_151, "Abyssal whip", stackable = false, wearpos = Wearpos.RIGHT_HAND)
         val catalog = ObjCatalog { type -> whip.takeIf { it.id == type } }
-        val pickerScripts = PlayerContentCatalog.load(ui, catalog)
+        val pickerScripts = PlayerContentCatalog.load(ui, catalog, inferno)
         val picker = PlayerScriptRunner(pickerScripts)
         val component = components.require("wornitems:equipment")
         val script =
@@ -133,7 +142,7 @@ class PlayerContentCatalogTest {
 
     @Test
     fun `beta equipment picker rejects an unknown cache object`() {
-        val pickerScripts = PlayerContentCatalog.load(ui, ObjCatalog.EMPTY)
+        val pickerScripts = PlayerContentCatalog.load(ui, ObjCatalog.EMPTY, inferno)
         val picker = PlayerScriptRunner(pickerScripts)
         val component = components.require("wornitems:equipment")
         val script = requireNotNull(pickerScripts.findSpecific(ServerTriggerType.IF_BUTTON, component.packed))
@@ -148,5 +157,62 @@ class PlayerContentCatalogTest {
         assertTrue(player.worn.loginSync().all { it == null })
         assertTrue(player.inventory.loginSync().all { it == null })
         assertFalse(player.isAccessProtected)
+    }
+
+    @Test
+    fun `Inferno editor places pauses resumes and clears private NPCs`() {
+        val npcType = NpcType(1, "Jal-Nib")
+        val npcs = NpcList()
+        val arena =
+            InfernoArena(
+                GameMap(OpenCollisionMap),
+                NpcCatalog { type -> npcType.takeIf { it.id == type } },
+                npcs,
+                InfernoFreeModeCatalog.load(),
+            )
+        val editorScripts = PlayerContentCatalog.load(ui, ObjCatalog.EMPTY, arena)
+        val editor = PlayerScriptRunner(editorScripts)
+        val player = testPlayer(Tile(3_200, 3_200, 0))
+        player.activate(ui.gameframe)
+        arena.enter(player)
+        val place = components.require("wornitems:pricechecker")
+
+        assertTrue(
+            editor.start(
+                player,
+                requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, place.packed)),
+                ButtonClick(place.interfaceId, place.componentId),
+            ),
+        )
+        player.interfaces.drainClientUpdates()
+        assertTrue(editor.resumeInput(player, CountDialogInput(npcType.id)))
+        assertEquals(
+            listOf("Click a tile to place Jal-Nib. Press Escape to cancel."),
+            player.takeGameMessages(),
+        )
+        assertTrue(editor.resumeInput(player, TileInput(Tile(2_273, 5_332))))
+        assertEquals(listOf("Placed Jal-Nib; the simulation is paused."), player.takeGameMessages())
+        assertEquals(1, npcs.count(player.mapInstance))
+
+        val pause = components.require("wornitems:deathkeep")
+        assertTrue(
+            editor.start(
+                player,
+                requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, pause.packed)),
+                ButtonClick(pause.interfaceId, pause.componentId),
+            ),
+        )
+        assertEquals(listOf("Inferno simulation resumed."), player.takeGameMessages())
+
+        val clear = components.require("wornitems:call_follower")
+        assertTrue(
+            editor.start(
+                player,
+                requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, clear.packed)),
+                ButtonClick(clear.interfaceId, clear.componentId),
+            ),
+        )
+        assertEquals(listOf("Cleared 1 NPC."), player.takeGameMessages())
+        assertEquals(0, npcs.count(player.mapInstance))
     }
 }

@@ -7,6 +7,7 @@ import emu.game.chat.ChatFilterInput
 import emu.game.chat.PublicChatInput
 import emu.game.command.PlayerCommandInput
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
+import emu.game.content.areas.inferno.InfernoArena
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
@@ -17,9 +18,13 @@ import emu.game.loc.LocRepository
 import emu.game.map.GameMap
 import emu.game.map.MapInstance
 import emu.game.map.Tile
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
+import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
 import emu.game.script.execution.PlayerScriptRunner
+import emu.game.script.trigger.ServerTriggerType
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.ui.ButtonClick
 import emu.game.ui.Component
@@ -172,6 +177,32 @@ class PlayerActionsTest {
     }
 
     @Test
+    fun `route action resumes tile selection without also walking the player`() {
+        val (world, player) = player(position = CharacterPosition(3_200, 3_200, 0))
+        var selected: Tile? = null
+        val repository =
+            PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {
+                onLogin { selected = pickTile("Choose a tile.") }
+            }
+        val runner = PlayerScriptRunner(repository)
+        val actions =
+            PlayerActions(
+                worldMap(),
+                runner,
+                PlayerCommandRepositoryBuilder().build(),
+                ChatAuditSink { true },
+            )
+        assertTrue(runner.trigger(player, ServerTriggerType.LOGIN))
+
+        actions.apply(player, PlayerAction.Route(3_205, 3_206))
+        world.advanceMovement(player)
+
+        assertEquals(Tile(3_205, 3_206), selected)
+        assertEquals(CharacterPosition(3_200, 3_200, 0), player.movement.position.toPosition())
+        assertFalse(player.isAccessProtected)
+    }
+
+    @Test
     fun `cache-backed challenge portal enters a private empty Inferno`() {
         val config = InfernoFreeModeCatalog.load()
         val (_, player) = player(position = config.clanWarsArrival.toPosition())
@@ -194,7 +225,7 @@ class PlayerActionsTest {
         val actions =
             PlayerActions(
                 map,
-                PlayerScriptRunner(PlayerContentCatalog.load(UiContentCatalog.load())),
+                PlayerScriptRunner(content(map)),
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
             )
@@ -208,7 +239,13 @@ class PlayerActionsTest {
 
         assertEquals(config.arenaArrival, player.movement.position)
         assertEquals(MapInstance.privateTo(player.id), player.mapInstance)
-        assertEquals(listOf("Inferno free mode started. The arena is empty."), player.takeGameMessages())
+        assertEquals(
+            listOf(
+                "Inferno free mode started empty and paused.",
+                "Equipment tab: choose gear, place NPCs, pause, or clear the arena.",
+            ),
+            player.takeGameMessages(),
+        )
     }
 
     @Test
@@ -254,9 +291,16 @@ class PlayerActionsTest {
         clock: Clock = Clock.systemUTC(),
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
     ): PlayerActions {
-        val scripts = PlayerContentCatalog.load(UiContentCatalog.load())
-        return PlayerActions(worldMap(), PlayerScriptRunner(scripts), commands, audit, clock)
+        val map = worldMap()
+        return PlayerActions(map, PlayerScriptRunner(content(map)), commands, audit, clock)
     }
+
+    private fun content(map: GameMap) =
+        PlayerContentCatalog.load(
+            UiContentCatalog.load(),
+            ObjCatalog.EMPTY,
+            InfernoArena(map, NpcCatalog.EMPTY, NpcList(), InfernoFreeModeCatalog.load()),
+        )
 
     private fun worldMap() = GameMap(OpenCollisionMap)
 

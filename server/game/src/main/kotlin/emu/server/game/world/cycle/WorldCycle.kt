@@ -24,6 +24,7 @@ class WorldCycle(
     private val output: PlayerOutput,
 ) {
     private val phasePlayers = ArrayList<Player>(PlayerCapacity.PER_WORLD)
+    private val npcPhase = NpcPhase(world)
     private val profiler = CycleProfiler()
 
     fun tick(worldTick: Long) {
@@ -43,6 +44,7 @@ class WorldCycle(
                     world.resolveRoute(player)
                 }
             }
+            profiler.measure(CyclePhase.NPC) { npcPhase.run() }
             profiler.measure(CyclePhase.PLAYER) {
                 phasePlayers.clear()
                 world.collectCyclePlayers(phasePlayers)
@@ -64,10 +66,12 @@ class WorldCycle(
             }
             profiler.measure(CyclePhase.CLEANUP) {
                 forEachPlayer(CyclePhase.CLEANUP, phasePlayers, output::cleanup)
+                npcPhase.finish()
                 world.clearCycleProfile()
             }
         } finally {
             phasePlayers.clear()
+            npcPhase.finish()
             val cycleFinishedAt = System.nanoTime()
             val profile = profiler.record(cycleFinishedAt - cycleStartedAt, cycleFinishedAt)
             if (profile.lagSpike) logger.warn { "world: tick $worldTick exceeded its cycle budget" }
@@ -92,6 +96,7 @@ class WorldCycle(
             world.isEmpty()
         } finally {
             phasePlayers.clear()
+            npcPhase.finish()
         }
 
     fun forceShutdown() {
@@ -112,6 +117,7 @@ class WorldCycle(
             failure?.let { throw it }
         } finally {
             phasePlayers.clear()
+            npcPhase.finish()
         }
     }
 

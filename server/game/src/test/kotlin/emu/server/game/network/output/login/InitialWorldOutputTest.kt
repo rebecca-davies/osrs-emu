@@ -22,7 +22,7 @@ class InitialWorldOutputTest {
         assertEquals(SetNpcUpdateOrigin(54, 50), group[1])
         assertEquals(WorldEntityInfo, group[2])
         assertIs<PlayerInfo>(group[3])
-        assertEquals(NpcInfo, group[4])
+        assertEquals(NpcInfo.EMPTY, group[4])
         val zones = group.drop(5).dropLast(1).map { assertIs<UpdateZoneFullFollows>(it) }
         assertEquals(49, zones.size)
         assertEquals(UpdateZoneFullFollows(48, 48), zones.first())

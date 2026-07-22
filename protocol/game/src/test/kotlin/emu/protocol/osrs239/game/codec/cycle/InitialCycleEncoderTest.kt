@@ -68,7 +68,7 @@ class InitialCycleEncoderTest {
     @Test fun `packet group and empty entity info bodies match the rev 239 readers`() {
         assertEquals(bytes(0x09, 0xE1), PacketGroupStartEncoder.encode(NopStreamCipher, PacketGroupStart(2529)).toList())
         assertEquals(bytes(0), WorldEntityInfoEncoder.encode(NopStreamCipher, WorldEntityInfo).toList())
-        assertEquals(bytes(0), NpcInfoEncoder.encode(NopStreamCipher, NpcInfo).toList())
+        assertEquals(bytes(0), NpcInfoEncoder.encode(NopStreamCipher, NpcInfo.EMPTY).toList())
     }
 
     @Test fun `zone and varp transforms invert their rev 239 decoders`() {

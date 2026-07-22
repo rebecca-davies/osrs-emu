@@ -2,6 +2,10 @@ package emu.server.game.world
 
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
+import emu.game.map.MapInstance
+import emu.game.map.Tile
+import emu.game.npc.NpcList
+import emu.game.npc.NpcType
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.server.game.network.output.GameOutputSink
@@ -70,6 +74,24 @@ class WorldTest {
         assertEquals(listOf(2L), world.allPlayers().map { it.id })
         val replacement = GameSessionToken("replacement")
         assertEquals(ReservationDecision.Accepted(replacement, 1), world.reserve(1, replacement))
+    }
+
+    @Test
+    fun `removing a player clears NPCs from their private instance`() {
+        val npcs = NpcList()
+        val world = testWorld(maxPlayerIndex = 1, npcs = npcs)
+        val player =
+            world.addTestPlayer(
+                player(1),
+                IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
+                GameOutputSink { true },
+            )
+        val instance = MapInstance.privateTo(player.id)
+        requireNotNull(npcs.add(NpcType(1, "Jal-Nib"), Tile(2_273, 5_332), instance))
+
+        world.remove(player)
+
+        assertEquals(0, npcs.count(instance))
     }
 
     private fun player(id: Long) =

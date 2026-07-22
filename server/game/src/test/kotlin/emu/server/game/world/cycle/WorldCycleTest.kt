@@ -6,13 +6,19 @@ import emu.game.action.PlayerAction
 import emu.game.chat.PublicChatInput
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.map.GameMap
+import emu.game.map.MapInstance
 import emu.game.map.Tile
+import emu.game.npc.NpcList
+import emu.game.npc.NpcMovementUpdate
+import emu.game.npc.NpcType
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.player.Player
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.chat.ChatAuditSink
+import emu.protocol.osrs239.game.message.npc.NpcInfo
+import emu.protocol.osrs239.game.message.npc.NpcInfoLocal
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
@@ -32,6 +38,43 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WorldCycleTest {
+    @Test
+    fun `paused NPCs stay still and resumed NPCs publish one collision-valid step`() {
+        val npcs = NpcList()
+        val world = testWorld(maxPlayerIndex = 1, npcs = npcs)
+        val outputs = mutableListOf<GameOutputBatch>()
+        val player =
+            world.addTestPlayer(
+                player(1, 100, 100),
+                actions(),
+                GameOutputSink { output -> outputs += output; true },
+            )
+        world.activateTestPlayer(world.session(player).token)
+        val npc =
+            requireNotNull(
+                npcs.add(
+                    NpcType(1, "Jal-Nib"),
+                    Tile(95, 100),
+                    MapInstance.SHARED,
+                    targetPlayerId = player.id,
+                    paused = true,
+                ),
+            )
+        val cycle = TestPlayerContent.cycle(world)
+
+        cycle.tick(worldTick = 0)
+
+        assertEquals(Tile(95, 100), npc.position)
+        assertEquals(1, npcInfo(outputs.single()).additions.size)
+        npcs.pause(MapInstance.SHARED, paused = false)
+
+        cycle.tick(worldTick = 1)
+
+        assertEquals(Tile(96, 100), npc.position)
+        assertEquals(listOf(NpcInfoLocal.Walk(4)), npcInfo(outputs.last()).locals)
+        assertEquals(NpcMovementUpdate.Idle, npc.movementUpdate)
+    }
+
     @Test
     fun `login content teleport prepares its destination before first output`() {
         val requested = mutableListOf<Tile>()
@@ -200,6 +243,13 @@ class WorldCycleTest {
             .filterIsInstance<GameOutputSegment.PacketGroup>()
             .flatMap(GameOutputSegment.PacketGroup::messages)
             .filterIsInstance<PlayerInfo>()
+            .single()
+
+    private fun npcInfo(batch: GameOutputBatch): NpcInfo =
+        batch.segments
+            .filterIsInstance<GameOutputSegment.PacketGroup>()
+            .flatMap(GameOutputSegment.PacketGroup::messages)
+            .filterIsInstance<NpcInfo>()
             .single()
 
     private fun player(id: Long, x: Int, y: Int = 3200) =

@@ -4,6 +4,7 @@ import emu.game.action.IncomingPlayerActionQueue
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
+import emu.game.npc.NpcList
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
 import emu.persistence.character.model.CharacterRecord
@@ -17,12 +18,14 @@ import emu.server.session.handoff.ReservationDecision
 internal fun testWorld(
     maxPlayerIndex: Int = PlayerCapacity.PER_WORLD,
     gameMap: GameMap = GameMap(OpenCollisionMap),
+    npcs: NpcList = NpcList(),
     sessionStartedNanos: () -> Long = System::nanoTime,
 ): World =
     World(
         gameMap,
         UiContentCatalog.load().gameframe,
         LoginNotices.ALL,
+        npcs,
         maxPlayerIndex,
         sessionStartedNanos,
     )

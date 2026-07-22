@@ -27,6 +27,9 @@
 "stats:woodcutting" = 20971542
 "stats:farming" = 20971543
 "wornitems:equipment" = 25362433
+"wornitems:pricechecker" = 25362435
+"wornitems:deathkeep" = 25362437
+"wornitems:call_follower" = 25362439
 
 [client_scripts]
 "meslayer:countdialog" = 108

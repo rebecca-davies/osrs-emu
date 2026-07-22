@@ -1,9 +1,16 @@
 package emu.game.content.ui.config
 
+import emu.game.content.areas.inferno.InfernoArena
+import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.PlayerContentCatalog
 import emu.game.content.ui.gameframe.GameframeInventory
 import emu.game.content.ui.gameframe.GameframeInventorySource
 import emu.game.ui.Component
+import emu.game.map.GameMap
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
+import emu.game.obj.ObjCatalog
+import emu.game.pathfinding.collision.OpenCollisionMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -53,6 +60,18 @@ class UiContentParserTest {
         val content = UiContentCatalog.load()
 
         assertSame(content, UiContentCatalog.load())
-        PlayerContentCatalog.load(content)
+        assertEquals(Component.of(387, 3), content.components.require("wornitems:pricechecker"))
+        assertEquals(Component.of(387, 5), content.components.require("wornitems:deathkeep"))
+        assertEquals(Component.of(387, 7), content.components.require("wornitems:call_follower"))
+        PlayerContentCatalog.load(
+            content,
+            ObjCatalog.EMPTY,
+            InfernoArena(
+                GameMap(OpenCollisionMap),
+                NpcCatalog.EMPTY,
+                NpcList(),
+                InfernoFreeModeCatalog.load(),
+            ),
+        )
     }
 }

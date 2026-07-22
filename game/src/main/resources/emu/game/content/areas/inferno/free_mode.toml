@@ -4,3 +4,6 @@ arrival = [3127, 3621, 0]
 
 [inferno]
 arrival = [2271, 5332, 0]
+south_west = [2243, 5315, 0]
+north_east = [2298, 5371, 0]
+max_npcs = 64

@@ -6,17 +6,18 @@ import emu.game.content.ui.gameframe.Gameframe
 import emu.game.content.ui.gameframe.GameframeInventorySource
 import emu.game.cycle.CyclePhaseProfileSnapshot
 import emu.game.cycle.CycleProfileSnapshot
+import emu.game.npc.Npc
 import emu.game.player.Player
 import emu.protocol.osrs239.game.message.chat.MessageGame
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
 import emu.protocol.osrs239.game.message.cycle.ServerTickEnd
-import emu.protocol.osrs239.game.message.npc.NpcInfo
 import emu.protocol.osrs239.game.message.npc.SetNpcUpdateOrigin
 import emu.protocol.osrs239.game.message.player.Logout
 import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.protocol.osrs239.game.message.scene.RebuildNormal
 import emu.protocol.osrs239.game.message.scene.SetActiveWorld
 import emu.server.game.network.connection.GameSession
+import emu.server.game.network.output.npcinfo.NpcInfoView
 import emu.server.game.network.output.playerinfo.PlayerInfoSnapshot
 import emu.server.game.network.output.playerinfo.PlayerInfoView
 import emu.server.game.network.output.stat.PlayerStatOutput
@@ -24,35 +25,43 @@ import emu.server.game.network.output.ui.PlayerInterfaceOutput
 import emu.server.game.network.output.varp.PlayerVarpOutput
 import emu.server.game.world.World
 
-/** Adapts authoritative player state into bounded rev-239 connection output. */
+/** Adapts authoritative world state into bounded rev-239 output for each player. */
 class PlayerOutput(
     private val world: World,
     private val huffman: HuffmanCodec,
     gameframe: Gameframe,
 ) {
     private val interfaces = PlayerInterfaceOutput(gameframe)
+    private val snapshotNpcs = ArrayList<Npc>()
 
-    internal fun snapshot(players: List<Player>): PlayerInfoView =
-        PlayerInfoView(
-            players.mapNotNull { player ->
-                if (!player.active || player.loggingOut) return@mapNotNull null
-                val session = world.session(player)
-                PlayerInfoSnapshot(
-                    index = player.index,
-                    position = player.movement.position,
-                    movement = player.movement.update,
-                    runEnabled = player.movement.runEnabled,
-                    appearance = session.appearance.message(player),
-                    mapInstance = player.mapInstance,
-                    publicChat = player.publicChat?.let { message -> publicChat(player, message) },
-                    sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
-                )
-            },
+    internal fun snapshot(players: List<Player>): WorldInfoView {
+        snapshotNpcs.clear()
+        world.collectNpcs(snapshotNpcs)
+        return WorldInfoView(
+            players =
+                PlayerInfoView(
+                    players.mapNotNull { player ->
+                        if (!player.active || player.loggingOut) return@mapNotNull null
+                        val session = world.session(player)
+                        PlayerInfoSnapshot(
+                            index = player.index,
+                            position = player.movement.position,
+                            movement = player.movement.update,
+                            runEnabled = player.movement.runEnabled,
+                            appearance = session.appearance.message(player),
+                            mapInstance = player.mapInstance,
+                            publicChat = player.publicChat?.let { message -> publicChat(player, message) },
+                            sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
+                        )
+                    },
+                ),
+            npcs = if (snapshotNpcs.isEmpty()) NpcInfoView.EMPTY else NpcInfoView(snapshotNpcs),
         )
+    }
 
     internal fun prepare(
         player: Player,
-        view: PlayerInfoView,
+        view: WorldInfoView,
         profileMessage: MessageGame?,
     ) {
         val session = world.session(player)
@@ -92,7 +101,7 @@ class PlayerOutput(
     private fun regularOutput(
         player: Player,
         session: GameSession,
-        view: PlayerInfoView,
+        view: WorldInfoView,
         profileMessage: MessageGame?,
     ): GameOutputBatch =
         GameOutputBatch.build {
@@ -129,8 +138,8 @@ class PlayerOutput(
                         player.buildArea.localX(position.x),
                         player.buildArea.localY(position.y),
                     ),
-                    session.playerInfo.next(view),
-                    NpcInfo,
+                    session.playerInfo.next(view.players),
+                    session.npcInfo.next(view.npcs, position, player.mapInstance),
                 ),
             )
             profileMessage?.let(::packet)

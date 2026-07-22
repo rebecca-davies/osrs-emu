@@ -206,7 +206,7 @@ class PlayerInfoStateTest {
         )
 
     private fun view(world: World): PlayerInfoView =
-        PlayerOutput(world, HUFFMAN, UiContentCatalog.load().gameframe).snapshot(world.allPlayers())
+        PlayerOutput(world, HUFFMAN, UiContentCatalog.load().gameframe).snapshot(world.allPlayers()).players
 
     private fun crowdedView(remotePlayers: Int, targetX: Int): PlayerInfoView =
         PlayerInfoView(
