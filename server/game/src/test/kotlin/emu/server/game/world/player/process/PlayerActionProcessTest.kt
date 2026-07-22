@@ -22,7 +22,6 @@ import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.chat.ChatAuditMessage
 import emu.persistence.chat.ChatAuditSink
-import emu.server.game.config.RouteSearchConfig
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.world.World
 import emu.server.game.world.addTestPlayer
@@ -30,7 +29,6 @@ import emu.server.game.world.player.ConnectedPlayer
 import emu.server.game.world.player.cheat.BotClientRequestResult
 import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
 import emu.server.game.world.player.cheat.buildPlayerCheatRepository
-import emu.server.game.world.player.route.RouteSearchBudget
 import emu.server.game.world.testWorld
 import emu.server.session.account.AccountPrivilege
 import java.time.Clock
@@ -107,7 +105,6 @@ class PlayerActionProcessTest {
                 PlayerChatActionProcess(huffman, ChatAuditSink { true }),
                 PlayerScriptRunner(scripts),
                 PlayerCheatRepositoryBuilder().build(),
-                RouteSearchBudget(RouteSearchConfig()),
             )
         val click = ButtonClick(182, 8, sub = 3, obj = 4_151, op = 4)
         connection.actions.submit(PlayerAction.Button(click))
@@ -134,7 +131,6 @@ class PlayerActionProcessTest {
                 chat,
                 PlayerScriptRunner(scripts),
                 PlayerCheatRepositoryBuilder().build(),
-                RouteSearchBudget(RouteSearchConfig()),
             )
         connection.actions.submit(PlayerAction.Chat(ChatFilterInput(3, 1, 2)))
         connection.actions.submit(PlayerAction.Chat(PublicChatInput(1, 2, "hello")))
@@ -169,7 +165,6 @@ class PlayerActionProcessTest {
                     requested = count
                     BotClientRequestResult.Accepted(count, count)
                 },
-                RouteSearchBudget(RouteSearchConfig()),
             )
         connection.actions.submit(PlayerAction.Cheat(PlayerCheatInput("addbots 2")))
 
@@ -203,7 +198,6 @@ class PlayerActionProcessTest {
             PlayerChatActionProcess(huffman, ChatAuditSink { true }),
             PlayerScriptRunner(scripts),
             PlayerCheatRepositoryBuilder().build(),
-            RouteSearchBudget(RouteSearchConfig()),
         )
     }
 

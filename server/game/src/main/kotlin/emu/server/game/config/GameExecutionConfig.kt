@@ -14,7 +14,6 @@ data class GameExecutionConfig(
     val connection: GameConnectionConfig = GameConnectionConfig(),
     val commands: WorldCommandQueueConfig = WorldCommandQueueConfig(),
     val collisionLoads: CollisionLoadQueueConfig = CollisionLoadQueueConfig(),
-    val routes: RouteSearchConfig = RouteSearchConfig()
 ) {
     init {
         require(connectionWorkerThreads > 0) { "game connection worker count must be positive" }

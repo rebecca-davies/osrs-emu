@@ -36,7 +36,6 @@ import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerMovementCycleProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
-import emu.server.game.world.player.route.RouteSearchBudget
 import emu.transport.codec.CodecRepository
 import kotlinx.coroutines.withContext
 import org.koin.dsl.module
@@ -76,12 +75,11 @@ internal fun gameModule(
     single<PlayerRouteFinder> { get<PlayerMovementProcess>() }
     single { PlayerMovementCycleProcess(get(), get()) }
     single { PlayerChatActionProcess(get(), get<ChatAuditSink>()) }
-    single { RouteSearchBudget(config.routes) }
     single { PlayerContentCatalog.load(get<UiContent>().components) }
     single { PlayerScriptRunner(get()) }
     single { PlayerTriggerProcess(get()) }
     single { buildPlayerCheatRepository(get()) }
-    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get(), get()) }
+    single { PlayerActionProcess(get<PlayerRouteFinder>(), get(), get(), get()) }
     single { PlayerMainProcess(get(), get(), get()) }
     single { PlayerLifecycleProcess(get<CharacterWriteQueue>(), get()) }
     single { PlayerOutputProcess() }

@@ -28,7 +28,6 @@ class ServerConfigTest {
                     "OSRS_GAME_INCOMING_ACTION_QUEUE_CAPACITY" to "256",
                     "OSRS_GAME_INCOMING_ACTION_LIMIT_PER_CYCLE" to "12",
                     "OSRS_GAME_OUTPUT_QUEUE_CAPACITY" to "6",
-                    "OSRS_GAME_ROUTE_SEARCH_LIMIT_PER_CYCLE" to "24",
                     "OSRS_GAME_COLLISION_LOAD_QUEUE_CAPACITY" to "64",
                     "OSRS_GAME_COLLISION_LOAD_WORKER_THREADS" to "3",
                     "OSRS_GAME_COLLISION_LOAD_SHUTDOWN_TIMEOUT_SECONDS" to "4",
@@ -81,7 +80,6 @@ class ServerConfigTest {
         assertEquals(256, config.game.connection.incomingActions.capacity)
         assertEquals(12, config.game.connection.incomingActions.maxPerCycle)
         assertEquals(6, config.game.connection.outputQueueCapacity)
-        assertEquals(24, config.game.routes.maxPerCycle)
         assertEquals(64, config.game.collisionLoads.capacity)
         assertEquals(3, config.game.collisionLoads.workerThreads)
         assertEquals(4.seconds, config.game.collisionLoads.shutdownTimeout)

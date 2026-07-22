@@ -6,7 +6,6 @@ import emu.persistence.postgres.database.PostgresPoolConfig
 import emu.server.bot.config.BotConfig
 import emu.server.bot.config.BotMovementConfig
 import emu.server.game.config.GameExecutionConfig
-import emu.server.game.config.RouteSearchConfig
 import emu.server.gateway.GatewayConfig
 import emu.server.js5.config.Js5ExecutionConfig
 import emu.server.login.auth.BcryptConfig
@@ -139,14 +138,6 @@ private fun Map<String, String>.gameConfig(): GameExecutionConfig =
                             "OSRS_GAME_COLLISION_LOAD_SHUTDOWN_TIMEOUT_SECONDS",
                             collisionLoads.shutdownTimeout.inWholeSeconds,
                         ).seconds,
-                ),
-            routes =
-                RouteSearchConfig(
-                    maxPerCycle =
-                        int(
-                            "OSRS_GAME_ROUTE_SEARCH_LIMIT_PER_CYCLE",
-                            defaults.routes.maxPerCycle,
-                        ),
                 ),
             commands =
                 defaults.commands.copy(

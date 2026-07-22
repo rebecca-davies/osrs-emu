@@ -43,7 +43,7 @@ import kotlin.test.assertTrue
 
 class WorldCycleTest {
     @Test
-    fun `maximum player route flood is bounded rotated and followed by output cleanup`() {
+    fun `every player route is applied before output at world capacity`() {
         val capacity = PlayerCapacity.PER_WORLD
         val world = testWorld(maxPlayerIndex = capacity)
         val movementProcess = PlayerMovementProcess(OpenCollisionMap)
@@ -86,7 +86,6 @@ class WorldCycleTest {
                         HuffmanCodec(ByteArray(256) { 8 }),
                         ChatAuditSink { true },
                     ),
-                    routeSearchesPerCycle = 32,
                 ),
                 TestPlayerContent.main(movementProcess),
                 TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
@@ -100,7 +99,7 @@ class WorldCycleTest {
         }
         cycle.tick(worldTick = 1)
 
-        assertEquals((1..32).toList() + (2..33).toList(), searchedPlayers)
+        assertEquals((1..capacity).toList() + (1..capacity).toList(), searchedPlayers)
         assertTrue(outputs.all { it == 2 })
         players.forEach { connected ->
             assertEquals(MovementUpdate.Idle, connected.player.movement.update)
@@ -110,7 +109,7 @@ class WorldCycleTest {
     }
 
     @Test
-    fun `rotated route budget serves every player without starving later world phases`() {
+    fun `all pending routes are consumed in one global client input phase`() {
         val world = testWorld(maxPlayerIndex = 3)
         val movement = PlayerMovementProcess(OpenCollisionMap)
         val outputs = IntArray(3)
@@ -137,19 +136,18 @@ class WorldCycleTest {
                         HuffmanCodec(ByteArray(256) { 8 }),
                         ChatAuditSink { true },
                     ),
-                    routeSearchesPerCycle = 1,
                 ),
                 TestPlayerContent.main(movement),
                 TestPlayerContent.lifecycle(CharacterWriteQueue { DurableCharacterWrite }),
                 PlayerOutputProcess(),
             )
 
-        repeat(3) { cycle.tick(it.toLong()) }
+        cycle.tick(worldTick = 0)
 
         players.forEachIndexed { index, connected ->
             assertEquals(3_203 + index * 2, connected.player.movement.position.x)
         }
-        assertTrue(outputs.all { it == 3 })
+        assertTrue(outputs.all { it == 1 })
     }
 
     @Test

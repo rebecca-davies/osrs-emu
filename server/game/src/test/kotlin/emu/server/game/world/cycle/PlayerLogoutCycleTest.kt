@@ -25,7 +25,6 @@ import emu.protocol.osrs239.game.message.component.IfOpenSub
 import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.MODAL
 import emu.protocol.osrs239.game.message.varp.VarpSmall
 import emu.server.game.TestPlayerContent
-import emu.server.game.config.RouteSearchConfig
 import emu.server.game.network.output.GameOutputBatch
 import emu.server.game.network.output.GameOutputSegment
 import emu.server.game.network.output.GameOutputSink
@@ -41,7 +40,6 @@ import emu.server.game.world.player.process.PlayerLifecycleProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
-import emu.server.game.world.player.route.RouteSearchBudget
 import emu.server.game.world.testWorld
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -328,7 +326,6 @@ class PlayerLogoutCycleTest {
                 ),
                 runner,
                 PlayerCheatRepositoryBuilder().build(),
-                RouteSearchBudget(RouteSearchConfig()),
             ),
             PlayerMainProcess(runner, triggers, TestPlayerContent.movementCycle(movement)),
             PlayerLifecycleProcess(CharacterWriteQueue { DurableCharacterWrite }, triggers),

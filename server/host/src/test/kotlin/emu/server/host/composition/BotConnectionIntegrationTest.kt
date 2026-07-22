@@ -31,7 +31,6 @@ import emu.server.bot.connection.BotConnectionRunner
 import emu.server.game.GameServer
 import emu.server.game.GameServerDispatchers
 import emu.server.game.config.GameConnectionConfig
-import emu.server.game.config.RouteSearchConfig
 import emu.server.game.network.connection.GameConnectionRunner
 import emu.server.game.network.input.GameInboundReader
 import emu.server.game.runtime.command.WorldCommandQueue
@@ -51,7 +50,6 @@ import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerMovementCycleProcess
 import emu.server.game.world.player.process.PlayerOutputProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
-import emu.server.game.world.player.route.RouteSearchBudget
 import emu.server.gateway.GatewayConfig
 import emu.server.gateway.GatewayListener
 import emu.server.host.config.CoordinatorConfig
@@ -186,7 +184,6 @@ class BotConnectionIntegrationTest {
                 PlayerChatActionProcess(huffman, ChatAuditSink { true }),
                 scripts,
                 buildPlayerCheatRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
-                RouteSearchBudget(RouteSearchConfig()),
             )
         val main =
             PlayerMainProcess(

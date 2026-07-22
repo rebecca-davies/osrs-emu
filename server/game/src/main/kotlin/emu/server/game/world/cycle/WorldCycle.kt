@@ -30,11 +30,10 @@ class WorldCycle(
         require(worldTick >= 0) { "world tick must be non-negative" }
         try {
             commands.drain(world)
-            actions.beginCycle()
             playerMain.beginCycle(worldTick)
             phasePlayers.clear()
             world.collectActivePlayers(phasePlayers)
-            processPlayers(CyclePhase.CLIENT_INPUT, phasePlayers, rotatedStart(worldTick)) { connected ->
+            processPlayers(CyclePhase.CLIENT_INPUT, phasePlayers) { connected ->
                 actions.process(connected.player, connected.connection)
             }
             phasePlayers.clear()
@@ -52,9 +51,6 @@ class WorldCycle(
             phasePlayers.clear()
         }
     }
-
-    private fun rotatedStart(worldTick: Long): Int =
-        if (phasePlayers.size < 2) 0 else (worldTick % phasePlayers.size).toInt()
 
     fun recordCycleProfile(snapshot: CycleProfileSnapshot) {
         world.recordCycleProfile(snapshot)
@@ -125,13 +121,10 @@ class WorldCycle(
     private fun processPlayers(
         phase: CyclePhase,
         players: List<ConnectedPlayer>,
-        start: Int = 0,
         process: (ConnectedPlayer) -> Unit,
     ) {
-        for (offset in players.indices) {
-            val unwrapped = start + offset
-            val index = if (unwrapped < players.size) unwrapped else unwrapped - players.size
-            processPlayer(phase, players[index], process)
+        for (connected in players) {
+            processPlayer(phase, connected, process)
         }
     }
 

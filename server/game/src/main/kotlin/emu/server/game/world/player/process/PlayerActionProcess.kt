@@ -9,7 +9,6 @@ import emu.game.ui.ButtonClick
 import emu.server.game.network.connection.PlayerConnection
 import emu.server.game.world.player.WorldPlayer
 import emu.server.game.world.player.cheat.PlayerCheatRepository
-import emu.server.game.world.player.route.RouteSearchBudget
 
 /** Drains decoded client actions for every player during the global client-input phase. */
 class PlayerActionProcess(
@@ -17,10 +16,7 @@ class PlayerActionProcess(
     private val chat: PlayerChatActionProcess,
     private val runner: PlayerScriptRunner,
     private val cheats: PlayerCheatRepository,
-    private val routes: RouteSearchBudget,
 ) {
-    internal fun beginCycle() = routes.beginCycle()
-
     internal fun process(player: WorldPlayer, connection: PlayerConnection) {
         connection.actions.drain { action ->
             when (action) {
@@ -36,7 +32,7 @@ class PlayerActionProcess(
             }
         }
         val route = connection.pendingRoute
-        if (!player.logoutRequested && route != null && routes.acquire()) {
+        if (!player.logoutRequested && route != null) {
             connection.pendingRoute = null
             route(player, route)
         }

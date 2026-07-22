@@ -7,7 +7,6 @@ import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.game.pathfinding.route.PlayerRouteFinder
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
-import emu.server.game.config.RouteSearchConfig
 import emu.server.game.world.map.CollisionMapLoader
 import emu.server.game.world.player.cheat.PlayerCheatRepositoryBuilder
 import emu.server.game.world.player.process.PlayerActionProcess
@@ -16,7 +15,6 @@ import emu.server.game.world.player.process.PlayerLifecycleProcess
 import emu.server.game.world.player.process.PlayerMainProcess
 import emu.server.game.world.player.process.PlayerMovementCycleProcess
 import emu.server.game.world.player.process.PlayerTriggerProcess
-import emu.server.game.world.player.route.RouteSearchBudget
 
 /** Shared immutable Kotlin-content runtime used by world tests. */
 internal object TestPlayerContent {
@@ -27,13 +25,11 @@ internal object TestPlayerContent {
     fun actions(
         routeFinder: PlayerRouteFinder,
         chat: PlayerChatActionProcess,
-        routeSearchesPerCycle: Int = RouteSearchConfig().maxPerCycle,
     ) = PlayerActionProcess(
         routeFinder,
         chat,
         runner,
         PlayerCheatRepositoryBuilder().build(),
-        RouteSearchBudget(RouteSearchConfig(routeSearchesPerCycle)),
     )
 
     fun main(movement: PlayerMovementProcess) =
