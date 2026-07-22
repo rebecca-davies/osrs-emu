@@ -13,7 +13,7 @@ class NpcInfoEncoderTest {
         val encoded =
             NpcInfoEncoder.encode(
                 NpcInfo(
-                    locals = listOf(NpcInfoLocal.Idle, NpcInfoLocal.Walk(4), NpcInfoLocal.Remove),
+                    locals = listOf(NpcInfoLocal.Idle, NpcInfoLocal.Walk.EAST, NpcInfoLocal.Remove),
                     additions =
                         listOf(
                             NpcInfoAddition(

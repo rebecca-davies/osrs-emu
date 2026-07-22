@@ -4,6 +4,10 @@ import com.sun.management.ThreadMXBean
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
 import emu.game.action.PlayerAction
+import emu.game.map.MapInstance
+import emu.game.map.Tile
+import emu.game.npc.NpcList
+import emu.game.npc.NpcType
 import emu.game.player.Player
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
@@ -31,7 +35,8 @@ fun main(args: Array<String>) {
     require(measuredCycles > 0) { "measured cycles must be positive" }
 
     var publishedBatches = 0L
-    val world = testWorld(maxPlayerIndex = playerCount)
+    val npcs = NpcList()
+    val world = testWorld(maxPlayerIndex = playerCount, npcs = npcs)
     val players = ArrayList<Player>(playerCount)
     repeat(playerCount) { ordinal ->
         val id = ordinal + 1L
@@ -47,6 +52,7 @@ fun main(args: Array<String>) {
         world.activateTestPlayer(world.session(player).token)
         players += player
     }
+    workload.populate(npcs, players)
 
     val cycle = TestPlayerContent.cycle(world, WorldCommandQueue(capacity = 8))
 
@@ -154,11 +160,52 @@ private enum class BenchmarkWorkload(val argument: String) {
                 }
             }
         }
+    },
+    INFERNO_NPCS("inferno-npcs") {
+        override fun initialPosition(ordinal: Int): CharacterPosition =
+            CharacterPosition(INFERNO_CENTRE_X, INFERNO_CENTRE_Y, 0)
+
+        override fun populate(npcs: NpcList, players: List<Player>) {
+            for (player in players) {
+                val instance = MapInstance.privateTo(player.id)
+                player.teleportTo(Tile(INFERNO_CENTRE_X, INFERNO_CENTRE_Y), instance)
+                for ((deltaX, deltaY) in INFERNO_NPC_OFFSETS) {
+                    check(
+                        npcs.add(
+                            BENCHMARK_NPC_TYPE,
+                            Tile(INFERNO_CENTRE_X + deltaX, INFERNO_CENTRE_Y + deltaY),
+                            instance,
+                            target = player,
+                        ) != null,
+                    ) {
+                        "benchmark NPC capacity exhausted for player ${player.id}"
+                    }
+                }
+            }
+        }
+
+        override fun prepare(worldTick: Long, world: World, players: List<Player>) {
+            if (worldTick % INFERNO_ROUTE_CYCLES != 0L) return
+            val routeNumber = worldTick / INFERNO_ROUTE_CYCLES
+            val destinationX =
+                if (routeNumber and 1L == 0L) {
+                    INFERNO_CENTRE_X - INFERNO_ROUTE_RADIUS
+                } else {
+                    INFERNO_CENTRE_X + INFERNO_ROUTE_RADIUS
+                }
+            for (player in players) {
+                check(world.session(player).actions.submit(PlayerAction.Route(destinationX, INFERNO_CENTRE_Y))) {
+                    "benchmark action queue rejected Inferno player ${player.id}"
+                }
+            }
+        }
     };
 
     abstract fun initialPosition(ordinal: Int): CharacterPosition
 
     abstract fun prepare(worldTick: Long, world: World, players: List<Player>)
+
+    open fun populate(npcs: NpcList, players: List<Player>) = Unit
 
     companion object {
         fun parse(argument: String): BenchmarkWorkload =
@@ -186,3 +233,19 @@ private const val BOT_MOVEMENT_CENTRE_Y = 3_218
 private const val BOT_MOVEMENT_CYCLES = 5
 private const val BOT_MOVEMENT_RADIUS = 6
 private const val BOT_MOVEMENT_DIAMETER = BOT_MOVEMENT_RADIUS * 2 + 1
+private const val INFERNO_CENTRE_X = 2_271
+private const val INFERNO_CENTRE_Y = 5_332
+private const val INFERNO_ROUTE_CYCLES = 12
+private const val INFERNO_ROUTE_RADIUS = 8
+private val BENCHMARK_NPC_TYPE = NpcType(id = 1, name = "Benchmark NPC")
+private val INFERNO_NPC_OFFSETS =
+    listOf(
+        -6 to -6,
+        -2 to -6,
+        2 to -6,
+        6 to -6,
+        -6 to 6,
+        -2 to 6,
+        2 to 6,
+        6 to 6,
+    )

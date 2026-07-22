@@ -21,9 +21,32 @@ data class NpcInfo(
 sealed interface NpcInfoLocal {
     data object Idle : NpcInfoLocal
 
-    data class Walk(val direction: Int) : NpcInfoLocal {
-        init {
-            require(direction in 0..7) { "NPC walk direction must fit three bits" }
+    enum class Walk(val direction: Int) : NpcInfoLocal {
+        NORTH_WEST(0),
+        NORTH(1),
+        NORTH_EAST(2),
+        WEST(3),
+        EAST(4),
+        SOUTH_WEST(5),
+        SOUTH(6),
+        SOUTH_EAST(7),
+
+        ;
+
+        companion object {
+            fun from(direction: Int): Walk {
+                return when (direction) {
+                    0 -> NORTH_WEST
+                    1 -> NORTH
+                    2 -> NORTH_EAST
+                    3 -> WEST
+                    4 -> EAST
+                    5 -> SOUTH_WEST
+                    6 -> SOUTH
+                    7 -> SOUTH_EAST
+                    else -> throw IllegalArgumentException("NPC walk direction must fit three bits")
+                }
+            }
         }
     }
 

@@ -223,8 +223,12 @@ class World(
 
     /** Advances one unpaused targeted NPC by at most one collision-valid tile. */
     internal fun advanceNpc(npc: Npc) {
+        val target = npc.target ?: return
+        if (!players.contains(target)) {
+            npc.clearTarget()
+            return
+        }
         if (npc.paused) return
-        val target = npc.targetPlayerId?.let(players::player) ?: return
         if (!target.active || target.loggingOut || target.mapInstance != npc.mapInstance) return
         val destination = map.nextDumbNpcStep(npc.position, npc.type.size, target.movement.position) ?: return
         if (npcs.intersects(npc.mapInstance, destination, npc.type.size, excluding = npc)) return

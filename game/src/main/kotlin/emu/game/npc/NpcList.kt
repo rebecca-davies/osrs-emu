@@ -3,6 +3,7 @@ package emu.game.npc
 import emu.game.map.Direction
 import emu.game.map.MapInstance
 import emu.game.map.Tile
+import emu.game.player.Player
 
 /** Bounded slot-indexed NPC membership and private-instance lookup owned by one world. */
 class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
@@ -30,13 +31,13 @@ class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
         position: Tile,
         mapInstance: MapInstance,
         orientation: Direction = Direction.SOUTH,
-        targetPlayerId: Long? = null,
+        target: Player? = null,
         paused: Boolean = false,
     ): Npc? {
         if (freeCount == 0) return null
         check(nextUid > 0) { "NPC uid space is exhausted" }
         val index = freeIndexes[--freeCount]
-        val npc = Npc(index, nextUid++, type, position, mapInstance, orientation, targetPlayerId, paused)
+        val npc = Npc(index, nextUid++, type, position, mapInstance, orientation, target, paused)
         slots[index] = npc
         npc.listPosition = ordered.size
         ordered += npc
@@ -52,6 +53,7 @@ class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
     /** Removes one NPC when it still owns its allocated client index. */
     fun remove(npc: Npc): Boolean {
         if (slots.getOrNull(npc.index) !== npc) return false
+        npc.clearTarget()
         slots[npc.index] = null
         removeAtSwap(ordered, npc.listPosition) { moved, position -> moved.listPosition = position }
         val instanceNpcs = checkNotNull(byInstance[npc.mapInstance])

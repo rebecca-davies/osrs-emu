@@ -88,7 +88,7 @@ class PlayerOutputTest {
         val output = output(world)
         val view = output.snapshot(world.allPlayers())
 
-        assertNull(view[target.index])
+        assertNull(view.players[target.index])
         output.prepare(target, view, null)
         assertNull(world.session(target).pendingOutput)
     }

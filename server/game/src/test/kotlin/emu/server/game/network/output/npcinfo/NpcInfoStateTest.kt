@@ -26,7 +26,7 @@ class NpcInfoStateTest {
         assertTrue(addition.locals.isEmpty())
 
         first.walkTo(Tile(102, 100))
-        assertEquals(listOf(NpcInfoLocal.Walk(4)), state.next(view(npcs), observer, instance).locals)
+        assertEquals(listOf(NpcInfoLocal.Walk.EAST), state.next(view(npcs), observer, instance).locals)
         first.finishCycle()
         assertEquals(listOf(NpcInfoLocal.Idle), state.next(view(npcs), observer, instance).locals)
 
@@ -53,6 +53,20 @@ class NpcInfoStateTest {
         assertEquals(250, visible.additions.size)
         assertTrue(isolated.locals.isEmpty())
         assertTrue(isolated.additions.isEmpty())
+    }
+
+    @Test
+    fun `private NPC additions retain zone priority before client index`() {
+        val instance = MapInstance.privateTo(1)
+        val observer = Tile(100, 100)
+        val type = NpcType(1, "Jal-Nib")
+        val npcs = NpcList(capacity = 2)
+        val eastZone = requireNotNull(npcs.add(type, Tile(108, 100), instance))
+        val observerZone = requireNotNull(npcs.add(type, Tile(101, 100), instance))
+
+        val additions = NpcInfoState().next(view(npcs), observer, instance).additions
+
+        assertEquals(listOf(observerZone.index, eastZone.index), additions.map(NpcInfoAddition::index))
     }
 
     private fun view(npcs: NpcList): NpcInfoView {

@@ -44,7 +44,7 @@ class InfernoArena(
             return InfernoNpcPlacement.OCCUPIED
         }
         npcs.pause(instance, paused = true)
-        return if (npcs.add(npcType, position, instance, targetPlayerId = player.id, paused = true) == null) {
+        return if (npcs.add(npcType, position, instance, target = player, paused = true) == null) {
             InfernoNpcPlacement.WORLD_CAPACITY
         } else {
             InfernoNpcPlacement.PLACED

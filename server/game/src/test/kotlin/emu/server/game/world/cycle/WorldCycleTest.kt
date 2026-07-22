@@ -56,7 +56,7 @@ class WorldCycleTest {
                     NpcType(1, "Jal-Nib"),
                     Tile(95, 100),
                     MapInstance.SHARED,
-                    targetPlayerId = player.id,
+                    target = player,
                     paused = true,
                 ),
             )
@@ -71,8 +71,14 @@ class WorldCycleTest {
         cycle.tick(worldTick = 1)
 
         assertEquals(Tile(96, 100), npc.position)
-        assertEquals(listOf(NpcInfoLocal.Walk(4)), npcInfo(outputs.last()).locals)
+        assertEquals(listOf(NpcInfoLocal.Walk.EAST), npcInfo(outputs.last()).locals)
         assertEquals(NpcMovementUpdate.Idle, npc.movementUpdate)
+
+        npcs.pause(MapInstance.SHARED, paused = true)
+        world.remove(player)
+        cycle.tick(worldTick = 2)
+
+        assertNull(npc.target)
     }
 
     @Test

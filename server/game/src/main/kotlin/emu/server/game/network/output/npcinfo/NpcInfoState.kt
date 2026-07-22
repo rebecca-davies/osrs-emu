@@ -72,7 +72,7 @@ internal class NpcInfoState {
     private fun Npc.localUpdate(): NpcInfoLocal =
         when (val movement = movementUpdate) {
             NpcMovementUpdate.Idle -> NpcInfoLocal.Idle
-            is NpcMovementUpdate.Walk -> NpcInfoLocal.Walk(movement.direction.npcInfoIndex())
+            is NpcMovementUpdate.Walk -> NpcInfoLocal.Walk.from(movement.direction.npcInfoIndex())
         }
 
     private fun Direction.npcInfoIndex(): Int =
