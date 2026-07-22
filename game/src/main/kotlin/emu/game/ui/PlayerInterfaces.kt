@@ -1,6 +1,6 @@
 package emu.game.ui
 
-/** Interface-tree state and ordered client UI operations for one player. */
+/** Bounded interface-tree state and ordered client UI operations for one player. */
 class PlayerInterfaces {
     private val subInterfaces = linkedMapOf<Component, OpenSubInterface>()
     private val visibleSubInterfaces = mutableMapOf<Int, Int>()
@@ -48,19 +48,18 @@ class PlayerInterfaces {
         require(arguments.all { it is Int || it is String }) {
             "client script arguments must be Int or String"
         }
+        ensureClientUpdateCapacity()
         clientUpdates.addLast(PlayerInterfaceUpdate.RunClientScript(script, arguments.toList()))
     }
 
     /** Closes all protected modal subinterface trees. */
     fun closeModal(): Boolean {
         if (modalCount == 0) return false
-        val destinations =
-            subInterfaces.entries
-                .filter { it.value.modal }
-                .map(Map.Entry<Component, OpenSubInterface>::key)
+        val destinations = modalCloseDestinations()
+        ensureCloseTriggerCapacity(destinations.size)
+        if (clientSynchronized) ensureClientUpdateCapacity(destinations.size)
         for (destination in destinations) {
-            val subInterface = subInterfaces[destination]
-            if (subInterface?.modal != true) continue
+            val subInterface = checkNotNull(subInterfaces[destination])
             removeAt(destination)
             closeTriggers.addLast(subInterface.interfaceId)
             if (clientSynchronized) {
@@ -90,6 +89,12 @@ class PlayerInterfaces {
     private fun openSubInterface(destination: Component, interfaceId: Int, modal: Boolean) {
         require(interfaceId in UNSIGNED_SHORT) { "interface id must fit an unsigned short" }
         require(isVisible(destination)) { "subinterface destination is not visible: $destination" }
+        if (destination !in subInterfaces) {
+            check(subInterfaces.size < MAX_OPEN_SUB_INTERFACES) {
+                "open subinterface capacity exceeded"
+            }
+        }
+        if (clientSynchronized) ensureClientUpdateCapacity()
         removeAt(destination)
         subInterfaces[destination] = OpenSubInterface(interfaceId, modal)
         if (modal) modalCount++
@@ -111,9 +116,44 @@ class PlayerInterfaces {
         children.forEach(::removeAt)
     }
 
+    private fun modalCloseDestinations(): List<Component> {
+        val remaining = LinkedHashSet(subInterfaces.keys)
+        val destinations = ArrayList<Component>()
+        for ((destination, subInterface) in subInterfaces) {
+            if (!subInterface.modal || destination !in remaining) continue
+            destinations += destination
+            removeTreeFrom(destination, remaining)
+        }
+        return destinations
+    }
+
+    private fun removeTreeFrom(destination: Component, remaining: MutableSet<Component>) {
+        if (!remaining.remove(destination)) return
+        val interfaceId = checkNotNull(subInterfaces[destination]).interfaceId
+        val children = remaining.filter { it.interfaceId == interfaceId }
+        children.forEach { removeTreeFrom(it, remaining) }
+    }
+
+    private fun ensureClientUpdateCapacity(additional: Int = 1) {
+        require(additional >= 0) { "additional client update count must be non-negative" }
+        check(additional <= MAX_PENDING_CLIENT_UPDATES - clientUpdates.size) {
+            "pending client interface update capacity exceeded"
+        }
+    }
+
+    private fun ensureCloseTriggerCapacity(additional: Int) {
+        require(additional >= 0) { "additional close trigger count must be non-negative" }
+        check(additional <= MAX_PENDING_CLOSE_TRIGGERS - closeTriggers.size) {
+            "pending interface close trigger capacity exceeded"
+        }
+    }
+
     private data class OpenSubInterface(val interfaceId: Int, val modal: Boolean)
 
     private companion object {
+        const val MAX_OPEN_SUB_INTERFACES = 128
+        const val MAX_PENDING_CLOSE_TRIGGERS = MAX_OPEN_SUB_INTERFACES
+        const val MAX_PENDING_CLIENT_UPDATES = 256
         val UNSIGNED_SHORT = 0..0xFFFF
     }
 }

@@ -1,6 +1,7 @@
 package emu.game.content.ui.gameframe
 
 import emu.game.content.ui.config.UiContentCatalog
+import emu.game.ui.ClientScript
 import emu.game.ui.Component
 import emu.game.ui.PlayerInterfaces
 import kotlin.test.Test
@@ -75,6 +76,56 @@ class GameframeParserTest {
         assertTrue(interfaces.closeModal())
         assertEquals(null, interfaces.subInterfaceAt(destination))
         assertFalse(interfaces.isVisible(Component.of(200, 0)))
+    }
+
+    @Test
+    fun `interface state rejects work beyond its per-player capacities`() {
+        val interfaces = PlayerInterfaces()
+        interfaces.openTopLevel(161)
+        repeat(128) { component ->
+            interfaces.openModal(Component.of(161, component), 200 + component)
+        }
+
+        assertFailsWith<IllegalStateException> {
+            interfaces.openModal(Component.of(161, 128), 400)
+        }
+        assertTrue(interfaces.closeModal())
+        repeat(128) { component ->
+            interfaces.openModal(Component.of(161, component), 200 + component)
+        }
+        assertFailsWith<IllegalStateException> { interfaces.closeModal() }
+        assertTrue(interfaces.hasModal())
+
+        interfaces.openTopLevel(161)
+        interfaces.markClientSynchronized()
+        repeat(256) { interfaces.runClientScript(ClientScript(1)) }
+        assertFailsWith<IllegalStateException> { interfaces.runClientScript(ClientScript(1)) }
+        assertEquals(256, interfaces.drainClientUpdates().size)
+    }
+
+    @Test
+    fun `nested modals reserve one close operation for their shared tree`() {
+        val closeBound = PlayerInterfaces()
+        closeBound.openTopLevel(161)
+        repeat(127) { component ->
+            closeBound.openModal(Component.of(161, component), 200 + component)
+        }
+        assertTrue(closeBound.closeModal())
+        closeBound.openModal(Component.of(161, 0), 500)
+        closeBound.openModal(Component.of(500, 0), 501)
+
+        assertTrue(closeBound.closeModal())
+        assertEquals(128, generateSequence(closeBound::pollCloseTrigger).count())
+
+        val updateBound = PlayerInterfaces()
+        updateBound.openTopLevel(161)
+        updateBound.openModal(Component.of(161, 0), 500)
+        updateBound.openModal(Component.of(500, 0), 501)
+        updateBound.markClientSynchronized()
+        repeat(255) { updateBound.runClientScript(ClientScript(1)) }
+
+        assertTrue(updateBound.closeModal())
+        assertEquals(256, updateBound.drainClientUpdates().size)
     }
 
     @Test
