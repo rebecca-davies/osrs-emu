@@ -1,6 +1,7 @@
 package emu.game.content.areas.inferno
 
 import emu.game.map.Tile
+import emu.game.npc.NpcList
 import org.tomlj.Toml
 import org.tomlj.TomlArray
 import org.tomlj.TomlTable
@@ -23,7 +24,7 @@ object InfernoFreeModeConfigParser {
                     inferno.requireTile(SOUTH_WEST),
                     inferno.requireTile(NORTH_EAST),
                 ),
-            maxNpcs = inferno.requireInt(MAX_NPCS, 1..MAX_LOCAL_NPCS),
+            maxNpcs = inferno.requireInt(MAX_NPCS, 1..NpcList.DEFAULT_CAPACITY),
         )
     }
 
@@ -64,7 +65,6 @@ object InfernoFreeModeConfigParser {
     private const val NORTH_EAST = "north_east"
     private const val MAX_NPCS = "max_npcs"
     private const val TILE_COMPONENTS = 3
-    private const val MAX_LOCAL_NPCS = 250
     private val WORLD_COORDINATES = 0..0x3FFF
     private val PLANES = 0..3
 }

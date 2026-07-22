@@ -1,6 +1,7 @@
 package emu.game.content.areas.inferno
 
 import emu.game.map.Tile
+import emu.game.npc.NpcList
 
 /** Revision-pinned locations and loc type used by the Inferno free-mode beta flow. */
 data class InfernoFreeModeConfig(
@@ -12,7 +13,9 @@ data class InfernoFreeModeConfig(
 ) {
     init {
         require(challengePortalType in 0..0xFFFF) { "challenge portal type must fit an unsigned short" }
-        require(maxNpcs > 0) { "maximum NPC count must be positive" }
+        require(maxNpcs in 1..NpcList.DEFAULT_CAPACITY) {
+            "maximum NPC count must fit the bounded world NPC list"
+        }
         require(arenaBounds.contains(arenaArrival)) { "Inferno arrival must be inside the arena bounds" }
     }
 }

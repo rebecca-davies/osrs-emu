@@ -31,7 +31,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
 
-/** Authoritative player membership, reservations, and map access owned by the world thread. */
+/** Authoritative live-entity membership, player reservations, and map access owned by the world thread. */
 class World(
     private val map: GameMap,
     private val gameframe: Gameframe,

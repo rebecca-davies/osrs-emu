@@ -7,7 +7,7 @@ import emu.game.npc.NpcList
 import kotlin.math.abs
 import kotlin.math.max
 
-/** Zone-indexed NPC view shared by every observer during one information phase. */
+/** Bounded NPC lookup snapshot shared by every observer during one information phase. */
 internal class NpcInfoView(npcs: List<Npc>) {
     val isEmpty: Boolean = npcs.isEmpty()
     private val byIndex = arrayOfNulls<Npc>(NpcList.DEFAULT_CAPACITY)

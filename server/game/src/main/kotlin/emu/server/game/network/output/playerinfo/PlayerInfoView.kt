@@ -4,7 +4,7 @@ import emu.game.map.MapInstance
 import kotlin.math.abs
 import kotlin.math.max
 
-/** Zone-indexed immutable view shared by every observer during one information phase. */
+/** Bounded immutable player snapshot shared by every observer during one information phase. */
 internal class PlayerInfoView(players: List<PlayerInfoSnapshot>) {
     val playerCount: Int = players.size
     private val byIndex = arrayOfNulls<PlayerInfoSnapshot>(PLAYER_SLOTS)

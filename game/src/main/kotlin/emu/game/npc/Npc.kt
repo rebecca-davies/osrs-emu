@@ -49,6 +49,7 @@ class Npc internal constructor(
         paused = value
     }
 
+    /** Releases the live player reference currently hunted by this NPC. */
     fun clearTarget() {
         target = null
     }

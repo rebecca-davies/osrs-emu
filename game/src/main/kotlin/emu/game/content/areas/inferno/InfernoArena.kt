@@ -126,6 +126,7 @@ enum class InfernoNpcPlacement {
     WORLD_CAPACITY,
 }
 
+/** Pause state authorized for one character and private Inferno instance. */
 private data class InfernoSimulation(
     val ownerId: Long,
     val instance: MapInstance,
