@@ -31,6 +31,8 @@ class PlayerActionProcess(
                     val response = cheats.execute(action.input.text, player.privilege)
                     if (response != null) connection.queueGameMessage(response)
                 }
+                PlayerAction.CloseModal -> player.requestModalClose()
+                PlayerAction.IdleLogout -> player.requestIdleLogout()
             }
         }
         val route = connection.pendingRoute

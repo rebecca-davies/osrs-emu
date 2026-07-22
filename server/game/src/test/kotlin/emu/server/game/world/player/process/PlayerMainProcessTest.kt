@@ -91,6 +91,30 @@ class PlayerMainProcessTest {
     }
 
     @Test
+    fun `client modal close runs close content and clears weak work before primary queues`() {
+        val calls = mutableListOf<String>()
+        val primary = PlayerQueueType.unit("client_close_primary")
+        val weak = PlayerQueueType.unit("client_close_weak")
+        val scripts =
+            PlayerScriptRepository.build(components) {
+                onClose("test:modal") { calls += "close" }
+                onQueue(primary) { calls += "primary" }
+                onQueue(weak) { calls += "weak" }
+            }
+        val player = player()
+        player.interfaces.openModal(Component.of(161, 1), 200)
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(primary)))
+        player.actionQueue.add(PlayerScriptRequest(scripts.require(weak)), PlayerActionPriority.WEAK)
+        player.requestModalClose()
+
+        process(PlayerScriptRunner(scripts)).process(player)
+
+        assertEquals(listOf("close", "primary"), calls)
+        assertEquals(0, player.actionQueue.weakSize)
+        assertFalse(player.interfaces.hasModal())
+    }
+
+    @Test
     fun `modal blocks ordinary queues without consuming them`() {
         val calls = mutableListOf<String>()
         val normal = PlayerQueueType.unit("normal_modal")

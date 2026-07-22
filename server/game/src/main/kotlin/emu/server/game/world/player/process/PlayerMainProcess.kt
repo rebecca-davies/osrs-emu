@@ -19,10 +19,17 @@ class PlayerMainProcess(
     internal fun process(player: WorldPlayer) {
         runner.resume(player)
         triggers.processInterfaceCloses(player)
+        processModalCloseRequest(player)
         processPrimaryAndWeakQueues(player)
         timers.process(player)
         processEngineQueue(player)
         movement.process(player.movement)
+    }
+
+    private fun processModalCloseRequest(player: WorldPlayer) {
+        if (!player.consumeModalCloseRequest()) return
+        player.closeModal()
+        triggers.processInterfaceCloses(player)
     }
 
     private fun processPrimaryAndWeakQueues(player: WorldPlayer) {

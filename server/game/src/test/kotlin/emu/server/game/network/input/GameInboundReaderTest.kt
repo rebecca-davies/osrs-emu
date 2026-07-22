@@ -21,7 +21,7 @@ import kotlinx.coroutines.runBlocking
 
 class GameInboundReaderTest {
     @Test
-    fun `unsupported and handled client events preserve alignment before move click`() = runBlocking {
+    fun `unsupported and handled player controls preserve alignment before move click`() = runBlocking {
         val seeds = intArrayOf(11, 22, 33, 44)
         val clientCipher = IsaacCipher(seeds)
         val serverCipher = IsaacCipher(seeds)
@@ -38,9 +38,8 @@ class GameInboundReaderTest {
         input.writeEncryptedOpcode(0, clientCipher)
         input.writeByte(0xAA.toByte())
         input.writeByte(0xBB.toByte())
-        input.writeEncryptedOpcode(GameClientProt.EVENT_APPLET_FOCUS.opcode, clientCipher)
-        input.writeByte(1)
-        input.writeEncryptedOpcode(GameClientProt.NO_TIMEOUT.opcode, clientCipher)
+        input.writeEncryptedOpcode(GameClientProt.CLOSE_MODAL.opcode, clientCipher)
+        input.writeEncryptedOpcode(GameClientProt.IDLE.opcode, clientCipher)
         input.writeEncryptedOpcode(GameClientProt.MOVE_GAMECLICK.opcode, clientCipher)
         input.writeByte(5)
         input.writeByte(0x98.toByte())
@@ -51,7 +50,11 @@ class GameInboundReaderTest {
         input.close()
         job.join()
 
-        val route = actions.drainToList().single() as PlayerAction.Route
+        val queued = actions.drainToList()
+        assertEquals(3, queued.size)
+        assertEquals(PlayerAction.CloseModal, queued[0])
+        assertEquals(PlayerAction.IdleLogout, queued[1])
+        val route = queued[2] as PlayerAction.Route
         movementProcess.routeTo(movement, Tile(route.x, route.y, movement.position.plane))
         movementProcess.process(movement)
 

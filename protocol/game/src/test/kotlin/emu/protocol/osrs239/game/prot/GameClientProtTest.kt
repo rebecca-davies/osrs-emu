@@ -23,8 +23,8 @@ class GameClientProtTest {
     }
 
     @Test
-    fun `client event packets have their injected client opcodes and fixed sizes`() {
-        assertEquals(Prot(29, 1), GameClientProt.EVENT_APPLET_FOCUS)
-        assertEquals(Prot(89, 0), GameClientProt.NO_TIMEOUT)
+    fun `player control packets have their rev239 opcodes and fixed zero bodies`() {
+        assertEquals(Prot(95, 0), GameClientProt.CLOSE_MODAL)
+        assertEquals(Prot(4, 0), GameClientProt.IDLE)
     }
 }

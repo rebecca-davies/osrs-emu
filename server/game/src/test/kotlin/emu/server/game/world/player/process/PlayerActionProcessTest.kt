@@ -17,6 +17,7 @@ import emu.game.pathfinding.movement.PlayerMovementProcess
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.PlayerScriptRepository
 import emu.game.ui.ButtonClick
+import emu.game.ui.Component
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.persistence.chat.ChatAuditMessage
@@ -179,6 +180,20 @@ class PlayerActionProcessTest {
             listOf("Starting 2 moving bot client(s); 2 slot(s) reserved."),
             connection.drainGameMessages(),
         )
+    }
+
+    @Test
+    fun `player controls request world work without closing the modal in client input`() {
+        val (player, connection) = player()
+        player.interfaces.openModal(Component.of(161, 500), 200)
+        connection.actions.submit(PlayerAction.CloseModal)
+        connection.actions.submit(PlayerAction.IdleLogout)
+
+        process(PlayerMovementProcess(OpenCollisionMap)).process(player, connection)
+
+        assertTrue(player.interfaces.hasModal())
+        assertTrue(player.idleLogoutRequested)
+        assertFalse(player.logoutRequested)
     }
 
     private fun process(movement: PlayerMovementProcess): PlayerActionProcess {

@@ -3,6 +3,7 @@ package emu.server.game.world.cycle
 import emu.compression.HuffmanCodec
 import emu.game.action.IncomingPlayerActionQueue
 import emu.game.action.IncomingPlayerActionQueueConfig
+import emu.game.action.PlayerAction
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.pathfinding.collision.OpenCollisionMap
@@ -239,6 +240,30 @@ class PlayerLogoutCycleTest {
 
         assertEquals(listOf("long"), calls)
         assertFalse(world.contains(player.id))
+    }
+
+    @Test
+    fun `idle action enters the normal logout trigger and durable write back lifecycle`() {
+        val calls = mutableListOf<String>()
+        val scripts = scripts { onLogout { calls += "logout" } }
+        val runner = PlayerScriptRunner(scripts)
+        val world = testWorld(maxPlayerIndex = 1)
+        val cycle = cycle(world, scripts, runner)
+        val connected =
+            world.addTestPlayer(
+                CharacterRecord(1, "Player1", CharacterPosition(3200, 3200, 0), 0),
+                IncomingPlayerActionQueue(IncomingPlayerActionQueueConfig()),
+                GameOutputSink { true },
+            )
+        world.activateTestPlayer(connected.connection.token)
+        connected.connection.actions.submit(PlayerAction.IdleLogout)
+
+        cycle.tick(worldTick = 0)
+
+        assertEquals(listOf("logout"), calls)
+        assertTrue(connected.player.loggingOut)
+        assertFalse(connected.player.idleLogoutRequested)
+        assertFalse(world.contains(connected.player.id))
     }
 
     @Test

@@ -59,4 +59,29 @@ class PlayerTest {
         assertFailsWith<IllegalArgumentException> { player.playAnimation(0xFFFF) }
         assertFailsWith<IllegalArgumentException> { player.playAnimation(1, delay = 0x100) }
     }
+
+    @Test
+    fun `modal close requests coalesce until the player queue point consumes them`() {
+        val player = Player(Tile(3200, 3200))
+
+        assertFalse(player.consumeModalCloseRequest())
+        player.requestModalClose()
+        player.requestModalClose()
+
+        assertTrue(player.consumeModalCloseRequest())
+        assertFalse(player.consumeModalCloseRequest())
+    }
+
+    @Test
+    fun `idle logout remains distinct until the logout phase consumes it`() {
+        val player = Player(Tile(3200, 3200))
+
+        player.requestIdleLogout()
+
+        assertTrue(player.idleLogoutRequested)
+        assertFalse(player.logoutRequested)
+        assertTrue(player.beginLogout())
+        assertFalse(player.idleLogoutRequested)
+        assertTrue(player.loggingOut)
+    }
 }

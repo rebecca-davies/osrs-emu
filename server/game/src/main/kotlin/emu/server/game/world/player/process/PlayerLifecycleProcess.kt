@@ -15,7 +15,7 @@ class PlayerLifecycleProcess(
     internal fun processLogout(connected: ConnectedPlayer) {
         val player = connected.player
         val writeBack = connected.writeBack
-        if (!player.logoutRequested && !player.loggingOut) return
+        if (!player.logoutRequested && !player.idleLogoutRequested && !player.loggingOut) return
         player.beginLogout()
         player.closeModal()
         triggers.processInterfaceCloses(player)

@@ -46,8 +46,12 @@ open class Player(
         private set
     var logoutRequested: Boolean = false
         private set
+    var idleLogoutRequested: Boolean = false
+        private set
     var loggingOut: Boolean = false
         private set
+    private var modalCloseRequested: Boolean = false
+
     /** Whether ordinary queued work may run without violating protected or modal state. */
     fun canAccess(): Boolean = shutdownAccess || canAcquireProtectedAccess() && !interfaces.hasModal()
 
@@ -70,6 +74,18 @@ open class Player(
     fun finishCycle() {
         movement.finishCycle()
         animationUpdate = null
+    }
+
+    /** Defers a client modal close until the player queue boundary. */
+    fun requestModalClose() {
+        modalCloseRequested = true
+    }
+
+    /** Consumes one coalesced client modal close request. */
+    fun consumeModalCloseRequest(): Boolean {
+        if (!modalCloseRequested) return false
+        modalCloseRequested = false
+        return true
     }
 
     /** Enables 2004Scape's unconditional shutdown access and abandons suspended content. */
@@ -104,10 +120,16 @@ open class Player(
         if (!loggingOut) logoutRequested = true
     }
 
+    /** Requests the idle-specific path through the normal logout lifecycle. */
+    fun requestIdleLogout() {
+        if (!loggingOut) idleLogoutRequested = true
+    }
+
     /** Consumes a pending request at the LOGOUT phase boundary. */
     fun beginLogout(): Boolean {
-        if (!logoutRequested || loggingOut) return false
+        if ((!logoutRequested && !idleLogoutRequested) || loggingOut) return false
         logoutRequested = false
+        idleLogoutRequested = false
         loggingOut = true
         return true
     }

@@ -20,6 +20,10 @@ sealed interface PlayerAction {
 
     data class Cheat(val input: PlayerCheatInput) : PlayerAction
 
+    data object CloseModal : PlayerAction
+
+    data object IdleLogout : PlayerAction
+
     private companion object {
         val WORLD_COORDINATES = 0..0x3FFF
     }

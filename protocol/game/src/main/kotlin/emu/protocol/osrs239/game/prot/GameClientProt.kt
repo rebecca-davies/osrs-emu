@@ -42,11 +42,11 @@ object GameClientProt {
     /** Public or clan-channel text with colour/effect metadata and Huffman payload. */
     val MESSAGE_PUBLIC: Prot = protocols[69]
 
-    /** Applet focus transition reported as a one-byte boolean. */
-    val EVENT_APPLET_FOCUS: Prot = protocols[29]
+    /** Client request to close protected modal interfaces. */
+    val CLOSE_MODAL: Prot = protocols[95]
 
-    /** Periodic zero-length packet that keeps an otherwise idle game connection alive. */
-    val NO_TIMEOUT: Prot = protocols[89]
+    /** Client inactivity threshold requesting the idle logout lifecycle. */
+    val IDLE: Prot = protocols[4]
 
     /** Returns the declared protocol entry, or null for an opcode outside rev 239's table. */
     fun find(opcode: Int): Prot? = protocols.getOrNull(opcode)
@@ -57,7 +57,7 @@ object GameClientProt {
         require(CLIENT_CHEAT.size == Prot.VAR_BYTE)
         require(SET_CHAT_FILTER_SETTINGS.size == 3)
         require(MESSAGE_PUBLIC.size == Prot.VAR_BYTE)
-        require(EVENT_APPLET_FOCUS.size == 1)
-        require(NO_TIMEOUT.size == 0)
+        require(CLOSE_MODAL.size == 0)
+        require(IDLE.size == 0)
     }
 }
