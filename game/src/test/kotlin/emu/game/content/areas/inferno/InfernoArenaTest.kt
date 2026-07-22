@@ -13,12 +13,13 @@ import emu.game.player.testPlayer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class InfernoArenaTest {
     @Test
-    fun `placement is private collision authoritative bounded and automatically paused`() {
+    fun `simulation placement is private authoritative bounded and atomic`() {
         val type = NpcType(1, "Jal-Nib", size = 2)
         val types = NpcCatalog { id -> type.takeIf { it.id == id } }
         val blocked = Tile(12, 12)
@@ -28,7 +29,7 @@ class InfernoArenaTest {
                     if (x == blocked.x && y == blocked.y && plane == blocked.plane) CollisionFlag.OBJECT else 0
                 },
             )
-        val npcs = NpcList(capacity = 3)
+        val npcs = NpcList(capacity = 2)
         val config =
             InfernoFreeModeConfig(
                 challengePortalType = 1,
@@ -40,20 +41,28 @@ class InfernoArenaTest {
         val arena = InfernoArena(map, types, npcs, config)
         val player = testPlayer(Tile(5, 5))
 
-        assertEquals(InfernoNpcPlacement.NOT_IN_ARENA, arena.place(player, type.id, Tile(10, 10)))
+        assertEquals(InfernoNpcSelection.NotInArena, arena.selectNpc(player, type.id))
         arena.enter(player)
         assertEquals(MapInstance.privateTo(player.id), player.mapInstance)
-        assertEquals(InfernoNpcPlacement.OCCUPIED, arena.place(player, type.id, Tile(10, 10)))
-        assertEquals(InfernoNpcPlacement.BLOCKED, arena.place(player, type.id, blocked))
-        assertEquals(InfernoNpcPlacement.OUTSIDE_ARENA, arena.place(player, type.id, Tile(15, 15)))
-        assertEquals(InfernoNpcPlacement.UNKNOWN_TYPE, arena.place(player, 2, Tile(14, 10)))
-        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, type.id, Tile(14, 10)))
-        assertEquals(false, arena.togglePaused(player))
+        val selection = assertIs<InfernoNpcSelection.Selected>(arena.selectNpc(player, type.id))
+        assertEquals(InfernoNpcPlacement.OCCUPIED, arena.place(player, selection, Tile(10, 10)))
+        assertEquals(InfernoNpcPlacement.BLOCKED, arena.place(player, selection, blocked))
+        assertEquals(InfernoNpcPlacement.OUTSIDE_ARENA, arena.place(player, selection, Tile(15, 15)))
+        assertEquals(InfernoNpcSelection.UnknownType, arena.selectNpc(player, 2))
+        assertEquals(InfernoPauseResult.RESUMED, arena.togglePaused(player))
+        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, selection, Tile(14, 10)))
+        assertEquals(InfernoPauseResult.RESUMED, arena.togglePaused(player))
 
-        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, type.id, Tile(10, 14)))
+        val worldBlocker = requireNotNull(npcs.add(type, Tile(20, 20), MapInstance.SHARED))
+        assertEquals(InfernoNpcPlacement.WORLD_CAPACITY, arena.place(player, selection, Tile(10, 14)))
+        val firstPlacement = mutableListOf<Npc>().also(npcs::collect).single { it.mapInstance == player.mapInstance }
+        assertFalse(firstPlacement.paused)
+        assertTrue(npcs.remove(worldBlocker))
+
+        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, selection, Tile(10, 14)))
         val placed = mutableListOf<Npc>().also(npcs::collect)
         assertTrue(placed.all { it.paused })
-        assertEquals(InfernoNpcPlacement.INSTANCE_CAPACITY, arena.place(player, type.id, Tile(13, 13)))
+        assertEquals(InfernoNpcPlacement.INSTANCE_CAPACITY, arena.place(player, selection, Tile(13, 13)))
         assertEquals(2, arena.clear(player))
         assertEquals(0, npcs.size)
         assertNotEquals(MapInstance.SHARED, player.mapInstance)

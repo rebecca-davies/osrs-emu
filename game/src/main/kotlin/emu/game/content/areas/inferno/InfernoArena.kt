@@ -15,11 +15,22 @@ class InfernoArena(
     private val npcs: NpcList,
     val config: InfernoFreeModeConfig,
 ) {
-    operator fun get(type: Int): NpcType? = types[type]
+    private val simulations = arrayOfNulls<InfernoSimulation>(Player.MAX_CLIENT_INDEX + 1)
+
+    /** Whether [player] currently owns and occupies an active Inferno simulation. */
+    fun isActive(player: Player): Boolean = activeSimulation(player) != null
+
+    /** Resolves an NPC selection only for a player inside their Inferno simulation. */
+    fun selectNpc(player: Player, type: Int): InfernoNpcSelection {
+        if (!isActive(player)) return InfernoNpcSelection.NotInArena
+        val npcType = types[type] ?: return InfernoNpcSelection.UnknownType
+        return InfernoNpcSelection.Selected(npcType)
+    }
 
     /** Resets private free-mode state and returns the player to the shared beta hub. */
     fun enterHub(player: Player) {
         npcs.remove(MapInstance.privateTo(player.id))
+        simulations[player.index] = null
         player.teleportTo(config.clanWarsArrival, MapInstance.SHARED)
     }
 
@@ -27,40 +38,58 @@ class InfernoArena(
     fun enter(player: Player) {
         val instance = MapInstance.privateTo(player.id)
         npcs.remove(instance)
+        simulations[player.index] = InfernoSimulation(player.id, instance, paused = true)
         player.teleportTo(config.arenaArrival, instance)
     }
 
-    /** Places one cache-backed NPC and pauses all NPCs in the player's instance. */
-    fun place(player: Player, type: Int, position: Tile): InfernoNpcPlacement {
-        val instance = MapInstance.privateTo(player.id)
-        if (player.mapInstance != instance) return InfernoNpcPlacement.NOT_IN_ARENA
-        val npcType = types[type] ?: return InfernoNpcPlacement.UNKNOWN_TYPE
+    /** Places one preflighted NPC and pauses the simulation when placement succeeds. */
+    fun place(
+        player: Player,
+        selection: InfernoNpcSelection.Selected,
+        position: Tile,
+    ): InfernoNpcPlacement {
+        val simulation = activeSimulation(player) ?: return InfernoNpcPlacement.NOT_IN_ARENA
+        val npcType = selection.type
         if (!config.arenaBounds.contains(position, npcType.size)) {
             return InfernoNpcPlacement.OUTSIDE_ARENA
         }
-        if (npcs.count(instance) >= config.maxNpcs) return InfernoNpcPlacement.INSTANCE_CAPACITY
+        if (npcs.count(simulation.instance) >= config.maxNpcs) return InfernoNpcPlacement.INSTANCE_CAPACITY
         if (!map.canOccupy(position, npcType.size)) return InfernoNpcPlacement.BLOCKED
-        if (overlapsPlayer(player, position, npcType.size) || npcs.intersects(instance, position, npcType.size)) {
+        if (
+            overlapsPlayer(player, position, npcType.size) ||
+            npcs.intersects(simulation.instance, position, npcType.size)
+        ) {
             return InfernoNpcPlacement.OCCUPIED
         }
-        npcs.pause(instance, paused = true)
-        return if (npcs.add(npcType, position, instance, target = player, paused = true) == null) {
-            InfernoNpcPlacement.WORLD_CAPACITY
-        } else {
-            InfernoNpcPlacement.PLACED
+        if (npcs.add(npcType, position, simulation.instance, target = player, paused = true) == null) {
+            return InfernoNpcPlacement.WORLD_CAPACITY
         }
+        simulation.paused = true
+        npcs.pause(simulation.instance, paused = true)
+        return InfernoNpcPlacement.PLACED
     }
 
     /** Removes every NPC in the player's active private Inferno instance. */
-    fun clear(player: Player): Int? =
-        activeInstance(player)?.let(npcs::remove)
+    fun clear(player: Player): Int? {
+        val simulation = activeSimulation(player) ?: return null
+        simulation.paused = true
+        return npcs.remove(simulation.instance)
+    }
 
-    /** Toggles every NPC in the player's active private Inferno instance. */
-    fun togglePaused(player: Player): Boolean? =
-        activeInstance(player)?.let(npcs::togglePaused)
+    /** Toggles the player's simulation even when its NPC list is empty. */
+    fun togglePaused(player: Player): InfernoPauseResult {
+        val simulation = activeSimulation(player) ?: return InfernoPauseResult.NOT_IN_ARENA
+        simulation.paused = !simulation.paused
+        npcs.pause(simulation.instance, simulation.paused)
+        return if (simulation.paused) InfernoPauseResult.PAUSED else InfernoPauseResult.RESUMED
+    }
 
-    private fun activeInstance(player: Player): MapInstance? =
-        MapInstance.privateTo(player.id).takeIf { it == player.mapInstance }
+    private fun activeSimulation(player: Player): InfernoSimulation? {
+        val simulation = simulations[player.index] ?: return null
+        return simulation.takeIf {
+            it.ownerId == player.id && it.instance == player.mapInstance
+        }
+    }
 
     private fun overlapsPlayer(player: Player, position: Tile, size: Int): Boolean {
         val playerTile = player.movement.position
@@ -70,14 +99,35 @@ class InfernoArena(
     }
 }
 
+/** Cache-backed NPC selection accepted by the Inferno editor. */
+sealed interface InfernoNpcSelection {
+    class Selected internal constructor(val type: NpcType) : InfernoNpcSelection
+
+    data object NotInArena : InfernoNpcSelection
+
+    data object UnknownType : InfernoNpcSelection
+}
+
+/** Result of toggling one player's Inferno simulation. */
+enum class InfernoPauseResult {
+    PAUSED,
+    RESUMED,
+    NOT_IN_ARENA,
+}
+
 /** Result of one server-authoritative free-mode NPC placement request. */
 enum class InfernoNpcPlacement {
     PLACED,
     NOT_IN_ARENA,
-    UNKNOWN_TYPE,
     OUTSIDE_ARENA,
     BLOCKED,
     OCCUPIED,
     INSTANCE_CAPACITY,
     WORLD_CAPACITY,
 }
+
+private data class InfernoSimulation(
+    val ownerId: Long,
+    val instance: MapInstance,
+    var paused: Boolean,
+)

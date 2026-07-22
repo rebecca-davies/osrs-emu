@@ -229,8 +229,11 @@ class Player(
         val temporaryRun: Boolean?,
     )
 
-    private companion object {
-        val PLAYER_INDEX_RANGE = 1..2_047
-        const val MAX_PENDING_GAME_MESSAGES = 8
+    companion object {
+        /** Highest player index addressable by the client player list. */
+        const val MAX_CLIENT_INDEX = 2_047
+
+        private val PLAYER_INDEX_RANGE = 1..MAX_CLIENT_INDEX
+        private const val MAX_PENDING_GAME_MESSAGES = 8
     }
 }

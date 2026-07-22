@@ -174,13 +174,24 @@ class PlayerContentCatalogTest {
         val editor = PlayerScriptRunner(editorScripts)
         val player = testPlayer(Tile(3_200, 3_200, 0))
         player.activate(ui.gameframe)
-        arena.enter(player)
         val place = components.require("wornitems:pricechecker")
+        val placeScript = requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, place.packed))
+        val pause = components.require("wornitems:deathkeep")
+        val pauseScript = requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, pause.packed))
+
+        assertTrue(editor.start(player, placeScript, ButtonClick(place.interfaceId, place.componentId)))
+        assertEquals(listOf("Enter the Inferno before placing NPCs."), player.takeGameMessages())
+        assertTrue(player.interfaces.drainClientUpdates().isEmpty())
+        assertFalse(player.isAccessProtected)
+        assertTrue(editor.start(player, pauseScript, ButtonClick(pause.interfaceId, pause.componentId)))
+        assertEquals(listOf("Enter the Inferno before changing the simulation."), player.takeGameMessages())
+
+        arena.enter(player)
 
         assertTrue(
             editor.start(
                 player,
-                requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, place.packed)),
+                placeScript,
                 ButtonClick(place.interfaceId, place.componentId),
             ),
         )
@@ -194,11 +205,10 @@ class PlayerContentCatalogTest {
         assertEquals(listOf("Placed Jal-Nib; the simulation is paused."), player.takeGameMessages())
         assertEquals(1, npcs.count(player.mapInstance))
 
-        val pause = components.require("wornitems:deathkeep")
         assertTrue(
             editor.start(
                 player,
-                requireNotNull(editorScripts.findSpecific(ServerTriggerType.IF_BUTTON, pause.packed)),
+                pauseScript,
                 ButtonClick(pause.interfaceId, pause.componentId),
             ),
         )
