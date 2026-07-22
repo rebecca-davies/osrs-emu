@@ -75,7 +75,7 @@ class WorldCycleTest {
         assertEquals(NpcMovementUpdate.Idle, npc.movementUpdate)
 
         npcs.pause(MapInstance.SHARED, paused = true)
-        world.remove(player)
+        player.teleportTo(Tile(100, 100), MapInstance.privateTo(player.id))
         cycle.tick(worldTick = 2)
 
         assertNull(npc.target)
