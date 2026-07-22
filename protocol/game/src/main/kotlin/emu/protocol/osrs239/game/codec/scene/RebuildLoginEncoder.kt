@@ -1,10 +1,9 @@
 package emu.protocol.osrs239.game.codec.scene
 
 import emu.buffer.BitBuf
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.scene.RebuildLogin
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /**
@@ -25,16 +24,16 @@ import emu.transport.prot.Prot
  * REBUILD_NORMAL has no XTEA-key section. Only instanced REBUILD_REGION carries inline keys;
  * appending keys here desynchronizes the following stream.
  *
- * The pipeline applies the opcode's ISAAC adjustment; this encoder does not consume [cipher].
+ * The pipeline applies the opcode's ISAAC adjustment; the body is cipher-independent.
  */
-object RebuildLoginEncoder : MessageEncoder<RebuildLogin> {
+object RebuildLoginEncoder : CipherIndependentMessageEncoder<RebuildLogin> {
     override val prot: Prot = GameServerProt.REBUILD_NORMAL
     override val messageType = RebuildLogin::class.java
 
     /** Highest player slot index; the GPI-init reference loop runs `1..PLAYER_SLOTS_MAX`. */
     private const val PLAYER_SLOTS_MAX = 2047
 
-    override fun encode(cipher: StreamCipher, message: RebuildLogin): ByteArray {
+    override fun encode(message: RebuildLogin): ByteArray {
         val bits = BitBuf()
         val packedCoord = (message.plane shl 28) or (message.x shl 14) or message.y
         bits.writeBits(30, packedCoord)

@@ -1,21 +1,20 @@
 package emu.protocol.osrs239.game.codec.chat
 
 import emu.buffer.JagexBuffer
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.chat.MessageGame
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /**
  * Encodes a [MessageGame] body: smart-1-or-2 type, a name-present flag with an optional NUL-terminated
  * sender name, then the NUL-terminated message. The inverse of rsprox rev-239's `MessageGameDecoder`.
  */
-object MessageGameEncoder : MessageEncoder<MessageGame> {
+object MessageGameEncoder : CipherIndependentMessageEncoder<MessageGame> {
     override val prot: Prot = GameServerProt.MESSAGE_GAME
     override val messageType = MessageGame::class.java
 
-    override fun encode(cipher: StreamCipher, message: MessageGame): ByteArray {
+    override fun encode(message: MessageGame): ByteArray {
         val cp1252 = charset("windows-1252")
         val name = message.name
         val nameBytes = name?.toByteArray(cp1252)

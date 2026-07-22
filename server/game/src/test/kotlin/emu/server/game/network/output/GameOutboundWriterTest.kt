@@ -1,10 +1,9 @@
 package emu.server.game.network.output
 
 import emu.crypto.NopStreamCipher
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.codec.cycle.PacketGroupStartEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.codec.CodecRepositoryBuilder
-import emu.transport.codec.MessageEncoder
 import emu.transport.message.OutgoingMessage
 import emu.transport.pipeline.outbound.PacketWriter
 import emu.transport.prot.Prot
@@ -50,11 +49,40 @@ class GameWritePacketTest {
         assertEquals(expected, actual.toList())
     }
 
+    @Test
+    fun `packet group bodies are encoded exactly once`() = runBlocking {
+        val encoder = CountingEncoder()
+        val codecs =
+            CodecRepositoryBuilder()
+                .bindEncoder(encoder)
+                .bindEncoder(PacketGroupStartEncoder)
+                .build()
+        val channel = ByteChannel(autoFlush = false)
+        val writer = GameOutboundWriter(PacketWriter(codecs, NopStreamCipher, channel))
+
+        writer.write(GameOutputBatch.build { packetGroup(listOf(TestMessage(1), TestMessage(2))) })
+        channel.close()
+
+        assertEquals(2, encoder.encodes)
+    }
+
     private data class TestMessage(val value: Int) : OutgoingMessage
 
-    private object TestEncoder : MessageEncoder<TestMessage> {
+    private object TestEncoder : CipherIndependentMessageEncoder<TestMessage> {
         override val prot = Prot(10, 1)
         override val messageType = TestMessage::class.java
-        override fun encode(cipher: StreamCipher, message: TestMessage) = byteArrayOf(message.value.toByte())
+        override fun encode(message: TestMessage) = byteArrayOf(message.value.toByte())
+    }
+
+    private class CountingEncoder : CipherIndependentMessageEncoder<TestMessage> {
+        override val prot = Prot(10, 1)
+        override val messageType = TestMessage::class.java
+        var encodes = 0
+            private set
+
+        override fun encode(message: TestMessage): ByteArray {
+            encodes++
+            return byteArrayOf(message.value.toByte())
+        }
     }
 }

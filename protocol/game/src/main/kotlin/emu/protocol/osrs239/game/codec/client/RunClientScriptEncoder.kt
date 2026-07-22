@@ -1,18 +1,17 @@
 package emu.protocol.osrs239.game.codec.client
 
 import emu.buffer.JagexBuffer
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.client.RunClientScript
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /** Encodes the client-script signature, reverse-ordered argument payload, and script id. */
-object RunClientScriptEncoder : MessageEncoder<RunClientScript> {
+object RunClientScriptEncoder : CipherIndependentMessageEncoder<RunClientScript> {
     override val prot: Prot = GameServerProt.RUN_CLIENT_SCRIPT
     override val messageType = RunClientScript::class.java
 
-    override fun encode(cipher: StreamCipher, message: RunClientScript): ByteArray {
+    override fun encode(message: RunClientScript): ByteArray {
         val argumentSize = message.arguments.sumOf {
             when (it) {
                 is Int -> Int.SIZE_BYTES

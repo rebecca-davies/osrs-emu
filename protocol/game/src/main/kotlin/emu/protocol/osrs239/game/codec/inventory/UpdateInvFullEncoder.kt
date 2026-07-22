@@ -1,17 +1,16 @@
 package emu.protocol.osrs239.game.codec.inventory
 
 import emu.buffer.JagexBuffer
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.inventory.UpdateInvFull
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /** Encodes a full inventory replacement, including rev-239 count/id transforms. */
-object UpdateInvFullEncoder : MessageEncoder<UpdateInvFull> {
+object UpdateInvFullEncoder : CipherIndependentMessageEncoder<UpdateInvFull> {
     override val prot: Prot = GameServerProt.UPDATE_INV_FULL
     override val messageType = UpdateInvFull::class.java
-    override fun encode(cipher: StreamCipher, message: UpdateInvFull): ByteArray {
+    override fun encode(message: UpdateInvFull): ByteArray {
         val extraCounts = message.objects.count { it.count >= 255 } * 4
         return JagexBuffer.alloc(8 + message.objects.size * 3 + extraCounts).apply {
             writeInt((message.interfaceId shl 16) or message.componentId)

@@ -25,8 +25,20 @@ suspend fun <T : OutgoingMessage> writePacket(
     flush: Boolean = true,
 ) {
     val body = encoder.encode(cipher, message)
+    writeEncodedBody(write, encoder.prot, body, cipher, writeOpcode, flush)
+}
+
+/** Frames and writes one already-encoded message body without encoding it again. */
+internal suspend fun writeEncodedBody(
+    write: ByteWriteChannel,
+    prot: Prot,
+    body: ByteArray,
+    cipher: StreamCipher,
+    writeOpcode: Boolean,
+    flush: Boolean = true,
+) {
     if (writeOpcode) {
-        when (encoder.prot.size) {
+        when (prot.size) {
             Prot.VAR_BYTE -> require(body.size <= UByte.MAX_VALUE.toInt()) {
                 "VAR_BYTE packet body is too large: ${body.size}"
             }
@@ -34,7 +46,7 @@ suspend fun <T : OutgoingMessage> writePacket(
                 "VAR_SHORT packet body is too large: ${body.size}"
             }
         }
-        val opcode = encoder.prot.opcode
+        val opcode = prot.opcode
         require(opcode in 0..0x7FFF) { "opcode must fit pSmart1or2: $opcode" }
         if (opcode < 128) {
             write.writeByte(((opcode + cipher.nextInt()) and 0xFF).toByte())
@@ -42,7 +54,7 @@ suspend fun <T : OutgoingMessage> writePacket(
             write.writeByte(((128 + (opcode ushr 8) + cipher.nextInt()) and 0xFF).toByte())
             write.writeByte((((opcode and 0xFF) + cipher.nextInt()) and 0xFF).toByte())
         }
-        when (encoder.prot.size) {
+        when (prot.size) {
             Prot.VAR_BYTE -> write.writeByte((body.size and 0xFF).toByte())
             Prot.VAR_SHORT -> {
                 write.writeByte((body.size ushr 8).toByte())

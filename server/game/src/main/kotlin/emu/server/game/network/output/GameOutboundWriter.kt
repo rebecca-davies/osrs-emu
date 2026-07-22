@@ -8,19 +8,20 @@ internal class GameOutboundWriter(
     private val packets: PacketWriter,
 ) {
     suspend fun write(batch: GameOutputBatch) {
-        val messages = buildList {
+        val bodies = buildList {
             for (segment in batch.segments) {
                 when (segment) {
-                    is GameOutputSegment.Packets -> addAll(segment.messages)
+                    is GameOutputSegment.Packets -> segment.messages.mapTo(this, packets::encodeBody)
                     is GameOutputSegment.PacketGroup -> {
-                        val length = segment.messages.sumOf(packets::wireSize)
+                        val group = segment.messages.map(packets::encodeBody)
+                        val length = group.sumOf(packets::wireSize)
                         require(length <= Short.MAX_VALUE) { "packet group too large: $length" }
-                        add(PacketGroupStart(length))
-                        addAll(segment.messages)
+                        add(packets.encodeBody(PacketGroupStart(length)))
+                        addAll(group)
                     }
                 }
             }
         }
-        packets.sendBatch(messages)
+        packets.sendEncodedBatch(bodies)
     }
 }

@@ -2,21 +2,20 @@ package emu.protocol.osrs239.game.codec.playerinfo
 
 import emu.buffer.BitBuf
 import emu.buffer.JagexBuffer
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoUpdate
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /** Encodes the four rev-239 GPI sections followed by their ordered extended-info blocks. */
-object PlayerInfoEncoder : MessageEncoder<PlayerInfo> {
+object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
     override val prot: Prot = GameServerProt.PLAYER_INFO
     override val messageType = PlayerInfo::class.java
 
-    override fun encode(cipher: StreamCipher, message: PlayerInfo): ByteArray {
+    override fun encode(message: PlayerInfo): ByteArray {
         val bits = BitBuf()
         val updates = mutableListOf<PlayerInfoUpdate>()
         for (section in message.sections.ordered) {

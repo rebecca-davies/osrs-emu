@@ -1,9 +1,8 @@
 package emu.protocol.osrs239.game.codec.scene
 
-import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.scene.SetActiveWorld
 import emu.protocol.osrs239.game.prot.GameServerProt
-import emu.transport.codec.MessageEncoder
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.prot.Prot
 
 /**
@@ -12,13 +11,13 @@ import emu.transport.prot.Prot
  * `SetActiveWorldV2` reader consumes (`index = g2s`, `activeLevel = g1`; no byte transforms).
  *
  * Per [emu.transport.pipeline.outbound.writePacket]'s keystream-ordering contract the opcode's ISAAC
- * adjustment is applied by the pipeline, so this never touches [cipher].
+ * adjustment is applied by the pipeline, so the body is cipher-independent.
  */
-object SetActiveWorldEncoder : MessageEncoder<SetActiveWorld> {
+object SetActiveWorldEncoder : CipherIndependentMessageEncoder<SetActiveWorld> {
     override val prot: Prot = GameServerProt.SET_ACTIVE_WORLD
     override val messageType = SetActiveWorld::class.java
 
-    override fun encode(cipher: StreamCipher, message: SetActiveWorld): ByteArray =
+    override fun encode(message: SetActiveWorld): ByteArray =
         byteArrayOf(
             (message.index ushr 8).toByte(),
             (message.index and 0xFF).toByte(),

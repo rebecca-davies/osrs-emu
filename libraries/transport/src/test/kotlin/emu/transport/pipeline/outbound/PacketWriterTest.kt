@@ -2,6 +2,7 @@ package emu.transport.pipeline.outbound
 
 import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.codec.CodecRepositoryBuilder
 import emu.transport.codec.MessageEncoder
 import emu.transport.message.OutgoingMessage
@@ -90,21 +91,31 @@ class PacketWriterTest {
 
     @Test fun `wireSize includes smart opcode and variable length framing without consuming session ISAAC`() = runBlocking {
         val body = ByteArray(300)
-        val encoder = object : MessageEncoder<PacketWriterTestMessage> {
+        val encoder = object : CipherIndependentMessageEncoder<PacketWriterTestMessage> {
             override val prot = Prot(138, Prot.VAR_SHORT)
             override val messageType = PacketWriterTestMessage::class.java
-            override fun encode(cipher: StreamCipher, message: PacketWriterTestMessage): ByteArray = body
+            override fun encode(message: PacketWriterTestMessage): ByteArray = body
         }
         val codecs = CodecRepositoryBuilder().bindEncoder(encoder).build()
         val ch = ByteChannel(true)
         val cipher = PacketWriterScriptedCipher(listOf(5, 9))
         val session = PacketWriter(codecs, cipher, ch)
 
-        assertEquals(2 + 2 + body.size, session.wireSize(PacketWriterTestMessage(0)))
-        session.send(PacketWriterTestMessage(0))
+        val encoded = session.encodeBody(PacketWriterTestMessage(0))
+        assertEquals(2 + 2 + body.size, session.wireSize(encoded))
+        session.sendEncodedBatch(listOf(encoded))
 
-        // The size probe used NOP, leaving the real session cipher untouched for both smart bytes.
+        // Body preparation leaves the real session cipher untouched for both smart opcode bytes.
         assertEquals((128 + 5) and 0xFF, ch.readByte().toInt() and 0xFF)
         assertEquals((138 + 9) and 0xFF, ch.readByte().toInt() and 0xFF)
+    }
+
+    @Test fun `body preparation rejects an encoder that may consume the connection cipher`() {
+        val codecs = CodecRepositoryBuilder().bindEncoder(PacketWriterTestEncoder).build()
+        val session = PacketWriter(codecs, NopStreamCipher, ByteChannel(true))
+
+        assertFailsWith<IllegalArgumentException> {
+            session.encodeBody(PacketWriterTestMessage(0))
+        }
     }
 }

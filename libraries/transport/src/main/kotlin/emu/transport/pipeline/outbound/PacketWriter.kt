@@ -1,7 +1,7 @@
 package emu.transport.pipeline.outbound
 
-import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
+import emu.transport.codec.CipherIndependentMessageEncoder
 import emu.transport.codec.CodecRepository
 import emu.transport.codec.MessageEncoder
 import emu.transport.message.OutgoingMessage
@@ -9,8 +9,8 @@ import emu.transport.prot.Prot
 import io.ktor.utils.io.ByteWriteChannel
 
 /**
- * Per-connection packet writer using runtime message-type lookup. [sendBatch] preserves order and
- * flushes only after the final packet.
+ * Per-connection packet writer using runtime message-type lookup. Batch writes preserve order and
+ * flush only after the final packet.
  */
 class PacketWriter(
     private val codecs: CodecRepository,
@@ -40,23 +40,43 @@ class PacketWriter(
     }
 
     /**
-     * Returns the complete framed byte count [send] will write for [message], without advancing the
-     * connection's [cipher]. This is used to declare rev-239 `PACKET_GROUP_START` lengths before
-     * sending the group's members. It encodes the body once with [NopStreamCipher] solely to measure
-     * it, so callers must use it only with body encoders whose output length is cipher-independent
-     * (all game encoders satisfy that contract; JS5's cipher-dependent payload encoder does not).
+     * Encodes [message] once without advancing the connection cipher. The registered encoder must
+     * explicitly declare that its body is cipher-independent.
      */
-    fun wireSize(message: OutgoingMessage): Int {
+    fun encodeBody(message: OutgoingMessage): EncodedMessageBody {
         val encoder = encoderFor(message)
-        val bodySize = encoder.encode(NopStreamCipher, message).size
-        if (!writeOpcode) return bodySize
-        val opcodeSize = if (encoder.prot.opcode < 128) 1 else 2
-        val lengthSize = when (encoder.prot.size) {
+        require(encoder is CipherIndependentMessageEncoder<*>) {
+            "encoder for ${message.javaClass} does not declare a cipher-independent body"
+        }
+        @Suppress("UNCHECKED_CAST")
+        val body = (encoder as CipherIndependentMessageEncoder<OutgoingMessage>).encode(message)
+        return EncodedMessageBody(encoder.prot, body)
+    }
+
+    /** Returns the complete framed byte count for an already-encoded body. */
+    fun wireSize(body: EncodedMessageBody): Int {
+        if (!writeOpcode) return body.bytes.size
+        val opcodeSize = if (body.prot.opcode < 128) 1 else 2
+        val lengthSize = when (body.prot.size) {
             Prot.VAR_BYTE -> 1
             Prot.VAR_SHORT -> 2
             else -> 0
         }
-        return opcodeSize + lengthSize + bodySize
+        return opcodeSize + lengthSize + body.bytes.size
+    }
+
+    /** Writes ordered encoded bodies with one final flush and without re-running their codecs. */
+    suspend fun sendEncodedBatch(bodies: List<EncodedMessageBody>) {
+        bodies.forEachIndexed { index, body ->
+            writeEncodedBody(
+                write = write,
+                prot = body.prot,
+                body = body.bytes,
+                cipher = cipher,
+                writeOpcode = writeOpcode,
+                flush = index == bodies.lastIndex,
+            )
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

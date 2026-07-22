@@ -22,3 +22,10 @@ interface MessageEncoder<T : OutgoingMessage> {
     /** Encodes the message body without the pipeline-owned opcode prefix. */
     fun encode(cipher: StreamCipher, message: T): ByteArray
 }
+
+/** Encodes a message body whose bytes never depend on or advance the connection cipher. */
+interface CipherIndependentMessageEncoder<T : OutgoingMessage> : MessageEncoder<T> {
+    fun encode(message: T): ByteArray
+
+    override fun encode(cipher: StreamCipher, message: T): ByteArray = encode(message)
+}
