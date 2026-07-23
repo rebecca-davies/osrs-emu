@@ -10,33 +10,33 @@ north_east = [2298, 5371, 0]
 max_npcs = 64
 
 [[inferno.npcs]]
-type = 7690
+type = 7691
 name = "Jal-Nib"
 
 [[inferno.npcs]]
-type = 7691
+type = 7692
 name = "Jal-MejRah"
 
 [[inferno.npcs]]
-type = 7692
+type = 7693
 name = "Jal-Ak"
 
 [[inferno.npcs]]
-type = 7696
+type = 7697
 name = "Jal-ImKot"
 
 [[inferno.npcs]]
-type = 7697
+type = 7698
 name = "Jal-Xil"
 
 [[inferno.npcs]]
-type = 7698
+type = 7699
 name = "Jal-Zek"
 
 [[inferno.npcs]]
-type = 7699
+type = 7700
 name = "JalTok-Jad"
 
 [[inferno.npcs]]
-type = 7700
+type = 7701
 name = "Yt-HurKot"
