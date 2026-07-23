@@ -8,7 +8,19 @@ class JagexBuffer(val array: ByteArray, var pos: Int = 0) {
     fun readUByte(): Int = array[pos++].toInt() and 0xFF
     fun readByte(): Int = array[pos++].toInt()
 
+    /** Jagex `g1Alt1`: reads an unsigned byte stored as `value + 128`. */
+    fun readUByteAlt1(): Int = (readUByte() - 128) and 0xFF
+
+    /** Jagex `g1Alt2`: reads an unsigned byte stored as `-value`. */
+    fun readUByteAlt2(): Int = -readUByte() and 0xFF
+
+    /** Jagex `g1Alt3`: reads an unsigned byte stored as `128 - value`. */
+    fun readUByteAlt3(): Int = (128 - readUByte()) and 0xFF
+
     fun readUShort(): Int = (readUByte() shl 8) or readUByte()
+
+    /** Jagex `g2Alt3`: reads little-endian u16 with 128 subtracted from the low byte. */
+    fun readUShortAlt3(): Int = readUByteAlt1() or (readUByte() shl 8)
 
     fun readInt(): Int =
         (readUByte() shl 24) or (readUByte() shl 16) or (readUByte() shl 8) or readUByte()

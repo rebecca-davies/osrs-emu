@@ -10,6 +10,7 @@ import emu.server.game.world.World
 import emu.server.game.world.entry.PlayerCapacity
 import emu.server.game.world.player.PlayerLifecycle
 import emu.server.game.world.player.action.PlayerActions
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 private val logger = KotlinLogging.logger {}
@@ -19,6 +20,7 @@ class WorldCycle(
     private val world: World,
     private val commands: WorldCommandQueue,
     private val actions: PlayerActions,
+    private val interactions: PlayerInteractionProcess,
     private val playerPhase: PlayerPhase,
     private val lifecycle: PlayerLifecycle,
     private val output: PlayerOutput,
@@ -124,7 +126,9 @@ class WorldCycle(
     private fun runPlayerPhase(players: List<Player>) {
         forEachPlayer(CyclePhase.PLAYER, players) { player ->
             playerPhase.run(player)
+            interactions.beforeMovement(player)
             world.advanceMovement(player)
+            interactions.afterMovement(player)
         }
     }
 

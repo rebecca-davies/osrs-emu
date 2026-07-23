@@ -6,7 +6,7 @@ package emu.game.queue
  * Actions are values; execution is supplied by the world-scoped processor. Primary, weak, and
  * engine lanes retain their distinct interruption and execution rules.
  */
-class PlayerActionQueue<A : Any> {
+class PlayerActionQueue<A : Any>(val capacity: Int = DEFAULT_CAPACITY) {
     private val primary = Lane<A>()
     private val weak = Lane<A>()
     private val engine = Lane<A>()
@@ -20,14 +20,22 @@ class PlayerActionQueue<A : Any> {
     val engineSize: Int
         get() = engine.size
 
-    /** Adds a normal, strong, weak, or engine action with a content-supplied delay. */
+    val size: Int
+        get() = primary.size + weak.size + engine.size
+
+    init {
+        require(capacity > 0) { "player action queue capacity must be positive" }
+    }
+
+    /** Adds an action, or returns false without disturbing order when the player queue is full. */
     fun add(
         action: A,
         priority: PlayerActionPriority = PlayerActionPriority.NORMAL,
         delayTicks: Int = 0,
-    ) {
+    ): Boolean {
         require(delayTicks != -1) { "delay cannot use the RuneScript null sentinel" }
         require(priority != PlayerActionPriority.LONG) { "use addLong for logout behaviour" }
+        if (size == capacity) return false
         val delay = if (priority == PlayerActionPriority.ENGINE) 0 else delayTicks
         val entry = Entry(action, priority, delay)
         when (priority) {
@@ -35,11 +43,15 @@ class PlayerActionQueue<A : Any> {
             PlayerActionPriority.WEAK -> weak.addTail(entry)
             else -> primary.addTail(entry)
         }
+        return true
     }
 
-    /** Adds a long action with the logout behaviour encoded by RuneScript content. */
-    fun addLong(action: A, delayTicks: Int, logout: LongActionLogout) {
+    /** Adds a long action, or returns false without disturbing order when the queue is full. */
+    fun addLong(action: A, delayTicks: Int, logout: LongActionLogout): Boolean {
+        require(delayTicks != -1) { "delay cannot use the RuneScript null sentinel" }
+        if (size == capacity) return false
         primary.addTail(Entry(action, PlayerActionPriority.LONG, delayTicks, logout))
+        return true
     }
 
     /**
@@ -222,4 +234,8 @@ class PlayerActionQueue<A : Any> {
     }
 
     private fun Int.saturatingDecrement(): Int = if (this == Int.MIN_VALUE) this else this - 1
+
+    companion object {
+        const val DEFAULT_CAPACITY = 256
+    }
 }

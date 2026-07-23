@@ -32,4 +32,9 @@ class GameClientProtTest {
     fun `first loc operation has its injected client opcode and fixed body`() {
         assertEquals(Prot(73, 8), GameClientProt.OPLOC1)
     }
+
+    @Test
+    fun `second NPC operation has its rev 239 opcode and V2 body`() {
+        assertEquals(Prot(13, 4), GameClientProt.OPNPC2)
+    }
 }

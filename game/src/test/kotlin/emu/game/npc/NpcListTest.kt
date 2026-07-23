@@ -17,6 +17,7 @@ class NpcListTest {
         val firstInstance = MapInstance.privateTo(1)
         val secondInstance = MapInstance.privateTo(2)
         val first = requireNotNull(npcs.add(type, Tile(10, 10), firstInstance, paused = true))
+        val firstUid = NpcUid(first.index, first.uid)
         val second = requireNotNull(npcs.add(type, Tile(20, 20), secondInstance))
 
         assertTrue(npcs.intersects(firstInstance, Tile(11, 11), size = 1))
@@ -27,6 +28,8 @@ class NpcListTest {
 
         assertEquals(first.index, replacement.index)
         assertNotEquals(first.uid, replacement.uid)
+        assertNull(npcs.resolve(firstUid))
+        assertEquals(replacement, npcs.resolve(NpcUid(replacement.index, replacement.uid)))
         assertEquals(1, npcs.pause(firstInstance, paused = true))
         assertTrue(replacement.paused)
         assertEquals(1, npcs.remove(firstInstance))

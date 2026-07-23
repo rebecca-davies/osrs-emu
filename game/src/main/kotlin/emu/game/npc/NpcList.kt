@@ -50,6 +50,9 @@ class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
 
     operator fun get(index: Int): Npc? = slots.getOrNull(index)
 
+    /** Resolves a stable reference only while the same NPC still owns its client slot. */
+    fun resolve(uid: NpcUid): Npc? = slots.getOrNull(uid.index)?.takeIf { it.uid == uid.value }
+
     /** Removes one NPC when it still owns its allocated client index. */
     fun remove(npc: Npc): Boolean {
         if (slots.getOrNull(npc.index) !== npc) return false
@@ -112,5 +115,13 @@ class NpcList(val capacity: Int = DEFAULT_CAPACITY) {
 
     companion object {
         const val DEFAULT_CAPACITY = 32_767
+    }
+}
+
+/** Stable world-lifetime NPC identity carried by delayed actions instead of a live object reference. */
+data class NpcUid(val index: Int, val value: Long) {
+    init {
+        require(index in 0 until NpcList.DEFAULT_CAPACITY) { "NPC index is outside the world list" }
+        require(value > 0) { "NPC uid must be positive" }
     }
 }

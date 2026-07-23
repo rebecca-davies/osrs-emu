@@ -3,7 +3,7 @@ package emu.server.host.composition
 import emu.compression.HuffmanCodec
 import emu.game.content.areas.inferno.InfernoArena
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
-import emu.game.content.player.PlayerContentCatalog
+import emu.game.content.beta.BetaWorldContentCatalog
 import emu.game.content.player.login.LoginNotices
 import emu.game.content.ui.config.UiContent
 import emu.game.content.ui.config.UiContentCatalog
@@ -12,6 +12,7 @@ import emu.game.map.GameMap
 import emu.game.map.Tile
 import emu.game.npc.NpcCatalog
 import emu.game.npc.NpcList
+import emu.game.obj.NamedObjEnumCatalog
 import emu.game.obj.ObjCatalog
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.CharacterStore
@@ -37,6 +38,8 @@ import emu.server.game.world.map.CollisionMapLoader
 import emu.server.game.world.player.PlayerLifecycle
 import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.buildPlayerCommandRepository
+import emu.server.game.world.player.interaction.NpcInteractionTargetResolver
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 import emu.transport.codec.CodecRepository
 import kotlinx.coroutines.withContext
 import org.koin.dsl.module
@@ -47,7 +50,8 @@ internal fun gameModule(
     codecs: CodecRepository,
     collision: CacheCollisionMap,
     locs: LocRepository = LocRepository.EMPTY,
-    objs: ObjCatalog = ObjCatalog.EMPTY,
+    objs: ObjCatalog? = null,
+    objEnums: NamedObjEnumCatalog = NamedObjEnumCatalog.EMPTY,
     npcTypes: NpcCatalog = NpcCatalog.EMPTY,
     huffman: HuffmanCodec,
     config: GameExecutionConfig,
@@ -93,18 +97,29 @@ internal fun gameModule(
         )
     }
     single { WorldCommandQueue(config.commands) }
-    single { PlayerContentCatalog.load(get(), objs, get()) }
+    single {
+        val ui = get<UiContent>()
+        BetaWorldContentCatalog.load(
+            ui = ui,
+            inferno = get(),
+            objs = objs,
+            objEnums = objEnums,
+        )
+    }
     single { PlayerScriptRunner(get()) }
     single { buildPlayerCommandRepository(get()) }
+    single { NpcInteractionTargetResolver.usingWorld(get(), get(), npcTypes) }
     single {
         PlayerActions(
             map = get(),
+            npcTargets = get(),
             scripts = get(),
             commands = get(),
             chatAudit = get<ChatAuditSink>(),
         )
     }
     single { PlayerPhase(scripts = get()) }
+    single { PlayerInteractionProcess(map = get(), scripts = get(), npcTargets = get()) }
     single {
         PlayerLifecycle(
             world = get(),
@@ -118,6 +133,7 @@ internal fun gameModule(
             world = get(),
             commands = get(),
             actions = get(),
+            interactions = get(),
             playerPhase = get(),
             lifecycle = get(),
             output = get(),

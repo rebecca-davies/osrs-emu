@@ -7,7 +7,7 @@ package emu.game.varp
 class PlayerVarps(
     private val catalog: VarpCatalog,
     savedValues: Map<Int, Int> = emptyMap(),
-) {
+) : PlayerVariableValues {
     private val values = HashMap<Int, Int>()
     private val persistedBaseline = HashMap<Int, Int>()
     private val pendingClient = LinkedHashMap<Int, Int>()
@@ -41,6 +41,18 @@ class PlayerVarps(
         val mask = if (width == 32) -1 else (1 shl width) - 1
         return (base ushr type.bits.first) and mask
     }
+
+    /** Reads a cache-addressed varp or varbit, defaulting untracked varps to their client value zero. */
+    override operator fun get(variable: PlayerVariable): Int =
+        when (variable) {
+            is PlayerVariable.Varp -> values[variable.id] ?: 0
+            is PlayerVariable.Varbit -> {
+                val base = values[variable.baseVar] ?: 0
+                val width = variable.bits.count()
+                val mask = if (width == 32) -1 else (1 shl width) - 1
+                (base ushr variable.bits.first) and mask
+            }
+        }
 
     operator fun set(type: VarbitType, value: Int) {
         require(value.toLong() in 0..type.maxValue) {

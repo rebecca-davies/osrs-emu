@@ -3,12 +3,11 @@ package emu.server.game
 import emu.compression.HuffmanCodec
 import emu.game.content.areas.inferno.InfernoArena
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
-import emu.game.content.player.PlayerContentCatalog
+import emu.game.content.beta.BetaWorldContentCatalog
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
 import emu.game.npc.NpcCatalog
 import emu.game.npc.NpcList
-import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.script.execution.PlayerScriptRunner
 import emu.persistence.character.write.CharacterWriteQueue
@@ -23,13 +22,14 @@ import emu.server.game.world.player.PlayerLifecycle
 import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.PlayerCommandRepository
 import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
+import emu.server.game.world.player.interaction.NpcInteractionTargetResolver
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 
 /** Shared immutable Kotlin-content runtime used by world tests. */
 internal object TestPlayerContent {
     private val repository =
-        PlayerContentCatalog.load(
+        BetaWorldContentCatalog.load(
             UiContentCatalog.load(),
-            ObjCatalog.EMPTY,
             InfernoArena(
                 GameMap(OpenCollisionMap),
                 NpcCatalog.EMPTY,
@@ -43,9 +43,15 @@ internal object TestPlayerContent {
     fun actions(
         audit: ChatAuditSink = ChatAuditSink { true },
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
-    ) = PlayerActions(GameMap(OpenCollisionMap), scripts, commands, audit)
+        npcTargets: NpcInteractionTargetResolver = testNpcTargets(),
+    ) = PlayerActions(GameMap(OpenCollisionMap), npcTargets, scripts, commands, audit)
 
     fun playerPhase() = PlayerPhase(scripts)
+
+    fun interactions(
+        map: GameMap = GameMap(OpenCollisionMap),
+        npcTargets: NpcInteractionTargetResolver = testNpcTargets(),
+    ) = PlayerInteractionProcess(map, scripts, npcTargets)
 
     fun lifecycle(
         world: World,
@@ -60,13 +66,16 @@ internal object TestPlayerContent {
         commands: WorldCommandQueue = WorldCommandQueue(256),
         writes: CharacterWriteQueue = CharacterWriteQueue { DurableCharacterWrite },
         audit: ChatAuditSink = ChatAuditSink { true },
-    ) =
-        WorldCycle(
+    ): WorldCycle {
+        val npcTargets = testNpcTargets()
+        return WorldCycle(
             world,
             commands,
-            actions(audit),
+            actions(audit, npcTargets = npcTargets),
+            interactions(npcTargets = npcTargets),
             playerPhase(),
             lifecycle(world, writes),
             output(world),
         )
+    }
 }

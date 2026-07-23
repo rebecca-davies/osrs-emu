@@ -3,6 +3,7 @@ package emu.game.action
 import emu.game.chat.ChatInput
 import emu.game.command.PlayerCommandInput
 import emu.game.loc.LocOpInput
+import emu.game.npc.NpcOpInput
 import emu.game.script.input.CountDialogInput
 import emu.game.script.input.ObjDialogInput
 import emu.game.ui.ButtonClick
@@ -24,6 +25,8 @@ sealed interface PlayerAction {
     data class Command(val input: PlayerCommandInput) : PlayerAction
 
     data class LocOp(val input: LocOpInput) : PlayerAction
+
+    data class NpcOp(val input: NpcOpInput) : PlayerAction
 
     data class ResumeCountDialog(val input: CountDialogInput) : PlayerAction
 

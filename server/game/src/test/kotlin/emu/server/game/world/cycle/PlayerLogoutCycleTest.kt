@@ -8,6 +8,7 @@ import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
+import emu.game.npc.NpcList
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
 import emu.game.queue.LongActionLogout
@@ -32,6 +33,7 @@ import emu.server.game.network.output.GameOutputBatch
 import emu.server.game.network.output.GameOutputSegment
 import emu.server.game.network.output.GameOutputSink
 import emu.server.game.network.output.PlayerOutput
+import emu.server.game.testNpcTargets
 import emu.server.game.runtime.command.WorldCommandQueue
 import emu.server.game.world.World
 import emu.server.game.world.activateTestPlayer
@@ -39,6 +41,7 @@ import emu.server.game.world.addTestPlayer
 import emu.server.game.world.player.PlayerLifecycle
 import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 import emu.server.game.world.testWorld
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -337,15 +340,19 @@ class PlayerLogoutCycleTest {
         world: World,
         runner: PlayerScriptRunner,
     ): WorldCycle {
+        val map = GameMap(OpenCollisionMap)
+        val npcTargets = testNpcTargets()
         return WorldCycle(
             world,
             WorldCommandQueue(capacity = 8),
             PlayerActions(
-                GameMap(OpenCollisionMap),
+                map,
+                npcTargets,
                 runner,
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
             ),
+            PlayerInteractionProcess(map, runner, npcTargets),
             PlayerPhase(runner),
             PlayerLifecycle(world, CharacterWriteQueue { DurableCharacterWrite }, runner),
             PlayerOutput(

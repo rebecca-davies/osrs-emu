@@ -10,6 +10,8 @@ data class Loc(
     val angle: Int,
     val width: Int,
     val length: Int,
+    /** Blocked approach directions, already rotated into world orientation. */
+    val forceApproachFlags: Int = 0,
     val options: Set<Int>,
     val subOptions: Map<Int, Set<Int>> = emptyMap(),
 ) {
@@ -18,6 +20,7 @@ data class Loc(
         require(shape in 0..31) { "loc shape must fit five bits" }
         require(angle in 0..3) { "loc angle must be in 0..3" }
         require(width > 0 && length > 0) { "loc footprint must be positive" }
+        require(forceApproachFlags in 0..0xF) { "loc force-approach flags must fit four directions" }
         require(options.all { it in 1..5 }) { "loc options must be in 1..5" }
         require(subOptions.keys.all { it in options }) { "loc sub-options require a matching option" }
     }
@@ -26,12 +29,4 @@ data class Loc(
     fun supports(option: Int, subOption: Int): Boolean =
         if (subOption == 0) option in options else subOption in subOptions[option].orEmpty()
 
-    /** Whether [position] is outside and directly adjacent to this loc's occupied rectangle. */
-    fun isAdjacentTo(position: Tile): Boolean {
-        if (position.plane != tile.plane) return false
-        val east = tile.x + width - 1
-        val north = tile.y + length - 1
-        return ((position.x == tile.x - 1 || position.x == east + 1) && position.y in tile.y..north) ||
-            ((position.y == tile.y - 1 || position.y == north + 1) && position.x in tile.x..east)
-    }
 }

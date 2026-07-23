@@ -8,7 +8,7 @@ import emu.game.chat.PublicChatInput
 import emu.game.command.PlayerCommandInput
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.areas.inferno.InfernoArena
-import emu.game.content.player.PlayerContentCatalog
+import emu.game.content.beta.BetaWorldContentCatalog
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.config.UiComponentMap
 import emu.game.content.ui.config.UiContentCatalog
@@ -20,9 +20,9 @@ import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.npc.NpcCatalog
 import emu.game.npc.NpcList
-import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.player.Player
+import emu.game.player.interaction.PlayerInteraction
 import emu.game.script.execution.PlayerScriptRunner
 import emu.game.script.trigger.ServerTriggerType
 import emu.game.script.trigger.PlayerScriptRepository
@@ -33,12 +33,14 @@ import emu.persistence.character.model.CharacterRecord
 import emu.persistence.chat.ChatAuditMessage
 import emu.persistence.chat.ChatAuditSink
 import emu.server.game.network.output.GameOutputSink
+import emu.server.game.testNpcTargets
 import emu.server.game.world.World
 import emu.server.game.world.addTestPlayer
 import emu.server.game.world.player.command.PlayerCommandRepository
 import emu.server.game.world.player.command.PlayerCommandRepositoryBuilder
 import emu.server.game.world.player.command.bot.BotClientRequestResult
 import emu.server.game.world.player.command.buildPlayerCommandRepository
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 import emu.server.game.world.testWorld
 import emu.server.session.account.AccountPrivilege
 import java.time.Clock
@@ -104,6 +106,7 @@ class PlayerActionsTest {
         val actions =
             PlayerActions(
                 worldMap(),
+                testNpcTargets(),
                 PlayerScriptRunner(scripts),
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
@@ -188,6 +191,7 @@ class PlayerActionsTest {
         val actions =
             PlayerActions(
                 worldMap(),
+                testNpcTargets(),
                 runner,
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
@@ -222,10 +226,12 @@ class PlayerActionsTest {
                 OpenCollisionMap,
                 locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
             )
+        val runner = PlayerScriptRunner(content(map))
         val actions =
             PlayerActions(
                 map,
-                PlayerScriptRunner(content(map)),
+                testNpcTargets(),
+                runner,
                 PlayerCommandRepositoryBuilder().build(),
                 ChatAuditSink { true },
             )
@@ -237,19 +243,198 @@ class PlayerActionsTest {
             ),
         )
 
+        assertEquals(config.clanWarsArrival, player.movement.position)
+        assertNotNull(player.interaction)
+        PlayerInteractionProcess(map, runner, testNpcTargets()).beforeMovement(player)
+
         assertEquals(config.arenaArrival, player.movement.position)
         assertEquals(MapInstance.privateTo(player.id), player.mapInstance)
         assertEquals(
             listOf(
                 "Inferno free mode started empty and paused.",
-                "Equipment tab: choose gear, place NPCs, pause, or clear the arena.",
+                "Use the Inferno Editor quest tab to configure the arena.",
             ),
             player.takeGameMessages(),
         )
     }
 
     @Test
-    fun `loc action rejects a valid type when the player is not adjacent`() {
+    fun `loc action closes a modal and completes through the player phase`() {
+        val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
+        val loc =
+            Loc(
+                type = 1,
+                tile = Tile(3_121, 3_620),
+                shape = 10,
+                angle = 0,
+                width = 1,
+                length = 1,
+                options = setOf(1),
+            )
+        val map = GameMap(OpenCollisionMap, LocRepository { type, tile -> loc.takeIf { type == 1 && tile == loc.tile } })
+        var triggered = false
+        val runner =
+            PlayerScriptRunner(
+                PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {
+                    onLoc1(loc.type) { triggered = true }
+                },
+            )
+        player.interfaces.openModal(Component.of(161, 50), 200)
+
+        PlayerActions(
+            map,
+            testNpcTargets(),
+            runner,
+            PlayerCommandRepositoryBuilder().build(),
+            ChatAuditSink { true },
+        ).apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(loc.type, loc.tile.x, loc.tile.y, option = 1)),
+        )
+
+        assertFalse(player.interfaces.hasModal())
+        assertFalse(triggered)
+        assertNotNull(player.interaction)
+        PlayerInteractionProcess(map, runner, testNpcTargets()).beforeMovement(player)
+        assertTrue(triggered)
+        assertNull(player.interaction)
+    }
+
+    @Test
+    fun `invalid modal loc action preserves an established walking route`() {
+        val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
+        val map = GameMap(OpenCollisionMap)
+        val previousTarget =
+            Loc(
+                type = 1,
+                tile = Tile(3_128, 3_620),
+                shape = 10,
+                angle = 0,
+                width = 1,
+                length = 1,
+                options = setOf(1),
+            )
+        player.walkTo(Tile(3_125, 3_620))
+        map.resolveRoute(player)
+        player.beginInteraction(
+            PlayerInteraction.LocOp(
+                previousTarget,
+                option = 1,
+                subOption = 0,
+                mapInstance = player.mapInstance,
+            ),
+        )
+        player.pathTo(previousTarget)
+        player.interfaces.openModal(Component.of(161, 50), 200)
+
+        PlayerActions(
+            map,
+            testNpcTargets(),
+            PlayerScriptRunner(PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {}),
+            PlayerCommandRepositoryBuilder().build(),
+            ChatAuditSink { true },
+        ).apply(
+            player,
+            PlayerAction.LocOp(
+                LocOpInput(previousTarget.type + 1, previousTarget.tile.x, previousTarget.tile.y, option = 1),
+            ),
+        )
+
+        assertFalse(player.interfaces.hasModal())
+        assertNull(player.interaction)
+        assertNull(map.resolveRoute(player))
+        assertTrue(player.movement.hasRoute)
+        map.advance(player)
+        assertEquals(CharacterPosition(3_121, 3_620, 0), player.movement.position.toPosition())
+    }
+
+    @Test
+    fun `control temporarily reverses run for a loc route`() {
+        val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
+        val loc =
+            Loc(
+                type = 1,
+                tile = Tile(3_128, 3_620),
+                shape = 10,
+                angle = 0,
+                width = 1,
+                length = 1,
+                options = setOf(1),
+            )
+        val map = GameMap(OpenCollisionMap, LocRepository { type, tile -> loc.takeIf { type == 1 && tile == loc.tile } })
+        val runner = PlayerScriptRunner(PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {})
+
+        PlayerActions(
+            map,
+            testNpcTargets(),
+            runner,
+            PlayerCommandRepositoryBuilder().build(),
+            ChatAuditSink { true },
+        ).apply(
+            player,
+            PlayerAction.LocOp(
+                LocOpInput(loc.type, loc.tile.x, loc.tile.y, option = 1, controlKey = true),
+            ),
+        )
+        map.resolveRoute(player)
+        val interactions = PlayerInteractionProcess(map, runner, testNpcTargets())
+        interactions.beforeMovement(player)
+        map.advance(player)
+        interactions.afterMovement(player)
+
+        assertFalse(player.movement.runEnabled)
+        assertEquals(CharacterPosition(3_122, 3_620, 0), player.movement.position.toPosition())
+    }
+
+    @Test
+    fun `Inferno exit portal click paths back to the shared hub`() {
+        val config = InfernoFreeModeCatalog.load()
+        val (_, player) = player(position = config.clanWarsArrival.toPosition())
+        val exit =
+            Loc(
+                type = config.exitPortalType,
+                tile = Tile(2_269, 5_325),
+                shape = 10,
+                angle = 0,
+                width = 5,
+                length = 4,
+                options = setOf(1),
+            )
+        val map = GameMap(OpenCollisionMap, LocRepository { type, tile -> exit.takeIf { type == exit.type && tile == exit.tile } })
+        val arena = InfernoArena(map, NpcCatalog.EMPTY, NpcList(), config)
+        val runner = PlayerScriptRunner(BetaWorldContentCatalog.load(UiContentCatalog.load(), arena))
+        val actions =
+            PlayerActions(
+                map,
+                testNpcTargets(),
+                runner,
+                PlayerCommandRepositoryBuilder().build(),
+                ChatAuditSink { true },
+            )
+        arena.enter(player)
+        player.buildArea.recenterIfRequired(player.movement.position)
+        player.finishCycle()
+
+        actions.apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(exit.type, exit.tile.x, exit.tile.y, option = 1)),
+        )
+        map.resolveRoute(player)
+        val interactions = PlayerInteractionProcess(map, runner, testNpcTargets())
+        repeat(12) {
+            interactions.beforeMovement(player)
+            map.advance(player)
+            interactions.afterMovement(player)
+        }
+
+        assertEquals(config.clanWarsArrival, player.movement.position)
+        assertEquals(MapInstance.SHARED, player.mapInstance)
+        assertNull(player.interaction)
+        assertEquals(listOf("You leave the Inferno."), player.takeGameMessages())
+    }
+
+    @Test
+    fun `loc action paths to the authoritative footprint before triggering content`() {
         val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
         val portal =
             Loc(
@@ -272,9 +457,102 @@ class PlayerActionsTest {
                 locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
             )
 
+        val runner = PlayerScriptRunner(scripts)
+        val actions = PlayerActions(
+            map,
+            testNpcTargets(),
+            runner,
+            PlayerCommandRepositoryBuilder().build(),
+            ChatAuditSink { true },
+        )
+        actions.apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(portal.type, portal.tile.x, portal.tile.y, option = 1)),
+        )
+
+        assertFalse(triggered)
+        assertNotNull(player.interaction)
+        map.resolveRoute(player)
+        val interactions = PlayerInteractionProcess(map, runner, testNpcTargets())
+        repeat(10) {
+            interactions.beforeMovement(player)
+            map.advance(player)
+            interactions.afterMovement(player)
+        }
+
+        assertTrue(triggered)
+        assertTrue(map.canReachLoc(player.movement.position, portal))
+        assertNull(player.interaction)
+    }
+
+    @Test
+    fun `new invalid loc action cancels the previous interaction`() {
+        val (_, player) = player(position = CharacterPosition(3_120, 3_620, 0))
+        val portal =
+            Loc(
+                type = 26_642,
+                tile = Tile(3_126, 3_620),
+                shape = 10,
+                angle = 1,
+                width = 1,
+                length = 4,
+                options = setOf(1),
+            )
+        val map =
+            GameMap(
+                OpenCollisionMap,
+                locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
+            )
+        val actions =
+            PlayerActions(
+                map,
+                testNpcTargets(),
+                PlayerScriptRunner(PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {}),
+                PlayerCommandRepositoryBuilder().build(),
+                ChatAuditSink { true },
+            )
+
+        actions.apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(portal.type, portal.tile.x, portal.tile.y, option = 1)),
+        )
+        assertNotNull(player.interaction)
+
+        actions.apply(
+            player,
+            PlayerAction.LocOp(LocOpInput(portal.type + 1, portal.tile.x, portal.tile.y, option = 1)),
+        )
+
+        assertNull(player.interaction)
+        assertNull(map.resolveRoute(player))
+        map.advance(player)
+        assertEquals(CharacterPosition(3_120, 3_620, 0), player.movement.position.toPosition())
+        assertFalse(player.movement.hasRoute)
+    }
+
+    @Test
+    fun `loc action rejects an authoritative placement outside the current build area`() {
+        val (_, player) = player(position = CharacterPosition(3_100, 3_620, 0))
+        val portal =
+            Loc(
+                type = 26_642,
+                tile = Tile(3_200, 3_620),
+                shape = 10,
+                angle = 1,
+                width = 1,
+                length = 4,
+                options = setOf(1),
+            )
+        val map =
+            GameMap(
+                OpenCollisionMap,
+                locs = LocRepository { type, tile -> portal.takeIf { it.type == type && it.tile == tile } },
+            )
+
         PlayerActions(
             map,
-            PlayerScriptRunner(scripts),
+            testNpcTargets(),
+            PlayerScriptRunner(PlayerScriptRepository.build(UiComponentMap.parse("[components]")) {}),
             PlayerCommandRepositoryBuilder().build(),
             ChatAuditSink { true },
         ).apply(
@@ -282,8 +560,8 @@ class PlayerActionsTest {
             PlayerAction.LocOp(LocOpInput(portal.type, portal.tile.x, portal.tile.y, option = 1)),
         )
 
-        assertFalse(triggered)
-        assertEquals(CharacterPosition(3_120, 3_620, 0), player.movement.position.toPosition())
+        assertEquals(CharacterPosition(3_100, 3_620, 0), player.movement.position.toPosition())
+        assertNull(player.interaction)
     }
 
     private fun actions(
@@ -292,13 +570,12 @@ class PlayerActionsTest {
         commands: PlayerCommandRepository = PlayerCommandRepositoryBuilder().build(),
     ): PlayerActions {
         val map = worldMap()
-        return PlayerActions(map, PlayerScriptRunner(content(map)), commands, audit, clock)
+        return PlayerActions(map, testNpcTargets(), PlayerScriptRunner(content(map)), commands, audit, clock)
     }
 
     private fun content(map: GameMap) =
-        PlayerContentCatalog.load(
+        BetaWorldContentCatalog.load(
             UiContentCatalog.load(),
-            ObjCatalog.EMPTY,
             InfernoArena(map, NpcCatalog.EMPTY, NpcList(), InfernoFreeModeCatalog.load()),
         )
 

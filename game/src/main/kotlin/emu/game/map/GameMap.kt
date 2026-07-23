@@ -8,6 +8,8 @@ import emu.game.pathfinding.collision.canTravel
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.game.pathfinding.route.BfsPathfinder
 import emu.game.pathfinding.route.PathRoute
+import emu.game.pathfinding.reach.LocReachStrategy
+import emu.game.pathfinding.reach.PathingEntityReachStrategy
 import emu.game.player.Player
 
 /** World-owned loc lookup, collision, route search, and movement advancement. */
@@ -26,25 +28,77 @@ class GameMap(
     /** Resolves and consumes the player's latest coalesced route request, when present. */
     fun resolveRoute(player: Player): PathRoute? {
         val request = player.takeRouteRequest() ?: return null
-        val route = pathfinder.findPath(player.movement.position, request.destination)
-        player.movement.queueRoute(route, request.temporaryRun)
+        val route =
+            when (request) {
+                is Player.RouteRequest.Location -> {
+                    val target = request.target
+                    val loc = findLoc(target.type, target.tile)
+                    if (loc != target) {
+                        PathRoute.Failed
+                    } else {
+                        pathfinder.findPath(
+                            player.movement.position,
+                            loc.tile,
+                            loc.width,
+                            loc.length,
+                        ) { x, y ->
+                            LocReachStrategy.reached(collision, x, y, loc.tile.plane, loc)
+                        }
+                    }
+                }
+                is Player.RouteRequest.Coordinate ->
+                    pathfinder.findPath(player.movement.position, request.destination)
+                is Player.RouteRequest.PathingEntity -> {
+                    pathfinder.findPath(
+                        player.movement.position,
+                        request.position,
+                        request.size,
+                        request.size,
+                    ) { x, y ->
+                        PathingEntityReachStrategy.reached(
+                            collision,
+                            x,
+                            y,
+                            player.movement.position.plane,
+                            request.position,
+                            request.size,
+                        )
+                    }
+                }
+            }
+        when (request) {
+            is Player.RouteRequest.PathingEntity ->
+                player.movement.queuePathingEntityRoute(
+                    route,
+                    request.position,
+                    request.size,
+                    request.temporaryRun,
+                )
+            else -> player.movement.queueRoute(route, request.temporaryRun)
+        }
         return route
     }
 
     /** Finds a cache-backed loc placement that has already been prepared off the world thread. */
     fun findLoc(type: Int, tile: Tile): Loc? = locs.find(type, tile)
 
+    /** Whether [loc] is still the authoritative placement at its recorded tile. */
+    fun isCurrent(loc: Loc): Boolean = locs.isCurrent(loc)
+
     /** Whether a size-one entity can operate [loc] from [position] without crossing a wall. */
-    fun canReachLoc(position: Tile, loc: Loc): Boolean {
-        if (!loc.isAdjacentTo(position)) return false
-        val flags = collision.flagsAt(position.x, position.y, position.plane)
-        return when {
-            position.x < loc.tile.x -> flags and CollisionFlag.WALL_EAST == 0
-            position.x >= loc.tile.x + loc.width -> flags and CollisionFlag.WALL_WEST == 0
-            position.y < loc.tile.y -> flags and CollisionFlag.WALL_NORTH == 0
-            else -> flags and CollisionFlag.WALL_SOUTH == 0
-        }
-    }
+    fun canReachLoc(position: Tile, loc: Loc): Boolean =
+        LocReachStrategy.reached(collision, position.x, position.y, position.plane, loc)
+
+    /** Whether a size-one player can stand beside [target] without crossing a wall. */
+    fun canReachEntity(position: Tile, targetPosition: Tile, targetSize: Int): Boolean =
+        PathingEntityReachStrategy.reached(
+            collision,
+            position.x,
+            position.y,
+            position.plane,
+            targetPosition,
+            targetSize,
+        )
 
     /** Whether every tile in a square entity footprint is available to NPC placement. */
     fun canOccupy(position: Tile, size: Int): Boolean {

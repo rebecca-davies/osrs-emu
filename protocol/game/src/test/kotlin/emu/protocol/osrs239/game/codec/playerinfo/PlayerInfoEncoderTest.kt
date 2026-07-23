@@ -3,6 +3,9 @@ package emu.protocol.osrs239.game.codec.playerinfo
 import emu.crypto.NopStreamCipher
 import emu.crypto.StreamCipher
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
+import emu.protocol.osrs239.game.message.entity.InfoHeadbar
+import emu.protocol.osrs239.game.message.entity.InfoHitmark
+import emu.protocol.osrs239.game.message.entity.InfoSpotAnimation
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerBody
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
@@ -13,6 +16,7 @@ import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
 import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.protocol.osrs239.game.prot.GameServerProt
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -146,6 +150,69 @@ class PlayerInfoEncoderTest {
         val body = PlayerInfoEncoder.encode(NopStreamCipher, PlayerInfo(sequence = PlayerSequence(-1)))
 
         assertEquals(listOf(0xFF, 0x7F, 0x00), body.slice(4..6).map { it.toInt() and 0xFF })
+    }
+
+    @Test
+    fun `combat visuals use the rev 239 three-byte flags and block order`() {
+        val body =
+            PlayerInfoEncoder.encode(
+                NopStreamCipher,
+                PlayerInfo(
+                    PlayerInfoSections(
+                        highResolutionActive =
+                            listOf(
+                                PlayerInfoBitCode.HighResolution(
+                                    update =
+                                        PlayerInfoUpdate(
+                                            sequence = PlayerSequence(0x5678, delay = 5),
+                                            hitmarks = listOf(InfoHitmark(type = 12, value = 0, delay = 2)),
+                                            headbars = listOf(InfoHeadbar(type = 0, startFill = 15)),
+                                            spotAnimations =
+                                                listOf(
+                                                    InfoSpotAnimation(
+                                                        slot = 0,
+                                                        id = 0x1234,
+                                                        height = 9,
+                                                        delay = 10,
+                                                    ),
+                                                ),
+                                        ),
+                                    ),
+                            ),
+                        lowResolutionActive = listOf(PlayerInfoBitCode.Skip(2_046)),
+                    ),
+                ),
+            )
+
+        assertContentEquals(
+            byteArrayOf(
+                0x48,
+                0x08,
+                0x07,
+                0x7F,
+                12,
+                0,
+                2,
+                4,
+                1,
+                0,
+                0x12,
+                0xB4.toByte(),
+                0,
+                9,
+                0,
+                10,
+                0x81.toByte(),
+                0,
+                0,
+                0,
+                0x8F.toByte(),
+                0x56,
+                0xF8.toByte(),
+                5,
+            ),
+            body.copyOfRange(3, body.size),
+        )
     }
 
     @Test fun `move speed precedes appearance in rev239 extended-info order`() {

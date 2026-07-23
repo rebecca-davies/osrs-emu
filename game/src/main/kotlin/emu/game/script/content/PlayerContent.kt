@@ -4,6 +4,7 @@ import emu.game.content.ui.config.UiComponentMap
 import emu.game.content.ui.config.UiClientConstantMap
 import emu.game.content.ui.config.UiClientScriptMap
 import emu.game.loc.Loc
+import emu.game.npc.NpcOpTarget
 import emu.game.script.execution.PlayerScript
 import emu.game.script.execution.PlayerScriptContext
 import emu.game.script.queue.PlayerQueueType
@@ -52,6 +53,32 @@ class PlayerContent internal constructor(
             },
         )
     }
+
+    /** Registers content for one numbered cache-defined NPC operation on [type]. */
+    fun onNpc(
+        option: Int,
+        type: Int,
+        body: suspend PlayerScriptContext.(NpcOpTarget) -> Unit,
+    ) {
+        require(option in 1..5) { "NPC option must be in 1..5" }
+        require(type in 0 until (1 shl 14)) { "NPC type must fit the NPC information field" }
+        val trigger = ServerTriggerType.npcOperation(option)
+        bind(
+            ScriptTrigger(trigger, type),
+            PlayerScript("[opnpc$option,$type]") {
+                require(argument is NpcOpTarget) {
+                    "opnpc$option $type requires its resolved NPC target"
+                }
+                body(argument)
+            },
+        )
+    }
+
+    /** Registers content for the cache-defined second operation on [type]. */
+    fun onNpc2(
+        type: Int,
+        body: suspend PlayerScriptContext.(NpcOpTarget) -> Unit,
+    ) = onNpc(option = 2, type = type, body = body)
 
     /** Registers content run when a modal rooted at the named interface closes. */
     fun onClose(

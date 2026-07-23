@@ -68,6 +68,21 @@ class BfsPathfinderTest {
     }
 
     @Test
+    fun `rectangular target stops at its first accepted interaction tile`() {
+        val pathfinder = BfsPathfinder(OpenCollisionMap)
+        val destination = Tile(10, 10)
+
+        val route =
+            pathfinder.findPath(Tile(5, 10), destination, width = 2, length = 3) { x, y ->
+                x == 9 && y in 10..12
+            }
+
+        assertTrue(route.success)
+        assertFalse(route.alternative)
+        assertEquals(Tile(9, 10), route.waypoints.last())
+    }
+
+    @Test
     fun `different planes never produce a route`() {
         val route = BfsPathfinder(OpenCollisionMap).findPath(Tile(0, 0, 0), Tile(1, 1, 1))
 

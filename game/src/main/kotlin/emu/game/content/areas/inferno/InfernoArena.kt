@@ -17,39 +17,91 @@ class InfernoArena(
 ) {
     private val simulations = arrayOfNulls<InfernoSimulation>(Player.MAX_CLIENT_INDEX + 1)
 
+    init {
+        config.editorRoster.entries.forEach { editorNpc ->
+            types[editorNpc.type]?.let { cacheNpc ->
+                require(cacheNpc.name.equals(editorNpc.displayName, ignoreCase = true)) {
+                    "Inferno editor NPC ${editorNpc.type} is named '${editorNpc.displayName}', " +
+                        "but the cache names it '${cacheNpc.name}'"
+                }
+            }
+        }
+    }
+
     /** Whether [player] currently owns and occupies an active Inferno simulation. */
     fun isActive(player: Player): Boolean = activeSimulation(player) != null
 
-    /** Resolves an NPC selection only for a player inside their Inferno simulation. */
-    fun selectNpc(player: Player, type: Int): InfernoNpcSelection {
-        if (!isActive(player)) return InfernoNpcSelection.NotInArena
-        val npcType = types[type] ?: return InfernoNpcSelection.UnknownType
+    /** Selects one roster entry for the player's next placement. */
+    fun selectNpcAt(player: Player, index: Int): InfernoNpcSelection {
+        val simulation = activeSimulation(player) ?: return InfernoNpcSelection.NotInArena
+        val editorNpc = config.editorRoster[index] ?: return InfernoNpcSelection.UnknownType
+        val npcType = types[editorNpc.type] ?: return InfernoNpcSelection.UnknownType
+        simulation.selectedNpcIndex = index
         return InfernoNpcSelection.Selected(npcType)
     }
 
     /** Resets private free-mode state and returns the player to the shared beta hub. */
     fun enterHub(player: Player) {
+        release(player)
         npcs.remove(MapInstance.privateTo(player.id))
-        simulations[player.index] = null
         player.teleportTo(config.clanWarsArrival, MapInstance.SHARED)
     }
 
     /** Starts one empty, paused Inferno instance owned by [player]. */
-    fun enter(player: Player) {
+    fun enter(player: Player): InfernoEditorState {
         val instance = MapInstance.privateTo(player.id)
+        simulations[player.index]?.let { npcs.remove(it.instance) }
         npcs.remove(instance)
-        simulations[player.index] = InfernoSimulation(player.id, instance, paused = true)
+        simulations[player.index] =
+            InfernoSimulation(
+                ownerId = player.id,
+                instance = instance,
+                paused = true,
+                selectedNpcIndex = 0,
+            )
         player.teleportTo(config.arenaArrival, instance)
+        return checkNotNull(editorState(player))
     }
 
-    /** Places one preflighted NPC and pauses the simulation when placement succeeds. */
-    fun place(
+    /** Releases private simulation resources without changing the player's position. */
+    fun release(player: Player): Int {
+        val simulation = simulations[player.index] ?: return 0
+        if (simulation.ownerId != player.id) return 0
+        simulations[player.index] = null
+        return npcs.remove(simulation.instance)
+    }
+
+    /** Current immutable editor projection, or null outside the owned simulation. */
+    fun editorState(player: Player): InfernoEditorState? {
+        val simulation = activeSimulation(player) ?: return null
+        return simulation.toEditorState()
+    }
+
+    /** Removes all NPCs, pauses, and returns the player to the arena start tile. */
+    fun reset(player: Player): InfernoEditorState? {
+        val simulation = activeSimulation(player) ?: return null
+        npcs.remove(simulation.instance)
+        simulation.paused = true
+        simulation.selectedNpcIndex = 0
+        player.teleportTo(config.arenaArrival, simulation.instance)
+        return simulation.toEditorState()
+    }
+
+    /** Places the NPC currently selected in the player's editor. */
+    fun placeSelected(player: Player, position: Tile): InfernoNpcPlacement {
+        val simulation = activeSimulation(player) ?: return InfernoNpcPlacement.NOT_IN_ARENA
+        val editorNpc = config.editorRoster[simulation.selectedNpcIndex]
+            ?: return InfernoNpcPlacement.NOT_IN_ARENA
+        val npcType = types[editorNpc.type] ?: return InfernoNpcPlacement.UNKNOWN_TYPE
+        return place(player, npcType, position)
+    }
+
+    private fun place(
         player: Player,
-        selection: InfernoNpcSelection.Selected,
+        npcType: NpcType,
         position: Tile,
     ): InfernoNpcPlacement {
         val simulation = activeSimulation(player) ?: return InfernoNpcPlacement.NOT_IN_ARENA
-        val npcType = selection.type
         if (!config.arenaBounds.contains(position, npcType.size)) {
             return InfernoNpcPlacement.OUTSIDE_ARENA
         }
@@ -97,7 +149,25 @@ class InfernoArena(
             playerTile.x in position.x until position.x + size &&
             playerTile.y in position.y until position.y + size
     }
+
+    private fun InfernoSimulation.toEditorState(): InfernoEditorState =
+        InfernoEditorState(
+            selectedNpcIndex = selectedNpcIndex,
+            selectedNpc = checkNotNull(config.editorRoster[selectedNpcIndex]),
+            paused = paused,
+            npcCount = npcs.count(instance),
+            maxNpcs = config.maxNpcs,
+        )
 }
+
+/** Immutable state rendered by the Inferno free-mode editor. */
+data class InfernoEditorState(
+    val selectedNpcIndex: Int,
+    val selectedNpc: InfernoEditorNpc,
+    val paused: Boolean,
+    val npcCount: Int,
+    val maxNpcs: Int,
+)
 
 /** Cache-backed NPC selection accepted by the Inferno editor. */
 sealed interface InfernoNpcSelection {
@@ -124,6 +194,7 @@ enum class InfernoNpcPlacement {
     OCCUPIED,
     INSTANCE_CAPACITY,
     WORLD_CAPACITY,
+    UNKNOWN_TYPE,
 }
 
 /** Pause state authorized for one character and private Inferno instance. */
@@ -131,4 +202,5 @@ private data class InfernoSimulation(
     val ownerId: Long,
     val instance: MapInstance,
     var paused: Boolean,
+    var selectedNpcIndex: Int,
 )

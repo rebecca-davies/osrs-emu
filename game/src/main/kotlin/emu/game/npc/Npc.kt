@@ -1,5 +1,10 @@
 package emu.game.npc
 
+import emu.game.entity.EntityHealthBar
+import emu.game.entity.EntityHitmark
+import emu.game.entity.EntityInfoSnapshot
+import emu.game.entity.EntityInfoUpdates
+import emu.game.entity.EntitySpotAnimation
 import emu.game.map.Direction
 import emu.game.map.MapInstance
 import emu.game.map.Tile
@@ -16,6 +21,8 @@ class Npc internal constructor(
     target: Player?,
     paused: Boolean,
 ) {
+    private val infoUpdates = EntityInfoUpdates()
+
     var position: Tile = position
         private set
 
@@ -29,6 +36,9 @@ class Npc internal constructor(
         private set
 
     var target: Player? = target
+        private set
+
+    var animationUpdate: NpcAnimation? = null
         private set
 
     internal var listPosition: Int = -1
@@ -54,9 +64,42 @@ class Npc internal constructor(
         target = null
     }
 
-    /** Clears only the movement update published during the completed world cycle. */
+    /** Requests an animation for this cycle; `-1` stops the current client animation. */
+    fun playAnimation(id: Int, delay: Int = 0) {
+        animationUpdate = NpcAnimation(id, delay)
+    }
+
+    /** Shows one bounded hitmark in this cycle's NPC information update. */
+    fun showHitmark(damage: Int, delay: Int = 0): Boolean =
+        infoUpdates.showHitmark(EntityHitmark(damage, delay))
+
+    /** Replaces this cycle's health-bar update with the latest authoritative value. */
+    fun showHealthBar(current: Int, maximum: Int, delay: Int = 0) {
+        infoUpdates.showHealthBar(EntityHealthBar(current, maximum, delay))
+    }
+
+    /** Sets one bounded spot-animation slot for this cycle's NPC information update. */
+    fun playSpotAnimation(id: Int, delay: Int = 0, height: Int = 0, slot: Int = 0): Boolean =
+        infoUpdates.playSpotAnimation(EntitySpotAnimation(id, delay, height, slot))
+
+    /** Immutable information visuals retained for every observer during this cycle. */
+    fun infoSnapshot(): EntityInfoSnapshot? = infoUpdates.snapshot()
+
+    /** Clears movement, animation, hitmark, health-bar, and spot-animation updates after output. */
     fun finishCycle() {
         movementUpdate = NpcMovementUpdate.Idle
+        infoUpdates.finishCycle()
+        animationUpdate = null
+    }
+}
+
+/** One NPC sequence request retained until cycle cleanup. */
+data class NpcAnimation(val id: Int, val delay: Int = 0) {
+    init {
+        require(id == -1 || id in 0 until 0xFFFF) {
+            "NPC animation id must fit below the unsigned-short null sentinel or be -1"
+        }
+        require(delay in 0..0xFF) { "NPC animation delay must fit an unsigned byte" }
     }
 }
 

@@ -19,6 +19,7 @@ import emu.protocol.osrs239.game.codec.component.IfOpenSubEncoder
 import emu.protocol.osrs239.game.codec.component.IfOpenTopEncoder
 import emu.protocol.osrs239.game.codec.component.IfResyncEncoder
 import emu.protocol.osrs239.game.codec.component.IfSetHideEncoder
+import emu.protocol.osrs239.game.codec.component.IfSetTextEncoder
 import emu.protocol.osrs239.game.codec.cycle.PacketGroupStartEncoder
 import emu.protocol.osrs239.game.codec.cycle.ServerTickEndEncoder
 import emu.protocol.osrs239.game.codec.inventory.UpdateInvFullEncoder
@@ -26,6 +27,7 @@ import emu.protocol.osrs239.game.codec.loc.OpLoc1Decoder
 import emu.protocol.osrs239.game.codec.movement.MoveGameClickDecoder
 import emu.protocol.osrs239.game.codec.npc.HideNpcOpsEncoder
 import emu.protocol.osrs239.game.codec.npc.NpcInfoEncoder
+import emu.protocol.osrs239.game.codec.npc.OpNpc2Decoder
 import emu.protocol.osrs239.game.codec.npc.SetNpcUpdateOriginEncoder
 import emu.protocol.osrs239.game.codec.player.LogoutEncoder
 import emu.protocol.osrs239.game.codec.player.MinimapToggleEncoder
@@ -62,6 +64,7 @@ object GameCodecs {
         CloseModalDecoder,
         IdleDecoder,
         OpLoc1Decoder,
+        OpNpc2Decoder,
         ResumePCountDialogDecoder,
         ResumePObjDialogDecoder,
     )
@@ -93,6 +96,7 @@ object GameCodecs {
         IfCloseSubEncoder,
         IfResyncEncoder,
         IfSetHideEncoder,
+        IfSetTextEncoder,
         RunClientScriptEncoder,
         CamResetEncoder,
         CamTargetPlayerEncoder,

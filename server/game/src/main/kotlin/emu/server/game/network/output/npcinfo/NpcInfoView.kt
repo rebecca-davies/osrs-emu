@@ -4,19 +4,25 @@ import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.npc.Npc
 import emu.game.npc.NpcList
+import emu.protocol.osrs239.game.message.npc.NpcInfoUpdate
 import kotlin.math.abs
 import kotlin.math.max
 
-/** Bounded NPC lookup snapshot shared by every observer during one information phase. */
+/** Bounded NPC lookup with immutable visual updates shared during one information phase. */
 internal class NpcInfoView(npcs: List<Npc>) {
     val isEmpty: Boolean = npcs.isEmpty()
     private val byIndex = arrayOfNulls<Npc>(NpcList.DEFAULT_CAPACITY)
+    private var updates: HashMap<Int, NpcInfoUpdate>? = null
     private val sharedZones = HashMap<Int, MutableList<Npc>>()
     private val privateInstances = HashMap<MapInstance, MutableList<Npc>>()
 
     init {
         for (npc in npcs) {
             byIndex[npc.index] = npc
+            npc.toInfoUpdateSnapshot()?.let { update ->
+                val snapshots = updates ?: HashMap<Int, NpcInfoUpdate>().also { updates = it }
+                snapshots[npc.index] = update
+            }
             if (npc.mapInstance == MapInstance.SHARED) {
                 sharedZones.getOrPut(zoneKey(npc.position)) { arrayListOf() } += npc
             } else {
@@ -27,6 +33,8 @@ internal class NpcInfoView(npcs: List<Npc>) {
     }
 
     operator fun get(index: Int): Npc? = byIndex.getOrNull(index)
+
+    fun update(index: Int): NpcInfoUpdate? = updates?.get(index)
 
     fun isVisible(position: Tile, mapInstance: MapInstance, npc: Npc): Boolean =
         mapInstance == npc.mapInstance && position.plane == npc.position.plane &&

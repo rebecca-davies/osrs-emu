@@ -3,7 +3,6 @@ package emu.game.pathfinding.route
 import emu.game.map.Tile
 import emu.game.pathfinding.collision.CollisionMap
 import emu.game.pathfinding.collision.canTravel
-import kotlin.math.abs
 
 /**
  * Size-one, eight-direction BFS port of Blurite's RuneScape pathfinder.
@@ -30,7 +29,20 @@ class BfsPathfinder(
     }
 
     /** Finds a shortest route from [source] to [destination], or a move-near alternative. */
-    fun findPath(source: Tile, destination: Tile): PathRoute {
+    fun findPath(source: Tile, destination: Tile): PathRoute =
+        findPath(source, destination, width = 1, length = 1) { x, y ->
+            x == destination.x && y == destination.y
+        }
+
+    /** Finds a shortest route to any tile accepted by a bounded rectangular target. */
+    fun findPath(
+        source: Tile,
+        destination: Tile,
+        width: Int,
+        length: Int,
+        reached: (x: Int, y: Int) -> Boolean,
+    ): PathRoute {
+        require(width > 0 && length > 0) { "route target footprint must be positive" }
         if (source.plane != destination.plane) return PathRoute.Failed
         directions.fill(0)
         distances.fill(UNREACHED_DISTANCE)
@@ -64,7 +76,7 @@ class BfsPathfinder(
         while (reader < writer) {
             currentX = queueX[reader]
             currentY = queueY[reader++]
-            if (currentX == destinationX && currentY == destinationY) {
+            if (reached(currentX + baseX, currentY + baseY)) {
                 pathFound = true
                 break
             }
@@ -110,7 +122,14 @@ class BfsPathfinder(
 
         if (!pathFound) {
             if (!moveNear) return PathRoute.Failed
-            val alternative = closestApproach(destinationX, destinationY, distances) ?: return PathRoute.Failed
+            val alternative =
+                closestApproach(
+                    destinationX,
+                    destinationY,
+                    width,
+                    length,
+                    distances,
+                ) ?: return PathRoute.Failed
             currentX = alternative.first
             currentY = alternative.second
         }
@@ -134,18 +153,26 @@ class BfsPathfinder(
         return PathRoute.Failed
     }
 
-    private fun closestApproach(destinationX: Int, destinationY: Int, distances: IntArray): Pair<Int, Int>? {
+    private fun closestApproach(
+        destinationX: Int,
+        destinationY: Int,
+        width: Int,
+        length: Int,
+        distances: IntArray,
+    ): Pair<Int, Int>? {
         var lowestCost = MAX_ALTERNATIVE_COST
         var shortestPath = MAX_ALTERNATIVE_DISTANCE
         var result: Pair<Int, Int>? = null
         val valid = 0 until searchMapSize
-        for (x in destinationX - ALTERNATIVE_RADIUS..destinationX + ALTERNATIVE_RADIUS) {
-            for (y in destinationY - ALTERNATIVE_RADIUS..destinationY + ALTERNATIVE_RADIUS) {
+        val destinationEast = destinationX + width - 1
+        val destinationNorth = destinationY + length - 1
+        for (x in destinationX - ALTERNATIVE_RADIUS..destinationEast + ALTERNATIVE_RADIUS) {
+            for (y in destinationY - ALTERNATIVE_RADIUS..destinationNorth + ALTERNATIVE_RADIUS) {
                 if (x !in valid || y !in valid) continue
                 val distance = distances[y * searchMapSize + x]
                 if (distance >= MAX_ALTERNATIVE_DISTANCE) continue
-                val dx = abs(x - destinationX)
-                val dy = abs(y - destinationY)
+                val dx = axisDistance(x, destinationX, destinationEast)
+                val dy = axisDistance(y, destinationY, destinationNorth)
                 val cost = dx * dx + dy * dy
                 if (cost < lowestCost || cost == lowestCost && distance < shortestPath) {
                     lowestCost = cost
@@ -156,6 +183,13 @@ class BfsPathfinder(
         }
         return result
     }
+
+    private fun axisDistance(value: Int, minimum: Int, maximum: Int): Int =
+        when {
+            value < minimum -> minimum - value
+            value > maximum -> value - maximum
+            else -> 0
+        }
 
     private companion object {
         const val DEFAULT_SEARCH_MAP_SIZE = 128

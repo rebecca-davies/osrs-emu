@@ -23,15 +23,14 @@ object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
             alignToByte(bits)
         }
         val gpi = bits.toByteArray()
-        if (updates.isEmpty()) return gpi
+        if (updates.isEmpty()) return validatedBody(gpi)
 
         val blocks = updates.map(PlayerInfoExtendedEncoder::encode)
         val bodySize = gpi.size + blocks.sumOf(ByteArray::size)
-        require(bodySize <= MAX_BODY_SIZE) { "player-info body exceeds its variable-short frame" }
         val out = JagexBuffer.alloc(bodySize)
         out.writeBytes(gpi)
         blocks.forEach(out::writeBytes)
-        return out.array
+        return validatedBody(out.array)
     }
 
     private fun encode(
@@ -194,6 +193,11 @@ object PlayerInfoEncoder : CipherIndependentMessageEncoder<PlayerInfo> {
             24 -> 15
             else -> error("invalid run delta: $deltaX,$deltaY")
         }
+
+    private fun validatedBody(body: ByteArray): ByteArray {
+        require(body.size <= MAX_BODY_SIZE) { "player-info body exceeds its variable-short frame" }
+        return body
+    }
 
     private const val MAX_BODY_SIZE = 0xFFFF
     private val NEARBY_TELEPORT_DELTA = -15..15

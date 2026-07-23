@@ -83,6 +83,7 @@ class WorldRuntimeTest {
             world,
             WorldCommandQueue(capacity = 8),
             TestPlayerContent.actions(),
+            TestPlayerContent.interactions(),
             PlayerPhase(runner),
             PlayerLifecycle(world, CharacterWriteQueue { DurableCharacterWrite }, runner),
             TestPlayerContent.output(world),

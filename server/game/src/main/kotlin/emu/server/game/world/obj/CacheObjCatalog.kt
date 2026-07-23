@@ -4,10 +4,16 @@ import emu.cache.def.ItemDefinition
 import emu.game.obj.ObjCatalog
 import emu.game.obj.ObjType
 import emu.game.obj.Wearpos
+import java.util.Locale
 
 /** Maps cache item definitions into the small immutable object model owned by game. */
 class CacheObjCatalog(items: Iterable<ItemDefinition>) : ObjCatalog {
     private val types = arrayOfNulls<ObjType>(MAX_OBJ_TYPE + 1)
+    private val typesByName: Map<String, List<ObjType>> by lazy {
+        types
+            .filterNotNull()
+            .groupBy { it.name.lowercase(Locale.ROOT) }
+    }
 
     init {
         for (definition in items) {
@@ -18,6 +24,9 @@ class CacheObjCatalog(items: Iterable<ItemDefinition>) : ObjCatalog {
     }
 
     override fun get(type: Int): ObjType? = types.getOrNull(type)
+
+    override fun findByName(name: String): List<ObjType> =
+        typesByName[name.lowercase(Locale.ROOT)].orEmpty()
 
     private fun ItemDefinition.toObjType(name: String): ObjType =
         ObjType(

@@ -3,7 +3,40 @@ challenge_portal_type = 26642
 arrival = [3127, 3621, 0]
 
 [inferno]
+exit_portal_type = 30283
 arrival = [2271, 5332, 0]
 south_west = [2243, 5315, 0]
 north_east = [2298, 5371, 0]
 max_npcs = 64
+
+[[inferno.npcs]]
+type = 7690
+name = "Jal-Nib"
+
+[[inferno.npcs]]
+type = 7691
+name = "Jal-MejRah"
+
+[[inferno.npcs]]
+type = 7692
+name = "Jal-Ak"
+
+[[inferno.npcs]]
+type = 7696
+name = "Jal-ImKot"
+
+[[inferno.npcs]]
+type = 7697
+name = "Jal-Xil"
+
+[[inferno.npcs]]
+type = 7698
+name = "Jal-Zek"
+
+[[inferno.npcs]]
+type = 7699
+name = "JalTok-Jad"
+
+[[inferno.npcs]]
+type = 7700
+name = "Yt-HurKot"

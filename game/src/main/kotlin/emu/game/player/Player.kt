@@ -3,6 +3,12 @@ package emu.game.player
 import emu.game.chat.PublicChatInput
 import emu.game.content.player.PlayerVarpCatalog
 import emu.game.content.ui.gameframe.Gameframe
+import emu.game.entity.EntityHealthBar
+import emu.game.entity.EntityHitmark
+import emu.game.entity.EntityInfoSnapshot
+import emu.game.entity.EntityInfoUpdates
+import emu.game.entity.EntitySpotAnimation
+import emu.game.loc.Loc
 import emu.game.map.MapInstance
 import emu.game.map.PlayerBuildArea
 import emu.game.map.Tile
@@ -10,6 +16,7 @@ import emu.game.pathfinding.movement.PlayerMovement
 import emu.game.player.appearance.CharacterAppearance
 import emu.game.player.inventory.PlayerInventory
 import emu.game.player.inventory.PlayerWorn
+import emu.game.player.interaction.PlayerInteraction
 import emu.game.player.stat.PlayerStats
 import emu.game.queue.PlayerActionQueue
 import emu.game.script.execution.PlayerScriptExecution
@@ -31,11 +38,14 @@ class Player(
 ) {
     private var pendingRoute: RouteRequest? = null
     private val gameMessages = ArrayDeque<String>(MAX_PENDING_GAME_MESSAGES)
+    private val infoUpdates = EntityInfoUpdates()
 
     val movement = PlayerMovement(initialPosition)
     val buildArea = PlayerBuildArea(initialPosition)
 
     var mapInstance: MapInstance = MapInstance.SHARED
+        private set
+    var interaction: PlayerInteraction? = null
         private set
     val varps =
         PlayerVarps(PlayerVarpCatalog.ALL, savedVarps).apply {
@@ -90,12 +100,62 @@ class Player(
     /** Replaces the route request that the world map will resolve at its next phase boundary. */
     fun walkTo(destination: Tile, temporaryRun: Boolean? = null) {
         require(destination.plane == movement.position.plane) { "a walking route cannot change plane" }
-        pendingRoute = RouteRequest(destination, temporaryRun)
+        pendingRoute = RouteRequest.Coordinate(destination, temporaryRun)
+    }
+
+    /** Replaces the route request with one that stops at an operable tile around [target]. */
+    fun pathTo(target: Loc, temporaryRun: Boolean? = null) {
+        require(target.tile.plane == movement.position.plane) { "a walking route cannot change plane" }
+        pendingRoute = RouteRequest.Location(target, temporaryRun)
+    }
+
+    /** Replaces the route request with one that stops beside a pathing entity's current footprint. */
+    fun pathToEntity(
+        position: Tile,
+        size: Int,
+        temporaryRun: Boolean? = null,
+    ) {
+        require(position.plane == movement.position.plane) {
+            "a pathing-entity route cannot change plane"
+        }
+        require(size in 1..0xFF) { "pathing-entity size must fit an unsigned byte" }
+        pendingRoute = RouteRequest.PathingEntity(position, size, temporaryRun)
+    }
+
+    /** Replaces the current pathing interaction. */
+    fun beginInteraction(value: PlayerInteraction) {
+        interaction = value
+    }
+
+    /** Completes the expected interaction without clearing a newer replacement. */
+    fun completeInteraction(value: PlayerInteraction): Boolean {
+        if (interaction !== value) return false
+        clearInteraction()
+        return true
+    }
+
+    /** Cancels any pathing interaction while leaving ordinary player state untouched. */
+    fun clearInteraction() {
+        interaction = null
+    }
+
+    /** Clears interaction, unresolved routing, weak work, and modal state without changing established waypoints. */
+    fun clearPendingAction() {
+        pendingRoute = null
+        clearInteraction()
+        closeModal()
+    }
+
+    /** Stops ordinary movement and discards an unresolved route request. */
+    fun stopMoving() {
+        pendingRoute = null
+        movement.clearRoute()
     }
 
     /** Teleports to [destination], optionally entering another server-side map instance. */
     fun teleportTo(destination: Tile, instance: MapInstance = mapInstance) {
         pendingRoute = null
+        clearInteraction()
         mapInstance = instance
         movement.teleportTo(destination)
     }
@@ -145,9 +205,26 @@ class Player(
         animationUpdate = PlayerAnimation(id, delay)
     }
 
+    /** Shows one bounded hitmark in this cycle's player information update. */
+    fun showHitmark(damage: Int, delay: Int = 0): Boolean =
+        infoUpdates.showHitmark(EntityHitmark(damage, delay))
+
+    /** Replaces this cycle's health-bar update with the latest authoritative value. */
+    fun showHealthBar(current: Int, maximum: Int, delay: Int = 0) {
+        infoUpdates.showHealthBar(EntityHealthBar(current, maximum, delay))
+    }
+
+    /** Sets one bounded spot-animation slot for this cycle's player information update. */
+    fun playSpotAnimation(id: Int, delay: Int = 0, height: Int = 0, slot: Int = 0): Boolean =
+        infoUpdates.playSpotAnimation(EntitySpotAnimation(id, delay, height, slot))
+
+    /** Immutable information visuals retained for every observer during this cycle. */
+    fun infoSnapshot(): EntityInfoSnapshot? = infoUpdates.snapshot()
+
     /** Clears per-cycle movement and player-info state after the global output phases. */
     fun finishCycle() {
         movement.finishCycle()
+        infoUpdates.finishCycle()
         animationUpdate = null
         publicChat = null
     }
@@ -224,10 +301,32 @@ class Player(
         return request
     }
 
-    internal data class RouteRequest(
-        val destination: Tile,
-        val temporaryRun: Boolean?,
-    )
+    internal sealed interface RouteRequest {
+        val temporaryRun: Boolean?
+
+        /** One ordinary scene-tile movement request. */
+        data class Coordinate(
+            val destination: Tile,
+            override val temporaryRun: Boolean?,
+        ) : RouteRequest
+
+        /** One route to the cache-defined operable boundary of a loc. */
+        data class Location(
+            val target: Loc,
+            override val temporaryRun: Boolean?,
+        ) : RouteRequest
+
+        /** One route to the exclusive boundary of a pathing entity's current footprint. */
+        data class PathingEntity(
+            val position: Tile,
+            val size: Int,
+            override val temporaryRun: Boolean?,
+        ) : RouteRequest {
+            init {
+                require(size in 1..0xFF) { "pathing-entity size must fit an unsigned byte" }
+            }
+        }
+    }
 
     companion object {
         /** Highest player index addressable by the client player list. */

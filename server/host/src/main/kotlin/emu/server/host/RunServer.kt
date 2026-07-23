@@ -2,6 +2,7 @@ package emu.server.host
 
 import emu.cache.def.CacheItemDefinitionCatalog
 import emu.cache.def.CacheNpcDefinitionCatalog
+import emu.cache.def.CacheVarbitDefinitionCatalog
 import emu.cache.map.CacheMapRepository
 import emu.cache.map.CacheObjectDefinitionRepository
 import emu.persistence.postgres.character.writeback.CharacterSaveWriterConfig
@@ -13,6 +14,7 @@ import emu.server.game.GameService
 import emu.server.game.network.chat.loadHuffmanCodec
 import emu.server.game.world.map.CacheCollisionMap
 import emu.server.game.world.map.CacheLocRepository
+import emu.server.game.world.obj.CacheNamedObjEnumCatalog
 import emu.server.game.world.obj.CacheObjCatalog
 import emu.server.game.world.npc.CacheNpcCatalog
 import emu.server.gateway.GatewayListener
@@ -50,7 +52,12 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
     val collision = CacheCollisionMap(maps, locTypes)
     val locs = CacheLocRepository(maps, locTypes)
     val objs = CacheObjCatalog(CacheItemDefinitionCatalog(assets.store).definitions)
-    val npcTypes = CacheNpcCatalog(CacheNpcDefinitionCatalog(assets.store).definitions)
+    val objEnums = CacheNamedObjEnumCatalog(assets.store)
+    val npcTypes =
+        CacheNpcCatalog(
+            CacheNpcDefinitionCatalog(assets.store).definitions,
+            CacheVarbitDefinitionCatalog(assets.store).definitions,
+        )
     val huffman = loadHuffmanCodec(assets.store)
     val koinApplication =
         koinApplication {
@@ -63,7 +70,16 @@ suspend fun runServer(config: ServerConfig): Unit = coroutineScope {
                 js5Module(assets.store, buildJs5CodecRepository(), config.js5),
                 loginModule(assets.rsaKeyPair, config.login),
                 botModule(config.bots, assets.rsaKeyPair.publicKey),
-                gameModule(buildGameCodecRepository(), collision, locs, objs, npcTypes, huffman, config.game),
+                gameModule(
+                    buildGameCodecRepository(),
+                    collision,
+                    locs,
+                    objs,
+                    objEnums,
+                    npcTypes,
+                    huffman,
+                    config.game,
+                ),
             )
         }
     val koin = koinApplication.koin

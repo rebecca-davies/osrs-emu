@@ -27,6 +27,11 @@ class PlayerBuildArea(initialPosition: Tile) {
 
     fun localY(worldY: Int): Int = worldY - baseY
 
+    /** Whether [tile] is currently addressable by this player's normal scene. */
+    fun contains(tile: Tile): Boolean =
+        tile.x in baseX until baseX + SCENE_SIZE &&
+            tile.y in baseY until baseY + SCENE_SIZE
+
     /** Recentres around [position] when it has entered the outer 16 tiles. */
     fun recenterIfRequired(position: Tile): Boolean {
         val localX = localX(position.x)

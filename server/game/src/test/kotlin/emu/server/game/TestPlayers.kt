@@ -1,11 +1,15 @@
 package emu.server.game
 
 import emu.game.map.Tile
+import emu.game.npc.NpcCatalog
+import emu.game.npc.NpcList
+import emu.game.npc.NpcUid
 import emu.game.player.Player
 import emu.game.player.PlayerChatFilters
 import emu.game.player.StaffModLevel
 import emu.game.player.appearance.CharacterAppearance
 import emu.persistence.character.model.CharacterRecord
+import emu.server.game.world.player.interaction.NpcInteractionTargetResolver
 
 internal fun testPlayer(
     position: Tile = Tile(3_200, 3_200),
@@ -43,3 +47,11 @@ internal fun CharacterRecord.toTestPlayer(
             ),
         initialAppearance = appearance,
     )
+
+internal fun testNpcTargets(
+    npcs: NpcList = NpcList(),
+    types: NpcCatalog = NpcCatalog.EMPTY,
+    localUid: (Player, Int) -> NpcUid? = { _, index ->
+        npcs[index]?.let { npc -> NpcUid(npc.index, npc.uid) }
+    },
+): NpcInteractionTargetResolver = NpcInteractionTargetResolver(npcs, types, localUid)

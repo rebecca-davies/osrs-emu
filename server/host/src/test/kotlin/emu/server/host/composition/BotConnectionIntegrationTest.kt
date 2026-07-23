@@ -2,7 +2,7 @@ package emu.server.host.composition
 
 import emu.compression.HuffmanCodec
 import emu.crypto.Rsa
-import emu.game.content.player.PlayerContentCatalog
+import emu.game.content.beta.BetaWorldContentCatalog
 import emu.game.content.areas.inferno.InfernoArena
 import emu.game.content.areas.inferno.InfernoFreeModeCatalog
 import emu.game.content.player.login.LoginNotices
@@ -10,7 +10,6 @@ import emu.game.content.ui.config.UiContentCatalog
 import emu.game.map.GameMap
 import emu.game.npc.NpcList
 import emu.game.npc.NpcCatalog
-import emu.game.obj.ObjCatalog
 import emu.game.pathfinding.collision.CollisionMap
 import emu.game.pathfinding.collision.OpenCollisionMap
 import emu.game.script.execution.PlayerScriptRunner
@@ -49,6 +48,8 @@ import emu.server.game.world.player.action.PlayerActions
 import emu.server.game.world.player.command.bot.BotClientRequestResult
 import emu.server.game.world.player.command.bot.BotClientRequestSink
 import emu.server.game.world.player.command.buildPlayerCommandRepository
+import emu.server.game.world.player.interaction.NpcInteractionTargetResolver
+import emu.server.game.world.player.interaction.PlayerInteractionProcess
 import emu.server.gateway.GatewayConfig
 import emu.server.gateway.GatewayListener
 import emu.server.host.config.CoordinatorConfig
@@ -183,15 +184,16 @@ class BotConnectionIntegrationTest {
         val world = World(map, ui.gameframe, LoginNotices.ALL, npcs, maxPlayerIndex = 1)
         val scripts =
             PlayerScriptRunner(
-                PlayerContentCatalog.load(
+                BetaWorldContentCatalog.load(
                     ui,
-                    ObjCatalog.EMPTY,
                     InfernoArena(map, NpcCatalog.EMPTY, npcs, InfernoFreeModeCatalog.load()),
                 ),
             )
+        val npcTargets = NpcInteractionTargetResolver.usingWorld(world, npcs, NpcCatalog.EMPTY)
         val actions =
             PlayerActions(
                 map,
+                npcTargets,
                 scripts,
                 buildPlayerCommandRepository(BotClientRequestSink { BotClientRequestResult.Unavailable }),
                 ChatAuditSink { true },
@@ -206,6 +208,7 @@ class BotConnectionIntegrationTest {
                 world,
                 commands,
                 actions,
+                PlayerInteractionProcess(map, scripts, npcTargets),
                 PlayerPhase(scripts),
                 PlayerLifecycle(world, writes, scripts),
                 PlayerOutput(world, huffman, ui.gameframe),

@@ -195,4 +195,20 @@ class PlayerActionQueueTest {
         assertEquals(1, queue.removeAllEngine("same"))
         assertEquals(0, queue.engineSize)
     }
+
+    @Test
+    fun `full player queue rejects newest work across all lanes without changing order`() {
+        val queue = PlayerActionQueue<String>(capacity = 3)
+        assertTrue(queue.add("normal"))
+        assertTrue(queue.add("weak", PlayerActionPriority.WEAK))
+        assertTrue(queue.add("engine", PlayerActionPriority.ENGINE))
+
+        assertFalse(queue.addLong("rejected", delayTicks = 0, logout = LongActionLogout.DISCARD))
+        assertEquals(3, queue.size)
+
+        val calls = mutableListOf<String>()
+        queue.processPrimaryAndWeak(canAccess = { true }, execute = calls::add)
+        queue.processEngine(canAccess = { true }, execute = calls::add)
+        assertEquals(listOf("normal", "weak", "engine"), calls)
+    }
 }

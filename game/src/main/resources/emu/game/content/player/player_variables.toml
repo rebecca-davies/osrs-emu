@@ -4,6 +4,11 @@ id = 173
 scope = "permanent"
 transmit = "on_change"
 
+[varps.tournament_loadout]
+id = 261
+scope = "temporary"
+transmit = "on_change"
+
 [varps.display_name_state]
 id = 1737
 scope = "temporary"

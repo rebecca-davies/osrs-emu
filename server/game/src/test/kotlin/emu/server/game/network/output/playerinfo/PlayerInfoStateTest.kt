@@ -17,6 +17,9 @@ import emu.game.player.appearance.CharacterGender
 import emu.persistence.character.model.CharacterPosition
 import emu.persistence.character.model.CharacterRecord
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
+import emu.protocol.osrs239.game.message.entity.InfoHeadbar
+import emu.protocol.osrs239.game.message.entity.InfoHitmarkType
+import emu.protocol.osrs239.game.message.entity.InfoSpotAnimation
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfo
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
@@ -33,7 +36,9 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotSame
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 class PlayerInfoStateTest {
     @Test
@@ -89,6 +94,37 @@ class PlayerInfoStateTest {
 
         val update = info.sections.highResolutionInactive.filterIsInstance<PlayerInfoBitCode.HighResolution>().single()
         assertEquals(PlayerSequence(1234, 2), update.update?.sequence)
+    }
+
+    @Test
+    fun `player combat visuals distinguish self hitmarks from observer hitmarks`() {
+        val (world, observer, target) = twoPlayers(targetX = 3_210)
+        world.session(observer).playerInfo.next(view(world))
+        world.session(target).playerInfo.next(view(world))
+        target.showHitmark(damage = 0, delay = 2)
+        target.showHealthBar(current = 50, maximum = 99)
+        target.playSpotAnimation(id = 1_376, delay = 3, height = 4)
+        val phaseView = view(world)
+
+        val observerUpdate =
+            requireNotNull(
+                world.session(observer).playerInfo.next(phaseView).sections.highResolutionInactive
+                    .filterIsInstance<PlayerInfoBitCode.HighResolution>()
+                    .single()
+                    .update,
+            )
+        val selfUpdate = requireNotNull(localUpdate(world.session(target).playerInfo.next(phaseView)).update)
+
+        assertEquals(InfoHitmarkType.BLOCK_OTHER, observerUpdate.hitmarks.single().type)
+        assertEquals(InfoHitmarkType.BLOCK_SELF, selfUpdate.hitmarks.single().type)
+        assertEquals(InfoHeadbar(type = 0, startFill = 15), observerUpdate.headbars.single())
+        assertEquals(
+            InfoSpotAnimation(slot = 0, id = 1_376, height = 4, delay = 3),
+            observerUpdate.spotAnimations.single(),
+        )
+        assertNotSame(observerUpdate.hitmarks, selfUpdate.hitmarks)
+        assertSame(observerUpdate.headbars, selfUpdate.headbars)
+        assertSame(observerUpdate.spotAnimations, selfUpdate.spotAnimations)
     }
 
     @Test

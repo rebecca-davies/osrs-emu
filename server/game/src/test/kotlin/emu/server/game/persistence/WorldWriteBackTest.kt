@@ -40,6 +40,7 @@ class WorldWriteBackTest {
                 world = world,
                 commands = WorldCommandQueue(capacity = 8),
                 actions = TestPlayerContent.actions(),
+                interactions = TestPlayerContent.interactions(),
                 playerPhase = TestPlayerContent.playerPhase(),
                 lifecycle =
                     TestPlayerContent.lifecycle(

@@ -10,6 +10,7 @@ import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.npc.Npc
 import emu.game.npc.NpcList
+import emu.game.npc.NpcUid
 import emu.game.player.Player
 import emu.game.player.PlayerChatFilters
 import emu.game.player.StaffModLevel
@@ -249,6 +250,9 @@ class World(
     internal fun contains(playerId: Long): Boolean = players.contains(playerId)
 
     internal fun session(player: Player): GameSession = players.session(player)
+
+    internal fun resolveLocalNpc(player: Player, index: Int): NpcUid? =
+        session(player).npcInfo.resolveUid(index)
 
     internal fun writeBack(player: Player): PlayerWriteBack = players.writeBack(player)
 

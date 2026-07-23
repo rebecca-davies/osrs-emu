@@ -8,28 +8,38 @@ import emu.cache.map.codec.MapLocDecoder
 import emu.cache.map.codec.MapTileDecoder
 import emu.cache.map.model.MapSquare
 import emu.cache.store.Store
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReferenceArray
+
+/** Primitive-coordinate lookup over map squares that have already been decoded. */
+fun interface PreparedMapSquareLookup {
+    fun findPrepared(squareX: Int, squareY: Int): MapSquare?
+}
 
 /** Resolves and decodes the files in a packed rev-239 map-square group. */
-class CacheMapRepository(private val store: Store) {
+class CacheMapRepository(private val store: Store) : PreparedMapSquareLookup {
     private val groupsById: Map<Int, GroupEntry> = loadMapIndex()
-    private val decodedById = ConcurrentHashMap<Int, MapSquare>()
+    private val decodedById = AtomicReferenceArray<MapSquare?>(MAP_SQUARE_COUNT)
+    private val loadLocks = Array(LOAD_LOCK_COUNT) { Any() }
 
     fun load(squareX: Int, squareY: Int): MapSquare =
         requireNotNull(loadOrNull(squareX, squareY)) { "cache map square $squareX,$squareY is missing" }
 
     /** Returns only a square decoded by prior off-thread preparation. */
-    fun cachedOrNull(squareX: Int, squareY: Int): MapSquare? {
+    override fun findPrepared(squareX: Int, squareY: Int): MapSquare? {
         if (squareX !in 0..255 || squareY !in 0..255) return null
-        return decodedById[squareX shl 8 or squareY]
+        return decodedById.get(squareX shl 8 or squareY)
     }
 
     /** Returns a cached decoded square, or `null` when the cache has no map group for it. */
     fun loadOrNull(squareX: Int, squareY: Int): MapSquare? {
         if (squareX !in 0..255 || squareY !in 0..255) return null
         val groupId = squareX shl 8 or squareY
+        decodedById.get(groupId)?.let { return it }
         if (groupsById[groupId] == null) return null
-        return decodedById.computeIfAbsent(groupId) { decode(squareX, squareY, groupId) }
+        synchronized(loadLocks[groupId and LOAD_LOCK_MASK]) {
+            decodedById.get(groupId)?.let { return it }
+            return decode(squareX, squareY, groupId).also { decodedById.set(groupId, it) }
+        }
     }
 
     private fun decode(squareX: Int, squareY: Int, groupId: Int): MapSquare {
@@ -72,6 +82,9 @@ class CacheMapRepository(private val store: Store) {
     }
 
     private companion object {
+        const val MAP_SQUARE_COUNT = 1 shl 16
+        const val LOAD_LOCK_COUNT = 64
+        const val LOAD_LOCK_MASK = LOAD_LOCK_COUNT - 1
         const val MAPS_ARCHIVE = 5
         const val REFERENCE_ARCHIVE = 255
         const val TERRAIN_FILE_ID = 0

@@ -5,8 +5,10 @@ package emu.cache.def
  */
 enum class DefinitionType(val group: Int) {
     OBJECT(6),
+    ENUM(8),
     NPC(9),
-    ITEM(10);
+    ITEM(10),
+    VARBIT(14);
 
     companion object {
         /** The top-level cache index that holds every config group. */

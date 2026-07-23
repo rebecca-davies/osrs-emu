@@ -51,6 +51,9 @@ object GameClientProt {
     /** First menu operation on a loc, including its absolute tile and nested menu selection. */
     val OPLOC1: Prot = protocols[73]
 
+    /** Second menu operation on a client-local NPC; cache definitions use it for Attack. */
+    val OPNPC2: Prot = protocols[13]
+
     /** Integer response submitted by the active count dialog. */
     val RESUME_P_COUNTDIALOG: Prot = protocols[75]
 
@@ -69,6 +72,7 @@ object GameClientProt {
         require(CLOSE_MODAL.size == 0)
         require(IDLE.size == 0)
         require(OPLOC1.size == 8)
+        require(OPNPC2.size == 4)
         require(RESUME_P_COUNTDIALOG.size == 4)
         require(RESUME_P_OBJDIALOG.size == 2)
     }

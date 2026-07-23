@@ -33,38 +33,44 @@ class InfernoArenaTest {
         val config =
             InfernoFreeModeConfig(
                 challengePortalType = 1,
+                exitPortalType = 2,
                 clanWarsArrival = Tile(5, 5),
                 arenaArrival = Tile(10, 10),
                 arenaBounds = InfernoArenaBounds(Tile(10, 10), Tile(15, 15)),
                 maxNpcs = 2,
+                editorRoster = InfernoEditorRoster(listOf(InfernoEditorNpc(type.id, type.name))),
             )
         val arena = InfernoArena(map, types, npcs, config)
         val player = testPlayer(Tile(5, 5))
 
-        assertEquals(InfernoNpcSelection.NotInArena, arena.selectNpc(player, type.id))
-        arena.enter(player)
+        assertEquals(InfernoNpcSelection.NotInArena, arena.selectNpcAt(player, 0))
+        assertEquals(type.id, arena.enter(player).selectedNpc.type)
         assertEquals(MapInstance.privateTo(player.id), player.mapInstance)
-        val selection = assertIs<InfernoNpcSelection.Selected>(arena.selectNpc(player, type.id))
-        assertEquals(InfernoNpcPlacement.OCCUPIED, arena.place(player, selection, Tile(10, 10)))
-        assertEquals(InfernoNpcPlacement.BLOCKED, arena.place(player, selection, blocked))
-        assertEquals(InfernoNpcPlacement.OUTSIDE_ARENA, arena.place(player, selection, Tile(15, 15)))
-        assertEquals(InfernoNpcSelection.UnknownType, arena.selectNpc(player, 2))
+        assertEquals(type, assertIs<InfernoNpcSelection.Selected>(arena.selectNpcAt(player, 0)).type)
+        assertEquals(InfernoNpcPlacement.OCCUPIED, arena.placeSelected(player, Tile(10, 10)))
+        assertEquals(InfernoNpcPlacement.BLOCKED, arena.placeSelected(player, blocked))
+        assertEquals(InfernoNpcPlacement.OUTSIDE_ARENA, arena.placeSelected(player, Tile(15, 15)))
+        assertEquals(InfernoNpcSelection.UnknownType, arena.selectNpcAt(player, 1))
         assertEquals(InfernoPauseResult.RESUMED, arena.togglePaused(player))
-        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, selection, Tile(14, 10)))
+        assertEquals(InfernoNpcPlacement.PLACED, arena.placeSelected(player, Tile(14, 10)))
         assertEquals(InfernoPauseResult.RESUMED, arena.togglePaused(player))
 
         val worldBlocker = requireNotNull(npcs.add(type, Tile(20, 20), MapInstance.SHARED))
-        assertEquals(InfernoNpcPlacement.WORLD_CAPACITY, arena.place(player, selection, Tile(10, 14)))
+        assertEquals(InfernoNpcPlacement.WORLD_CAPACITY, arena.placeSelected(player, Tile(10, 14)))
         val firstPlacement = mutableListOf<Npc>().also(npcs::collect).single { it.mapInstance == player.mapInstance }
         assertFalse(firstPlacement.paused)
         assertTrue(npcs.remove(worldBlocker))
 
-        assertEquals(InfernoNpcPlacement.PLACED, arena.place(player, selection, Tile(10, 14)))
+        assertEquals(InfernoNpcPlacement.PLACED, arena.placeSelected(player, Tile(10, 14)))
         val placed = mutableListOf<Npc>().also(npcs::collect)
         assertTrue(placed.all { it.paused })
-        assertEquals(InfernoNpcPlacement.INSTANCE_CAPACITY, arena.place(player, selection, Tile(13, 13)))
+        assertEquals(InfernoNpcPlacement.INSTANCE_CAPACITY, arena.placeSelected(player, Tile(13, 13)))
         assertEquals(2, arena.clear(player))
         assertEquals(0, npcs.size)
         assertNotEquals(MapInstance.SHARED, player.mapInstance)
+        assertTrue(arena.reset(player) != null)
+        assertEquals(config.arenaArrival, player.movement.position)
+        assertEquals(0, arena.release(player))
+        assertFalse(arena.isActive(player))
     }
 }

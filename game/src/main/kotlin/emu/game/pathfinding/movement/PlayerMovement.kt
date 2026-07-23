@@ -19,6 +19,8 @@ class PlayerMovement(
 ) {
     private val waypoints = ArrayDeque<Tile>()
     private var temporaryRun: Boolean? = null
+    private var pathingTargetPosition: Tile? = null
+    private var pathingTargetSize = 0
     private var teleportOrigin: Tile? = null
 
     var position: Tile = initialPosition
@@ -34,20 +36,53 @@ class PlayerMovement(
 
     /** Replaces the current compressed waypoint queue with [route]. */
     fun queueRoute(route: PathRoute, temporaryRun: Boolean? = null) {
+        replaceRoute(route, temporaryRun, pathingTargetPosition = null, pathingTargetSize = 0)
+    }
+
+    /** Replaces the route while retaining the pathing-entity footprint it was calculated against. */
+    internal fun queuePathingEntityRoute(
+        route: PathRoute,
+        position: Tile,
+        size: Int,
+        temporaryRun: Boolean?,
+    ) {
+        require(size in 1..0xFF) { "pathing target size must fit an unsigned byte" }
+        replaceRoute(route, temporaryRun, position, size)
+    }
+
+    private fun replaceRoute(
+        route: PathRoute,
+        temporaryRun: Boolean?,
+        pathingTargetPosition: Tile?,
+        pathingTargetSize: Int,
+    ) {
         waypoints.clear()
         this.temporaryRun = null
+        this.pathingTargetPosition = pathingTargetPosition
+        this.pathingTargetSize = pathingTargetSize
         if (route.failed) return
         require(route.waypoints.all { it.plane == position.plane }) { "route changes plane without teleporting" }
         waypoints.addAll(route.waypoints)
         this.temporaryRun = temporaryRun
     }
 
+    /** Discards every remaining waypoint without changing the current tile. */
+    fun clearRoute() {
+        waypoints.clear()
+        temporaryRun = null
+        pathingTargetPosition = null
+        pathingTargetSize = 0
+    }
+
+    /** Whether the current route was calculated for this exact pathing-entity footprint. */
+    fun isRoutedTo(position: Tile, size: Int): Boolean =
+        pathingTargetPosition == position && pathingTargetSize == size
+
     /** Moves immediately, discards the route, and retains one teleport update until cleanup. */
     fun teleportTo(destination: Tile) {
         val origin = teleportOrigin ?: position
         teleportOrigin = origin
-        waypoints.clear()
-        temporaryRun = null
+        clearRoute()
         position = destination
         update =
             MovementUpdate.Teleport(

@@ -14,11 +14,13 @@ import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.MODAL
 import emu.protocol.osrs239.game.message.component.IfOpenSub.Companion.OVERLAY
 import emu.protocol.osrs239.game.message.component.IfOpenTop
 import emu.protocol.osrs239.game.message.component.IfResync
+import emu.protocol.osrs239.game.message.component.IfSetHide
+import emu.protocol.osrs239.game.message.component.IfSetText
 import emu.protocol.osrs239.game.message.client.RunClientScript
 import emu.protocol.osrs239.game.message.inventory.UpdateInvFull
 import emu.transport.message.OutgoingMessage
 
-/** Converts the configured initial gameframe into revision-239 interface messages. */
+/** Maps the configured gameframe and authoritative player UI updates to revision-239 messages. */
 internal class PlayerInterfaceOutput(private val gameframe: Gameframe) {
     private val inventoriesBySource =
         gameframe.initialInventories
@@ -92,6 +94,28 @@ internal class PlayerInterfaceOutput(private val gameframe: Gameframe) {
                     )
                 is PlayerInterfaceUpdate.RunClientScript ->
                     RunClientScript(update.script.id, update.arguments)
+                is PlayerInterfaceUpdate.SetText ->
+                    IfSetText(
+                        update.component.interfaceId,
+                        update.component.componentId,
+                        update.text,
+                    )
+                is PlayerInterfaceUpdate.SetHidden ->
+                    IfSetHide(
+                        update.component.interfaceId,
+                        update.component.componentId,
+                        update.hidden,
+                    )
+                is PlayerInterfaceUpdate.TransmitInventory ->
+                    UpdateInvFull(
+                        ROOT_INTERFACE,
+                        ROOT_INTERFACE,
+                        update.inventoryId,
+                        update.objects.map { obj ->
+                            if (obj == null) UpdateInvFull.Obj(EMPTY_OBJ, 0)
+                            else UpdateInvFull.Obj(obj.type, obj.count)
+                        },
+                    )
             }
 
         private const val ROOT_INTERFACE = -1

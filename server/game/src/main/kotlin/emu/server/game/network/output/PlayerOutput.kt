@@ -17,6 +17,7 @@ import emu.protocol.osrs239.game.message.playerinfo.PlayerSequence
 import emu.protocol.osrs239.game.message.scene.RebuildNormal
 import emu.protocol.osrs239.game.message.scene.SetActiveWorld
 import emu.server.game.network.connection.GameSession
+import emu.server.game.network.output.entity.toPlayerInfoVisualSnapshot
 import emu.server.game.network.output.npcinfo.NpcInfoView
 import emu.server.game.network.output.playerinfo.PlayerInfoSnapshot
 import emu.server.game.network.output.playerinfo.PlayerInfoView
@@ -52,6 +53,7 @@ class PlayerOutput(
                             mapInstance = player.mapInstance,
                             publicChat = player.publicChat?.let { message -> publicChat(player, message) },
                             sequence = player.animationUpdate?.let { PlayerSequence(it.id, it.delay) },
+                            visuals = player.infoSnapshot()?.toPlayerInfoVisualSnapshot(),
                         )
                     },
                 ),

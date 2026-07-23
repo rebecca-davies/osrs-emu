@@ -66,4 +66,14 @@ class JagexBufferTest {
             b.array.map { it.toInt() and 0xFF },
         )
     }
+
+    @Test fun `alternate reads reverse Jagex byte transforms`() {
+        val b = JagexBuffer(byteArrayOf(0x82.toByte(), 0xFE.toByte(), 0x7E, 0xB4.toByte(), 0x12))
+
+        assertEquals(2, b.readUByteAlt1())
+        assertEquals(2, b.readUByteAlt2())
+        assertEquals(2, b.readUByteAlt3())
+        assertEquals(0x1234, b.readUShortAlt3())
+        assertEquals(0, b.readableBytes())
+    }
 }

@@ -3,8 +3,15 @@ package emu.protocol.osrs239.game.codec.npc
 import emu.protocol.osrs239.game.message.npc.NpcInfo
 import emu.protocol.osrs239.game.message.npc.NpcInfoAddition
 import emu.protocol.osrs239.game.message.npc.NpcInfoLocal
+import emu.protocol.osrs239.game.message.npc.NpcInfoUpdate
+import emu.protocol.osrs239.game.message.npc.NpcSequence
+import emu.protocol.osrs239.game.message.entity.InfoHeadbar
+import emu.protocol.osrs239.game.message.entity.InfoHitmark
+import emu.protocol.osrs239.game.message.entity.InfoSpotAnimation
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class NpcInfoEncoderTest {
@@ -49,6 +56,82 @@ class NpcInfoEncoderTest {
         assertEquals(5, bits.remaining)
         assertEquals(0, bits.read(bits.remaining))
         assertEquals(encoded.size, bits.consumedBytes)
+    }
+
+    @Test
+    fun `extended blocks follow the rev 239 flags transforms and client order`() {
+        val update =
+            NpcInfoUpdate(
+                sequence = NpcSequence(0x1234, delay = 5),
+                hitmarks = listOf(InfoHitmark(type = 13, value = 7, delay = 2)),
+                headbars = listOf(InfoHeadbar(type = 0, startFill = 15)),
+                spotAnimations =
+                    listOf(InfoSpotAnimation(slot = 0, id = 0x5678, height = 9, delay = 10)),
+            )
+
+        val encoded =
+            NpcInfoEncoder.encode(
+                NpcInfo(
+                    locals = listOf(NpcInfoLocal.Extended(NpcInfoLocal.Idle, update)),
+                    additions = emptyList(),
+                ),
+            )
+
+        assertContentEquals(
+            byteArrayOf(
+                0x01,
+                0x9F.toByte(),
+                0xFF.toByte(),
+                0xE0.toByte(),
+                0xC0.toByte(),
+                0x08,
+                0x2C,
+                0x01,
+                0x81.toByte(),
+                13,
+                7,
+                2,
+                4,
+                0xFF.toByte(),
+                0,
+                0,
+                0,
+                0x8F.toByte(),
+                0x12,
+                0x34,
+                0xFB.toByte(),
+                0xFF.toByte(),
+                0,
+                0x56,
+                0x78,
+                0,
+                10,
+                0,
+                9,
+            ),
+            encoded,
+        )
+    }
+
+    @Test
+    fun `additions are bounded by the retained client list`() {
+        val additions =
+            List(NpcInfo.MAX_LOCAL_NPCS) { index ->
+                NpcInfoAddition(index, type = 1, deltaX = 0, deltaY = 0, orientation = 0)
+            }
+
+        val encoded = NpcInfoEncoder.encode(NpcInfo(emptyList(), additions))
+
+        assertTrue(encoded.size <= 0xFFFF)
+        assertFailsWith<IllegalArgumentException> {
+            NpcInfo(emptyList(), additions + NpcInfoAddition(300, 1, 0, 0, 0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NpcInfo(listOf(NpcInfoLocal.Idle), additions)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NpcInfo(emptyList(), listOf(additions.first(), additions.first()))
+        }
     }
 
     private class BitReader(private val bytes: ByteArray) {

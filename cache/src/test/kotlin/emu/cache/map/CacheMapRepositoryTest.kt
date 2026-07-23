@@ -33,6 +33,15 @@ class CacheMapRepositoryTest {
     }
 
     @Test
+    fun `map square loc lookup retains the first duplicate placement`() {
+        val tiles = MapTileDecoder.decode(ByteArray(4 * 64 * 64 * 2 + 1))
+        val first = MapLocSpawn(1, 0, 0, 0, shape = 10, rotation = 0)
+        val square = MapSquare(0, 0, tiles, listOf(first, first.copy(shape = 22)))
+
+        assertSame(first, square.findLoc(type = 1, plane = 0, localX = 0, localY = 0))
+    }
+
+    @Test
     fun `loads terrain and loc files from a packed rev 239 map-square group`() {
         val terrain = ByteArray(4 * 64 * 64 * 2 + 1)
         val locs = byteArrayOf(0)
@@ -86,10 +95,10 @@ class CacheMapRepositoryTest {
         )
 
         assertNull(repository.loadOrNull(49, 49))
-        assertNull(repository.cachedOrNull(50, 50))
+        assertNull(repository.findPrepared(50, 50))
         val decoded = requireNotNull(repository.loadOrNull(50, 50))
         assertSame(decoded, repository.loadOrNull(50, 50))
-        assertSame(decoded, repository.cachedOrNull(50, 50))
+        assertSame(decoded, repository.findPrepared(50, 50))
     }
 
     @Test

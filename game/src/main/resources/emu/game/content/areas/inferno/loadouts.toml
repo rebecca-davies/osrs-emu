@@ -1,0 +1,55 @@
+[[loadouts]]
+name = "Maxed Twisted Bow"
+worn = [
+    { name = "Masori mask (f)", type = 27235 },
+    { name = "Ava's assembler", type = 22109 },
+    { name = "Necklace of anguish", type = 19547 },
+    { name = "Twisted bow", type = 20997 },
+    { name = "Masori body (f)", type = 27238 },
+    { name = "Masori chaps (f)", type = 27241 },
+    { name = "Zaryte vambraces", type = 26235 },
+    { name = "Pegasian boots", type = 13237 },
+    { name = "Lightbearer", type = 25975 },
+    { name = "Dragon arrow", type = 11212, count = 10000 },
+]
+inventory = [
+    { name = "Toxic blowpipe", type = 12926 },
+    { name = "Kodai wand", type = 21006 },
+    { name = "Crystal shield (inactive)", type = 23993 },
+    { name = "Occult necklace", type = 12002 },
+    { name = "Devout boots", type = 22954 },
+    { name = "Ring of the gods (i)", type = 13202 },
+    { name = "Saradomin brew(4)", type = 6685, count = 4 },
+    { name = "Super restore(4)", type = 3024, count = 8 },
+    { name = "Bastion potion(4)", type = 22461, count = 2 },
+    { name = "Stamina potion(4)", type = 12625, count = 2 },
+    { name = "Anglerfish", type = 13441, count = 6 },
+]
+
+[[loadouts]]
+name = "Bow of faerdhinen"
+worn = [
+    { name = "Crystal helm (inactive)", type = 23973 },
+    { name = "Ava's assembler", type = 22109 },
+    { name = "Necklace of anguish", type = 19547 },
+    { name = "Bow of faerdhinen (c)", type = 25896 },
+    { name = "Crystal body (inactive)", type = 23977 },
+    { name = "Crystal legs (inactive)", type = 23981 },
+    { name = "Zaryte vambraces", type = 26235 },
+    { name = "Pegasian boots", type = 13237 },
+    { name = "Lightbearer", type = 25975 },
+]
+inventory = [
+    { name = "Twisted bow", type = 20997 },
+    { name = "Dragon arrow", type = 11212, count = 10000 },
+    { name = "Toxic blowpipe", type = 12926 },
+    { name = "Kodai wand", type = 21006 },
+    { name = "Crystal shield (inactive)", type = 23993 },
+    { name = "Occult necklace", type = 12002 },
+    { name = "Devout boots", type = 22954 },
+    { name = "Saradomin brew(4)", type = 6685, count = 4 },
+    { name = "Super restore(4)", type = 3024, count = 8 },
+    { name = "Bastion potion(4)", type = 22461, count = 2 },
+    { name = "Stamina potion(4)", type = 12625, count = 2 },
+    { name = "Anglerfish", type = 13441, count = 5 },
+]

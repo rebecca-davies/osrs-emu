@@ -60,6 +60,9 @@ object GameServerProt {
     /** Hides or shows an interface component (opcode 63, fixed 5). */
     val IF_SET_HIDE = Prot(63, 5)
 
+    /** Replaces one interface component's text (opcode 80, variable short). */
+    val IF_SET_TEXT = Prot(80, Prot.VAR_SHORT)
+
     /** Invokes a cache client script (opcode 114, variable short). */
     val RUN_CLIENT_SCRIPT = Prot(114, Prot.VAR_SHORT)
 

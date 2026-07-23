@@ -6,7 +6,7 @@ import org.tomlj.Toml
 import org.tomlj.TomlArray
 import org.tomlj.TomlTable
 
-/** Parses the Inferno free-mode content coordinates and cache type from TOML. */
+/** Parses authoritative Inferno free-mode configuration from TOML. */
 object InfernoFreeModeConfigParser {
     fun parse(source: String): InfernoFreeModeConfig {
         val result = Toml.parse(source)
@@ -17,6 +17,7 @@ object InfernoFreeModeConfigParser {
         val inferno = result.requireTable(INFERNO)
         return InfernoFreeModeConfig(
             challengePortalType = clanWars.requireInt(CHALLENGE_PORTAL_TYPE, 0..0xFFFF),
+            exitPortalType = inferno.requireInt(EXIT_PORTAL_TYPE, 0..0xFFFF),
             clanWarsArrival = clanWars.requireTile(ARRIVAL),
             arenaArrival = inferno.requireTile(ARRIVAL),
             arenaBounds =
@@ -25,6 +26,22 @@ object InfernoFreeModeConfigParser {
                     inferno.requireTile(NORTH_EAST),
                 ),
             maxNpcs = inferno.requireInt(MAX_NPCS, 1..NpcList.DEFAULT_CAPACITY),
+            editorRoster = inferno.requireEditorRoster(),
+        )
+    }
+
+    private fun TomlTable.requireEditorRoster(): InfernoEditorRoster {
+        val roster = requireNotNull(getArray(NPCS)) { "$INFERNO.$NPCS must be an array of tables" }
+        return InfernoEditorRoster(
+            List(roster.size()) { index ->
+                val npc = requireNotNull(roster.getTable(index)) {
+                    "$INFERNO.$NPCS[$index] must be a table"
+                }
+                InfernoEditorNpc(
+                    type = npc.requireInt(TYPE, NPC_TYPES),
+                    displayName = npc.requireString(NAME),
+                )
+            },
         )
     }
 
@@ -49,6 +66,12 @@ object InfernoFreeModeConfigParser {
         return value.toInt()
     }
 
+    private fun TomlTable.requireString(name: String): String {
+        val value = getString(name)
+        require(!value.isNullOrBlank()) { "$name must be a non-blank string" }
+        return value
+    }
+
     private fun TomlArray.requireInt(index: Int, range: IntRange): Int {
         val value = getLong(index)
         require(value in range.first.toLong()..range.last.toLong()) {
@@ -60,11 +83,16 @@ object InfernoFreeModeConfigParser {
     private const val CLAN_WARS = "clan_wars"
     private const val INFERNO = "inferno"
     private const val CHALLENGE_PORTAL_TYPE = "challenge_portal_type"
+    private const val EXIT_PORTAL_TYPE = "exit_portal_type"
     private const val ARRIVAL = "arrival"
     private const val SOUTH_WEST = "south_west"
     private const val NORTH_EAST = "north_east"
     private const val MAX_NPCS = "max_npcs"
+    private const val NPCS = "npcs"
+    private const val TYPE = "type"
+    private const val NAME = "name"
     private const val TILE_COMPONENTS = 3
     private val WORLD_COORDINATES = 0..0x3FFF
     private val PLANES = 0..3
+    private val NPC_TYPES = 0 until (1 shl 14)
 }

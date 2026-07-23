@@ -6,9 +6,11 @@ import emu.game.map.Tile
 import emu.game.npc.Npc
 import emu.game.npc.NpcList
 import emu.game.npc.NpcMovementUpdate
+import emu.game.npc.NpcUid
 import emu.protocol.osrs239.game.message.npc.NpcInfo
 import emu.protocol.osrs239.game.message.npc.NpcInfoAddition
 import emu.protocol.osrs239.game.message.npc.NpcInfoLocal
+import emu.protocol.osrs239.game.message.npc.NpcInfoUpdate
 
 /** Retains one connection's bounded local NPC list across information phases. */
 internal class NpcInfoState {
@@ -17,6 +19,14 @@ internal class NpcInfoState {
     private val localUids = LongArray(NpcInfo.MAX_LOCAL_NPCS)
     private val additionIndexes = IntArray(NpcInfo.MAX_LOCAL_NPCS)
     private var localCount = 0
+
+    /** Resolves the NPC identity most recently published at [index] to this client. */
+    fun resolveUid(index: Int): NpcUid? {
+        for (slot in 0 until localCount) {
+            if (localIndexes[slot] == index) return NpcUid(index, localUids[slot])
+        }
+        return null
+    }
 
     fun next(view: NpcInfoView, position: Tile, mapInstance: MapInstance): NpcInfo {
         if (localCount == 0 && view.isEmpty) return NpcInfo.EMPTY
@@ -30,7 +40,7 @@ internal class NpcInfoState {
                 locals?.add(NpcInfoLocal.Remove)
                 checkNotNull(currentTracked)[index] = false
             } else {
-                locals?.add(npc.localUpdate())
+                locals?.add(npc.localUpdate(view.update(index)))
                 localIndexes[retained] = index
                 localUids[retained] = npc.uid
                 retained++
@@ -51,7 +61,7 @@ internal class NpcInfoState {
         val active = currentTracked ?: BooleanArray(NpcList.DEFAULT_CAPACITY).also { tracked = it }
         for (slot in 0 until additionCount) {
             val npc = checkNotNull(view[additionIndexes[slot]])
-            additions += npc.additionFrom(position)
+            additions += npc.additionFrom(position, view.update(npc.index))
             active[npc.index] = true
             localIndexes[localCount] = npc.index
             localUids[localCount] = npc.uid
@@ -60,20 +70,24 @@ internal class NpcInfoState {
         return NpcInfo(locals.orEmpty(), additions)
     }
 
-    private fun Npc.additionFrom(observer: Tile): NpcInfoAddition =
+    private fun Npc.additionFrom(observer: Tile, update: NpcInfoUpdate?): NpcInfoAddition =
         NpcInfoAddition(
             index = index,
             type = type.id,
             deltaX = position.x - observer.x,
             deltaY = position.y - observer.y,
             orientation = orientation.npcInfoIndex(),
+            update = update,
         )
 
-    private fun Npc.localUpdate(): NpcInfoLocal =
-        when (val movement = movementUpdate) {
-            NpcMovementUpdate.Idle -> NpcInfoLocal.Idle
-            is NpcMovementUpdate.Walk -> NpcInfoLocal.Walk.from(movement.direction.npcInfoIndex())
-        }
+    private fun Npc.localUpdate(update: NpcInfoUpdate?): NpcInfoLocal {
+        val movement =
+            when (val value = movementUpdate) {
+                NpcMovementUpdate.Idle -> NpcInfoLocal.Idle
+                is NpcMovementUpdate.Walk -> NpcInfoLocal.Walk.from(value.direction.npcInfoIndex())
+            }
+        return update?.let { NpcInfoLocal.Extended(movement, it) } ?: movement
+    }
 
     private fun Direction.npcInfoIndex(): Int =
         when (this) {

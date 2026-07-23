@@ -160,7 +160,7 @@ internal class PlayerInfoState(private val localIndex: Int) {
             }
         if (
             appearance == null && moveSpeed == null && temporarySpeed == null &&
-                snapshot.publicChat == null && snapshot.sequence == null
+                snapshot.publicChat == null && snapshot.sequence == null && snapshot.visuals == null
         ) {
             return null
         }
@@ -170,6 +170,9 @@ internal class PlayerInfoState(private val localIndex: Int) {
             temporaryMoveSpeed = temporarySpeed,
             publicChat = snapshot.publicChat,
             sequence = snapshot.sequence,
+            hitmarks = snapshot.visuals?.hitmarks(snapshot.index == localIndex).orEmpty(),
+            headbars = snapshot.visuals?.headbars.orEmpty(),
+            spotAnimations = snapshot.visuals?.spotAnimations.orEmpty(),
         )
     }
 

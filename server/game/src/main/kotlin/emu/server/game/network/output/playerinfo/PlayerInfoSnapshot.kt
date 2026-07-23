@@ -4,6 +4,9 @@ import emu.game.map.MapInstance
 import emu.game.map.Tile
 import emu.game.pathfinding.movement.MovementUpdate
 import emu.protocol.osrs239.game.message.chat.PlayerPublicChat
+import emu.protocol.osrs239.game.message.entity.InfoHeadbar
+import emu.protocol.osrs239.game.message.entity.InfoHitmark
+import emu.protocol.osrs239.game.message.entity.InfoSpotAnimation
 import emu.protocol.osrs239.game.message.playerinfo.PlayerAppearance
 import emu.protocol.osrs239.game.message.playerinfo.PlayerInfoBitCode
 import emu.protocol.osrs239.game.message.playerinfo.PlayerMovement
@@ -19,6 +22,7 @@ internal data class PlayerInfoSnapshot(
     val mapInstance: MapInstance = MapInstance.SHARED,
     val publicChat: PlayerPublicChat? = null,
     val sequence: PlayerSequence? = null,
+    val visuals: PlayerInfoVisualSnapshot? = null,
 ) {
     val movementOnlyCode: PlayerInfoBitCode.HighResolution? =
         when (movement) {
@@ -35,4 +39,14 @@ internal data class PlayerInfoSnapshot(
 
     val protocolMovement: PlayerMovement?
         get() = movementOnlyCode?.movement
+}
+
+/** Rev-239 visual blocks shared by all observers of one source player for one information phase. */
+internal data class PlayerInfoVisualSnapshot(
+    val selfHitmarks: List<InfoHitmark>,
+    val otherHitmarks: List<InfoHitmark>,
+    val headbars: List<InfoHeadbar>,
+    val spotAnimations: List<InfoSpotAnimation>,
+) {
+    fun hitmarks(self: Boolean): List<InfoHitmark> = if (self) selfHitmarks else otherHitmarks
 }
